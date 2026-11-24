@@ -1,5 +1,10 @@
 # Changelog
 
+## v01.05.01 - 2026-11-24
+
+- The *Update* button now downloads the installer and runs it as a file,
+  which is more reliable than piping it into PowerShell.
+
 ## v01.05.00 - 2026-11-24
 
 First shared release.

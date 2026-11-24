@@ -2,7 +2,7 @@
   "file": "release.json",
   "description": "Product version and GitHub repo of Write Assist. The app compares this version with the latest GitHub release to offer updates; release.ps1 tags releases with it.",
   "author": "Luis Martinez",
-  "version": "v01.05.00",
+  "version": "v01.05.01",
   "date": "2026-11-24",
   "repo": "luigihmtz/write-assist"
 }

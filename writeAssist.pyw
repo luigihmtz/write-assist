@@ -7,11 +7,12 @@
 # and needs no API key:
 #   - Claude, through Claude Code (`claude -p`)
 #   - GitHub Copilot, through GitHub Copilot CLI (`copilot -s`)
-# Checks GitHub for new releases and updates itself through install.ps1.
+# Checks GitHub for new releases and updates itself by downloading and
+# running install.ps1.
 #
 # Author:  Luis Martinez
 # Email:   luis@luigi.mx
-# Version: v01.05.00
+# Version: v01.05.01
 # Date:    2026-11-24
 #
 # Usage: installed by install.ps1, which adds a Start Menu shortcut and a
@@ -35,6 +36,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import tkinter as tk
@@ -161,6 +163,16 @@ def latest_release(repo):
         headers={"Accept": "application/vnd.github+json"})
     with urllib.request.urlopen(request, timeout=8) as response:
         return json.load(response).get("tag_name")
+
+
+def download_installer(repo):
+    """Saves the repo's install.ps1 to the temp folder and returns its path."""
+    url = f"https://raw.githubusercontent.com/{repo}/main/install.ps1"
+    with urllib.request.urlopen(url, timeout=20) as response:
+        data = response.read()
+    path = Path(tempfile.gettempdir()) / "WriteAssist-install.ps1"
+    path.write_bytes(data)
+    return path
 
 
 def find_cli(kind, configured=""):
@@ -619,9 +631,13 @@ class App:
                           "The app closes, a window shows the update, and the app opens again.",
                 parent=self.root):
             return
-        installer = f"https://raw.githubusercontent.com/{self.repo}/main/install.ps1"
-        subprocess.Popen(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
-                          "-Command", f"irm {installer} | iex"], creationflags=NEW_CONSOLE)
+        try:
+            script = download_installer(self.repo)
+        except Exception as exc:
+            messagebox.showerror(APP_NAME, f"Couldn't download the update:\n{exc}", parent=self.root)
+            return
+        subprocess.Popen(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script)],
+                         creationflags=NEW_CONSOLE)
         self.on_close()
 
     # ---- task / provider -------------------------------------------------- #
