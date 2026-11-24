@@ -1,0 +1,163 @@
+<!doctype html>
+<!--
+index.html
+Write Assist window: Prompt and Draft fields (review or create), result with
+highlighted edits, changes and notes, thesaurus popover, speech buttons,
+settings dialog. Rendered by writeAssist.pyw in a WebView2 window.
+
+Author:  Luis Martinez
+Email:   luis@luigi.mx
+Version: v01.00.00
+Date:    2026-11-24
+
+Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
+       window.pywebview.api (see app.js).
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Write Assist</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="toolbar">
+    <label class="field">Mode
+      <select id="mode">
+        <option value="fix">fix</option>
+        <option value="polish">polish</option>
+      </select>
+    </label>
+    <label class="field">Tone
+      <select id="tone">
+        <option value="keep">keep</option>
+        <option value="more formal">more formal</option>
+        <option value="more casual">more casual</option>
+        <option value="friendlier">friendlier</option>
+        <option value="more concise">more concise</option>
+      </select>
+    </label>
+    <label class="field">AI <select id="provider"></select></label>
+    <label class="field">Model <input id="model" list="modelList" autocomplete="off" spellcheck="false"></label>
+    <datalist id="modelList"></datalist>
+    <span class="spacer"></span>
+    <button id="settingsBtn" class="ghost" title="About you, hotkey, speech">Settings</button>
+  </header>
+
+  <main class="grid">
+    <div class="column">
+      <section class="card prompt-card">
+        <div class="card-head">
+          <h2>Prompt</h2>
+          <span class="hint">context or instructions, optional for review</span>
+          <span class="spacer"></span>
+          <select id="preset" title="Insert a common prompt">
+            <option value="">Insert preset...</option>
+          </select>
+          <button class="tool mic" data-target="prompt" title="Dictate into Prompt"></button>
+          <button class="tool" data-thesaurus="prompt" title="Thesaurus for the selected word (Ctrl+T)">Thesaurus</button>
+        </div>
+        <textarea id="prompt" spellcheck="true" placeholder="e.g. Email to a client, make it shorter"></textarea>
+      </section>
+
+      <section class="card draft-card">
+        <div class="card-head">
+          <h2>Draft</h2>
+          <span class="hint">text to review, leave empty to create</span>
+          <span class="spacer"></span>
+          <button class="tool mic" data-target="draft" title="Dictate into Draft"></button>
+          <button class="tool" data-thesaurus="draft" title="Thesaurus for the selected word (Ctrl+T)">Thesaurus</button>
+          <button class="tool" id="pasteBtn" title="Paste the clipboard and review (Ctrl+Shift+V)">Paste &amp; review</button>
+          <button class="tool" id="clearBtn">Clear</button>
+        </div>
+        <textarea id="draft" spellcheck="true" placeholder="Paste or type what you wrote"></textarea>
+      </section>
+    </div>
+
+    <div class="column">
+      <section class="card result-card">
+        <div class="card-head">
+          <h2 id="resultTitle">Result</h2>
+          <span class="spacer"></span>
+          <button class="tool" data-thesaurus="result" title="Thesaurus for the selected word (Ctrl+T)">Thesaurus</button>
+          <button class="tool" id="useDraftBtn" title="Move the result into Draft">Use as draft</button>
+          <button class="tool primary-soft" id="copyBtn" title="Copy the result (Ctrl+Shift+C)">Copy</button>
+        </div>
+        <div id="result" class="result" contenteditable="plaintext-only" spellcheck="false"></div>
+      </section>
+
+      <section class="card changes-card">
+        <div class="card-head"><h2>Changes and notes</h2></div>
+        <div id="changes" class="changes"></div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="statusbar">
+    <button id="runBtn" class="primary">Review <kbd>Ctrl+Enter</kbd></button>
+    <label class="check"><input type="checkbox" id="autoCopy"> Copy result automatically</label>
+    <button id="updateBtn" class="update" hidden></button>
+    <span id="status" class="status"></span>
+  </footer>
+
+  <div id="thesaurus" class="popover" hidden>
+    <div class="popover-head">
+      <strong id="thWord"></strong>
+      <span class="spacer"></span>
+      <button class="ghost small" id="thClose" title="Close (Esc)">✕</button>
+    </div>
+    <div id="thBody" class="popover-body"></div>
+  </div>
+
+  <dialog id="settingsDialog">
+    <form method="dialog" class="dialog">
+      <h2 id="settingsTitle">Settings</h2>
+      <p id="welcomeText" class="muted" hidden>Tell Write Assist a little about you, so it corrects and writes like you. You can change this any time in Settings.</p>
+      <label class="block">About you
+        <span class="muted">Your first language, the languages you write in, what you usually write, your name.</span>
+        <textarea id="profile" rows="4" spellcheck="true"
+          placeholder="e.g. Native Spanish speaker from Mexico. I mostly write in English for work (emails, Teams) and sometimes in Spanish. My name is ..."></textarea>
+      </label>
+      <label class="block">Global hotkey
+        <span class="muted">Opens Write Assist from any app, e.g. Win+Ctrl+W or Ctrl+Alt+F9.</span>
+        <input id="hotkey" spellcheck="false">
+      </label>
+      <div class="row">
+        <label class="block">Speech model
+          <select id="speechModel">
+            <option value="base">base (faster, 145 MB)</option>
+            <option value="small">small (recommended, 465 MB)</option>
+            <option value="medium">medium (most accurate, 1.5 GB)</option>
+          </select>
+        </label>
+        <label class="block">Speech language
+          <select id="speechLanguage">
+            <option value="">Detect automatically</option>
+            <option value="en">English</option>
+            <option value="es">Spanish</option>
+          </select>
+        </label>
+      </div>
+      <p id="versionText" class="muted small"></p>
+      <p id="settingsError" class="error" hidden></p>
+      <div class="dialog-buttons">
+        <button type="button" id="settingsCancel" class="ghost">Cancel</button>
+        <button type="button" id="settingsSave" class="primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="confirmDialog">
+    <form method="dialog" class="dialog narrow">
+      <h2 id="confirmTitle"></h2>
+      <p id="confirmText"></p>
+      <div class="dialog-buttons">
+        <button type="button" id="confirmNo" class="ghost">Not now</button>
+        <button type="button" id="confirmYes" class="primary">OK</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>

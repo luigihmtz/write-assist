@@ -2,8 +2,9 @@
 
 A small Windows app that reviews and writes text with AI: messages, emails,
 posts, docs. Paste what you wrote and get it proofread, or describe what you
-need and get it written. It uses your existing Claude subscription through
-Claude Code, so there are no API keys and nothing extra to pay.
+need and get it written. It also has a context-aware thesaurus and offline
+dictation. It uses your existing Claude subscription through Claude Code, so
+there are no API keys and nothing extra to pay.
 
 ![Write Assist icon](assets/writeAssist.ico)
 
@@ -21,8 +22,8 @@ Enterprise seat; the free plan doesn't include Claude Code).
 
 3. When your browser opens, sign in to Claude.
 
-The installer sets up Python and Claude Code if they're missing, then opens
-Write Assist. No admin rights needed. On first launch it asks a little about
+The installer sets up Python (with the small pywebview package), the WebView2
+runtime and Claude Code if they're missing, then opens Write Assist. No admin rights needed. On first launch it asks a little about
 you (your languages, what you write) so it corrects and writes like you.
 
 **Open it** from the Start Menu or with **Win+Ctrl+W** from any app. To pin it
@@ -53,7 +54,9 @@ Press **Ctrl+Enter**, then **Copy** the result.
 | **Tone** | `keep` (default), or lean it: more formal, more casual, friendlier, more concise. |
 | **AI** | The AIs installed on this PC: Claude, and GitHub Copilot if its CLI is installed. |
 | **Model** | Claude: `opus` (default), `sonnet`, `haiku`. Copilot: `auto`. You can type any other model name the AI accepts. |
-| **Settings** | *About you* and the global hotkey. |
+| **Thesaurus** | Select a word (or put the cursor on it) in Prompt, Draft or the result, then click *Thesaurus* or press **Ctrl+T**: meaning, synonyms and antonyms that fit your sentence. Click one to swap it in. It asks the AI only when you click. |
+| **Dictate** | Speak into Prompt or Draft; click again to stop (Esc cancels). Transcribed on your computer with faster-whisper: free, offline, private. The first time, it offers a one-time download (speech engine about 250 MB, plus the model: 465 MB for *small*). |
+| **Settings** | *About you*, the global hotkey, and the speech model and language. |
 
 **Review** shows the corrected text with the edits highlighted, and below it
 each change (old → new) with a short reason, plus an optional note (e.g. "this
@@ -62,8 +65,8 @@ essential missing from the prompt is left as a placeholder like `[date]`.
 
 Shortcuts: **Ctrl+Enter** run · **Ctrl+Shift+V** paste the clipboard as the
 draft and review · **Ctrl+Shift+C** copy the result. *Use as draft* moves the
-result into Draft, to refine it with a new prompt. Emojis are kept as they
-are (the window shows them in black and white).
+result into Draft, to refine it with a new prompt. The result is editable, and
+emojis are kept as they are.
 
 The Draft is only ever treated as text to correct, never as instructions:
 a pasted email saying "reply ASAP with the numbers" gets proofread, not
@@ -73,7 +76,10 @@ answered.
 
 | File | Purpose |
 |---|---|
-| `writeAssist.pyw` | The app. |
+| `writeAssist.pyw` | The app: the window (pywebview on WebView2) and the bridge the page calls. |
+| `waCore.py` | Settings, Review/Create and Thesaurus requests to the AI CLIs, edit highlighting, update check. |
+| `waSpeech.py` | Offline dictation with faster-whisper, installed on first use. |
+| `ui/` | The window's page: `index.html`, `style.css`, `app.js`. |
 | `hotkeyListener.pyw` | Background listener for the global hotkey; opens or wakes the app. |
 | `system_prompt.md` | Instructions for both tasks, shared by all AIs. `{{profile}}` becomes the user's *About you*. |
 | `settings.json` | Shipped defaults: hotkey, AIs and models, timeout, font, prompt presets. |
@@ -90,9 +96,22 @@ live in `%LOCALAPPDATA%\WriteAssist\`.
 
 ## How it works
 
+The window is a local web page shown by pywebview in Microsoft's WebView2
+(built into Windows 10/11); the page calls Python through
+`window.pywebview.api`. Python grants the page microphone and clipboard
+access without prompts.
+
 Each run builds one request from the Prompt, Draft, Mode and Tone, adds
 `system_prompt.md`, and sends it to the chosen AI's command-line tool in the
 background. The AI gets no tools: it can't read files, run commands or browse.
+The thesaurus is a separate, small request, sent only when you click it, and
+cached for the session.
+
+**Dictation** records in the page (MediaRecorder, webm/opus) and hands the
+audio to faster-whisper on the CPU (int8). The model stays loaded while you
+use it and is released after 10 idle minutes. Segments Whisper marks as
+probably not speech are dropped, as are its typical phantom phrases on
+near-silence ("Thank you.", "Gracias.").
 
 **Claude:**
 

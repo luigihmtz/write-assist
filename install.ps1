@@ -1,14 +1,16 @@
 # install.ps1
 # Installs or updates Write Assist for the current Windows user, with nothing
-# to configure: makes sure Python and Claude Code are installed, downloads the
-# latest GitHub release, creates the Start Menu shortcut and the global-hotkey
-# listener, registers it in Settings > Apps, and helps sign in to Claude.
+# to configure: makes sure Python (plus the pywebview package), the WebView2
+# runtime and Claude Code are installed, downloads the latest GitHub release,
+# creates the Start Menu shortcut and the global-hotkey listener, registers it
+# in Settings > Apps, and helps sign in to Claude. The optional speech engine
+# is installed later by the app, the first time the microphone is used.
 # Run from a clone of the repo (has .git), it sets up that folder in place
 # instead of downloading (development copy).
 #
 # Author:  Luis Martinez
 # Email:   luis@luigi.mx
-# Version: v01.00.00
+# Version: v01.01.00
 # Date:    2026-11-24
 #
 # Usage:   Install or update (PowerShell):
@@ -37,7 +39,7 @@ function Install-WriteAssist {
                     [Environment]::GetEnvironmentVariable("Path", "Machine")
     }
 
-    # pythonw.exe of a Python 3.10+ that has tkinter, or $null.
+    # pythonw.exe of a Python 3.10+, or $null.
     function Find-Pythonw {
         $candidates = @()
         $py = Get-Command py.exe -ErrorAction SilentlyContinue
@@ -57,13 +59,22 @@ function Install-WriteAssist {
         foreach ($candidate in ($candidates | Where-Object { $_ } | Select-Object -Unique)) {
             $python = ($candidate -replace "pythonw\.exe$", "python.exe").Trim()
             if (-not (Test-Path $python)) { continue }
-            & $python -c "import sys, tkinter; sys.exit(0 if sys.version_info >= (3, 10) else 1)" 2>$null
+            & $python -c "import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)" 2>$null
             if ($LASTEXITCODE -eq 0) {
                 $pythonw = Join-Path (Split-Path $python) "pythonw.exe"
                 if (Test-Path $pythonw) { return $pythonw }
             }
         }
         return $null
+    }
+
+    function Test-WebView2 {
+        $client = "Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
+        foreach ($root in "HKLM:\SOFTWARE\WOW6432Node", "HKLM:\SOFTWARE", "HKCU:\SOFTWARE") {
+            $version = (Get-ItemProperty "$root\$client" -ErrorAction SilentlyContinue).pv
+            if ($version -and $version -ne "0.0.0.0") { return $true }
+        }
+        return $false
     }
 
     function Find-Claude {
@@ -166,6 +177,24 @@ public static class WriteAssistLinkAppId {
         if (-not $pythonw) { throw "Python was installed but couldn't be found. Restart the computer and run this installer again." }
     }
     Write-Ok "Python: $pythonw"
+
+    Write-Step "Checking the window components"
+    $python = Join-Path (Split-Path $pythonw) "python.exe"
+    # Windows PowerShell turns any stderr line (pip warnings) into an error under "Stop".
+    $ErrorActionPreference = "Continue"
+    & $python -m pip install --user --upgrade --quiet --disable-pip-version-check --no-warn-script-location pywebview 2>&1 |
+        ForEach-Object { "    $_" } | Out-Host
+    & $python -c "import webview" 2>$null
+    $ErrorActionPreference = "Stop"
+    if ($LASTEXITCODE -ne 0) { throw "The pywebview package couldn't be installed. Check your internet connection and run this installer again." }
+    Write-Ok "pywebview installed"
+    if (-not (Test-WebView2)) {
+        Write-Note "Installing Microsoft Edge WebView2 Runtime..."
+        winget install --exact --id Microsoft.EdgeWebView2Runtime --silent `
+            --accept-package-agreements --accept-source-agreements --disable-interactivity | Out-Host
+        if (-not (Test-WebView2)) { throw "WebView2 couldn't be installed. Get it from https://developer.microsoft.com/microsoft-edge/webview2/ and run this installer again." }
+    }
+    Write-Ok "WebView2 runtime present"
 
     # 2. Claude Code -----------------------------------------------------------
     Write-Step "Checking Claude Code"
