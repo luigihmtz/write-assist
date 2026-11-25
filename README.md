@@ -60,7 +60,7 @@ Press **Ctrl+Enter**, then **Copy** the result.
 | **Thesaurus** | Select a word (or put the cursor on it) in Prompt, Draft or the result, then click *Thesaurus* at the top or press **Ctrl+T**: meaning, synonyms and antonyms that fit your sentence. Click a synonym or antonym to **Replace** your word with it or **Search** it in turn (← goes back). You can also type any word in the panel's search box. It asks the AI only when you look something up. |
 | **Translate** | Select text (a word, a sentence, a paragraph) in Prompt, Draft or the result, then click *Translate* at the top or press **Ctrl+Shift+T**. Pick the target language; *English ⇄ Spanish* translates English into Spanish and anything else into English. Then **Replace selection**, **Use as draft** or **Copy**. For a single word it also offers other options; click one to swap it in. You can also type or paste text straight into the panel. It asks the AI only when you translate. |
 | **Dictate** | Speak into Prompt or Draft; click again to stop (Esc cancels). Transcribed on your computer with faster-whisper: free, offline, private. The first time, it offers a one-time download (speech engine about 250 MB, plus the model: 465 MB for *small*). |
-| **Settings** | *About you*, the global hotkey, the speech model and language, and the interface language (English or Spanish; by default the same as Windows). |
+| **Settings** | *About you*, the global hotkey, the microphone for dictation (by default the Windows one), the speech model and language, and the interface language (English or Spanish; by default the same as Windows). |
 
 **Review** shows the corrected text with the edits highlighted, and below it
 each change (old → new) with a short reason, plus an optional note (e.g. "this
@@ -140,6 +140,8 @@ traductor y dictado por voz.
   sin internet y es privado.
 - **Para tenerlo en la barra de tareas:** abre Inicio, haz clic derecho en
   **Write Assist** y elige **Anclar a la barra de tareas**.
+- **Micrófono:** Dictar usa el micrófono predeterminado de Windows. Para usar
+  otro, elígelo en **Ajustes > Micrófono para dictar**.
 - **El idioma de la app** sigue al de Windows. Puedes cambiarlo en
   **Ajustes > Idioma de la interfaz**.
 

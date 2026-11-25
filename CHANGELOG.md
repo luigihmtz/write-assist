@@ -1,5 +1,11 @@
 # Changelog
 
+## v02.04.00 - 2026-11-24
+
+- Settings > Microphone for dictation: choose which microphone Dictate uses,
+  or keep *Same as Windows*. If the chosen one is unplugged, Dictate uses the
+  Windows default and says so.
+
 ## v02.03.01 - 2026-11-24
 
 - The Model box is now a regular dropdown that always lists every model

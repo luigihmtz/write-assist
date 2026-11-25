@@ -5,7 +5,7 @@
 //
 // Author:  Luis Martinez
 // Email:   luis@luigi.mx
-// Version: v01.01.00
+// Version: v01.02.00
 // Date:    2026-11-24
 //
 // Usage: loaded by ui/index.html before app.js. In index.html:
@@ -156,6 +156,9 @@ const STRINGS = {
     "settings.detect": "Detect automatically",
     "settings.english": "English",
     "settings.spanish": "Spanish",
+    "settings.microphone": "Microphone for dictation",
+    "settings.micDefault": "Same as Windows",
+    "speech.micMissing": "\"{name}\" isn't connected, so the Windows default microphone is used.",
     "settings.uiLanguage": "Interface language",
     "settings.uiAuto": "Same as Windows",
     "settings.version": "Version {version}",
@@ -305,6 +308,9 @@ const STRINGS = {
     "settings.detect": "Detectar automáticamente",
     "settings.english": "Inglés",
     "settings.spanish": "Español",
+    "settings.microphone": "Micrófono para dictar",
+    "settings.micDefault": "El mismo que Windows",
+    "speech.micMissing": "\"{name}\" no está conectado, así que se usa el micrófono predeterminado de Windows.",
     "settings.uiLanguage": "Idioma de la interfaz",
     "settings.uiAuto": "El mismo que Windows",
     "settings.version": "Versión {version}",

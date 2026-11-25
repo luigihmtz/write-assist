@@ -6,7 +6,7 @@
 //
 // Author:  Luis Martinez
 // Email:   luis@luigi.mx
-// Version: v01.04.00
+// Version: v01.05.00
 // Date:    2026-11-24
 //
 // Usage: loaded by ui/index.html after i18n.js (t(), applyLanguage()). Every
@@ -35,6 +35,7 @@ const app = {
   lastField: "draft",   // last focused field, for the thesaurus and translator
   updateTag: null,
   uiLanguage: "",       // "" follows Windows
+  microphone: "",       // name of the dictation microphone; "" is the Windows default
   resultTitle: null,    // {key, provider} of the shown result
 };
 
@@ -56,6 +57,7 @@ async function init() {
   app.info = info;
   document.documentElement.style.setProperty("--fs", `${Math.round(info.font_size * 1.33)}px`);
   setUiLanguage(info.ui_language || "");
+  app.microphone = info.microphone || "";
 
   const state = info.state || {};
   // models_rev 2: Claude's default became haiku; forget models saved before that.
@@ -546,7 +548,7 @@ function replaceWithTranslation() {
 const MIC_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-2.08A7 7 0 0 0 19 12h-2Z"/></svg>';
 const micLabel = () => `${MIC_ICON}<span>${escapeHtml(t("dictate"))}</span>`;
 
-const rec = { recorder: null, stream: null, chunks: [], button: null, target: null, caret: 0, timer: null, cancelled: false };
+const rec = { recorder: null, stream: null, chunks: [], button: null, target: null, caret: 0, timer: null, cancelled: false, note: "" };
 
 function confirmBox(title, text, yesLabel = t("ok")) {
   return new Promise((resolve) => {
@@ -581,6 +583,34 @@ async function ensureSpeech(button) {
   return true;
 }
 
+// Input devices with their names. Names stay hidden until the page has used
+// the microphone once, so if they're missing the mic is opened for a moment.
+async function listMicrophones() {
+  const inputs = async () => (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "audioinput");
+  let devices = await inputs();
+  if (devices.length && !devices.some((d) => d.label)) {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach((track) => track.stop());
+    } catch { /* no permission or no microphone: names stay hidden */ }
+    devices = await inputs();
+  }
+  // "default" and "communications" are aliases of real devices, listed again by name.
+  return devices.filter((d) => d.label && d.deviceId !== "default" && d.deviceId !== "communications");
+}
+
+// The microphone chosen in Settings, found by name (device ids change between
+// sessions), or the Windows default. Sets rec.note when the chosen one is missing.
+async function openMicrophone() {
+  rec.note = "";
+  if (app.microphone) {
+    const mic = (await listMicrophones()).find((d) => d.label === app.microphone);
+    if (mic) return navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: mic.deviceId } } });
+    rec.note = t("speech.micMissing", { name: app.microphone });
+  }
+  return navigator.mediaDevices.getUserMedia({ audio: true });
+}
+
 async function toggleRecording(button) {
   if (rec.recorder) { stopRecording(); return; }
   if (button.classList.contains("busy")) return;
@@ -588,7 +618,7 @@ async function toggleRecording(button) {
 
   const target = els[button.dataset.target];
   try {
-    rec.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    rec.stream = await openMicrophone();
   } catch (err) {
     setStatus(t("speech.noMic", { error: err.name }), true);
     return;
@@ -610,7 +640,7 @@ async function toggleRecording(button) {
     const s = Math.round((Date.now() - started) / 1000);
     const time = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
     button.innerHTML = `${MIC_ICON}<span>${escapeHtml(t("dictate.stop", { time }))}</span>`;
-    setStatus(t("speech.recording"));
+    setStatus(rec.note ? `${t("speech.recording")} ${rec.note}` : t("speech.recording"));
     if (s >= 300) stopRecording();  // 5 minutes max
   };
   tick();
@@ -680,12 +710,24 @@ async function openSettings(firstRun = false) {
   $("speechModel").value = res.speech_model;
   $("speechLanguage").value = res.speech_language;
   $("uiLanguage").value = res.ui_language || "";
+  fillMicrophones(res.microphone || "");
   $("versionText").textContent = t("settings.version", { version: res.version }) + (res.is_dev ? t("settings.devCopy") : "");
   $("settingsError").hidden = true;
   const dialog = $("settingsDialog");
   dialog.dataset.firstRun = firstRun ? "1" : "";
   dialog.showModal();
   $("profile").focus();
+}
+
+// Fills the Settings microphone list; a saved microphone that isn't plugged in stays listed.
+async function fillMicrophones(selected) {
+  const select = $("microphone");
+  while (select.options.length > 1) select.remove(1);
+  const names = (await listMicrophones()).map((d) => d.label);
+  if (selected && !names.includes(selected)) names.push(selected);
+  // Shown without the USB id Chromium appends, e.g. "(0951:16a4)"; saved with it.
+  for (const name of names) select.add(new Option(name.replace(/\s*\([0-9a-f]{4}:[0-9a-f]{4}\)$/i, ""), name));
+  select.value = selected;
 }
 
 async function closeSettings(save) {
@@ -699,9 +741,10 @@ async function closeSettings(save) {
   const res = await api().save_settings({
     profile: $("profile").value, hotkey: $("hotkey").value,
     speech_model: $("speechModel").value, speech_language: $("speechLanguage").value,
-    ui_language: uiLanguage,
+    ui_language: uiLanguage, microphone: $("microphone").value,
   });
   if (!res.ok) { $("settingsError").textContent = res.error; $("settingsError").hidden = false; return; }
+  app.microphone = $("microphone").value;
   if (uiLanguage !== app.uiLanguage) setUiLanguage(uiLanguage);
   if (res.hotkey_changed && !res.hotkey_ok) {
     $("settingsError").textContent = t("settings.hotkeyFailed", { message: res.hotkey_message });

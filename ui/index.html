@@ -7,7 +7,7 @@ buttons, settings dialog. Rendered by writeAssist.pyw in a WebView2 window.
 
 Author:  Luis Martinez
 Email:   luis@luigi.mx
-Version: v01.03.00
+Version: v01.04.00
 Date:    2026-11-24
 
 Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
@@ -176,6 +176,11 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
       <label class="block"><span data-i18n="settings.hotkey">Global hotkey</span>
         <span class="muted" data-i18n="settings.hotkeyHint"></span>
         <input id="hotkey" spellcheck="false">
+      </label>
+      <label class="block"><span data-i18n="settings.microphone">Microphone for dictation</span>
+        <select id="microphone">
+          <option value="" data-i18n="settings.micDefault">Same as Windows</option>
+        </select>
       </label>
       <div class="row">
         <label class="block"><span data-i18n="settings.speechModel">Speech model</span>

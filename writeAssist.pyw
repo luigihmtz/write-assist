@@ -10,7 +10,7 @@
 #
 # Author:  Luis Martinez
 # Email:   luis@luigi.mx
-# Version: v02.03.00
+# Version: v02.04.00
 # Date:    2026-11-24
 #
 # Usage: installed by install.ps1 (Start Menu shortcut + global hotkey, default
@@ -166,6 +166,7 @@ class Bridge:
             "auto_copy_default": self._settings.get("auto_copy", False),
             "hotkey": self._settings.get("hotkey", ""),
             "ui_language": self._settings.get("ui_language", ""),
+            "microphone": self._settings.get("microphone", ""),
             "state": self._state,
             "needs_profile": "profile" not in user,
         }
@@ -294,13 +295,14 @@ class Bridge:
         return {"profile": user.get("profile", ""), "hotkey": self._settings.get("hotkey", ""),
                 "speech_model": self._speech_model(), "speech_language": self._settings.get("speech_language", ""),
                 "ui_language": self._settings.get("ui_language", ""),
+                "microphone": self._settings.get("microphone", ""),
                 "version": self._version, "is_dev": core.IS_DEV}
 
     @safely
     def save_settings(self, values):
         user = core.load_user_settings()
         user["profile"] = (values.get("profile") or "").strip()
-        for key in ("speech_model", "speech_language", "ui_language"):
+        for key in ("speech_model", "speech_language", "ui_language", "microphone"):
             if key in values:
                 user[key] = values[key]
         new_hotkey = (values.get("hotkey") or "").strip()
