@@ -1,5 +1,7 @@
 # Write Assist
 
+**[Instrucciones en español](#en-español)**
+
 A small Windows app that reviews and writes text with AI: messages, emails,
 posts, docs. Paste what you wrote and get it proofread, or describe what you
 need and get it written. It also has a context-aware thesaurus and offline
@@ -73,6 +75,78 @@ emojis are kept as they are.
 The Draft is only ever treated as text to correct, never as instructions:
 a pasted email saying "reply ASAP with the numbers" gets proofread, not
 answered.
+
+## En español
+
+Write Assist es una pequeña app para Windows que revisa y escribe tus textos
+con Claude: mensajes, correos, publicaciones. También tiene sinónimos,
+traductor y dictado por voz.
+
+**Qué necesitas**
+
+- Una computadora con Windows 10 u 11.
+- Un plan de pago de Claude (Pro o Max). El plan gratuito no funciona.
+
+### Instalar (unos 5 minutos, solo una vez)
+
+1. Haz clic en el botón de **Inicio**, escribe **PowerShell** y presiona
+   **Enter**. Se abre una ventana con fondo oscuro.
+2. Copia esta línea completa, pégala en esa ventana (con clic derecho se
+   pega) y presiona **Enter**:
+
+   ```powershell
+   irm https://raw.githubusercontent.com/luigihmtz/write-assist/main/install.ps1 | iex
+   ```
+
+3. Espera mientras se instala. Verás texto en inglés pasando por la
+   pantalla; es normal, y la primera vez puede tardar unos minutos. Si
+   Windows te pide permiso para instalar algo, haz clic en **Sí**.
+4. Tu navegador se abrirá y te pedirá iniciar sesión en Claude. Entra con tu
+   cuenta de Claude de siempre y luego regresa a la ventana de PowerShell.
+5. Cuando diga que terminó, presiona **Enter** para cerrarla. Write Assist
+   se abre solo.
+6. La primera vez te pregunta un poco sobre ti, como los idiomas en que
+   escribes. Llénalo y haz clic en **Guardar**. Así escribe más como tú.
+
+### Actualizar
+
+1. Si Write Assist está abierto, ciérralo con la **X** de la esquina
+   superior derecha.
+2. Vuelve a abrirlo desde el menú Inicio, o con **tecla Windows + Ctrl + W**.
+3. Si hay una versión nueva, en unos segundos aparece abajo un botón
+   **Actualizar a v...** (o **Update to v...** si tu versión actual está en
+   inglés).
+4. Haz clic en él y luego en **Actualizar** (**Update**) para confirmar.
+5. Se abre una ventana oscura que muestra el avance; no tienes que hacer
+   nada ahí. Write Assist se cierra y se vuelve a abrir solo, ya
+   actualizado.
+6. Si esa ventana se queda abierta al final y te pide presionar Enter,
+   presiona **Enter**.
+
+### Cómo se usa
+
+- Ábrelo desde el menú Inicio (**Write Assist**) o con **tecla Windows +
+  Ctrl + W** desde cualquier lugar.
+- **Para corregir un texto:** pégalo en **Borrador** y haz clic en
+  **Revisar**. Luego haz clic en **Copiar** y pega el texto corregido donde
+  lo necesites.
+- **Para escribir algo nuevo:** deja el Borrador vacío, describe lo que
+  necesitas en **Instrucciones** (por ejemplo "correo a mi casero pidiéndole
+  que arregle el calentador") y haz clic en **Crear**.
+- **Sinónimos** y **Traducir**, arriba a la derecha, funcionan con la
+  palabra o el texto que selecciones primero.
+- **Dictar** te deja hablar en lugar de escribir. La primera vez ofrece
+  descargar el reconocimiento de voz (unos 700 MB, solo una vez); funciona
+  sin internet y es privado.
+- **Para tenerlo en la barra de tareas:** abre Inicio, haz clic derecho en
+  **Write Assist** y elige **Anclar a la barra de tareas**.
+- **El idioma de la app** sigue al de Windows. Puedes cambiarlo en
+  **Ajustes > Idioma de la interfaz**.
+
+### Desinstalar
+
+Ve a **Configuración de Windows > Aplicaciones**, busca **Write Assist** y
+haz clic en **Desinstalar**.
 
 ## Files
 
