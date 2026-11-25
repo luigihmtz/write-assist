@@ -2,16 +2,17 @@
 <!--
 index.html
 Write Assist window: Prompt and Draft fields (review or create), result with
-highlighted edits, changes and notes, thesaurus popover, speech buttons,
-settings dialog. Rendered by writeAssist.pyw in a WebView2 window.
+highlighted edits, changes and notes, thesaurus and translate panels, speech
+buttons, settings dialog. Rendered by writeAssist.pyw in a WebView2 window.
 
 Author:  Luis Martinez
 Email:   luis@luigi.mx
-Version: v01.01.00
+Version: v01.02.00
 Date:    2026-11-24
 
 Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
-       window.pywebview.api (see app.js).
+       window.pywebview.api (see app.js). Visible text comes from i18n.js
+       through the data-i18n* attributes; the English here is the fallback.
 -->
 <html lang="en">
 <head>
@@ -22,70 +23,86 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
 </head>
 <body>
   <header class="toolbar">
-    <label class="field" title="Review only: how much to change the draft">Mode
+    <label class="field" data-i18n-title="mode.title"><span data-i18n="mode">Mode</span>
       <select id="mode">
-        <option value="fix" title="Spelling, typos, grammar, punctuation. Minimal edits.">fix errors only</option>
-        <option value="polish" title="Also smooths awkward or unclear wording.">fix and polish wording</option>
+        <option value="fix" data-i18n="mode.fix" data-i18n-title="mode.fix.title">fix errors only</option>
+        <option value="polish" data-i18n="mode.polish" data-i18n-title="mode.polish.title">fix and polish wording</option>
       </select>
     </label>
-    <label class="field">Tone
+    <label class="field"><span data-i18n="tone">Tone</span>
       <select id="tone">
-        <option value="keep">keep</option>
-        <option value="more formal">more formal</option>
-        <option value="more casual">more casual</option>
-        <option value="friendlier">friendlier</option>
-        <option value="more concise">more concise</option>
+        <option value="keep" data-i18n="tone.keep">keep</option>
+        <option value="more formal" data-i18n="tone.formal">more formal</option>
+        <option value="more casual" data-i18n="tone.casual">more casual</option>
+        <option value="friendlier" data-i18n="tone.friendlier">friendlier</option>
+        <option value="more concise" data-i18n="tone.concise">more concise</option>
       </select>
     </label>
-    <label class="field">AI <select id="provider"></select></label>
-    <label class="field">Model <input id="model" list="modelList" autocomplete="off" spellcheck="false"></label>
+    <label class="field" data-i18n-title="language.title"><span data-i18n="language">Language</span>
+      <select id="textLanguage">
+        <option value="auto" data-i18n="language.auto">Auto</option>
+        <option value="English (US)">English (US)</option>
+        <option value="English (UK)">English (UK)</option>
+        <option value="Spanish (Mexico)">Español (México)</option>
+        <option value="Spanish (Spain)">Español (España)</option>
+        <option value="French">Français</option>
+        <option value="Portuguese (Brazil)">Português (Brasil)</option>
+        <option value="German">Deutsch</option>
+        <option value="Italian">Italiano</option>
+      </select>
+    </label>
+    <label class="field"><span data-i18n="ai">AI</span> <select id="provider"></select></label>
+    <label class="field"><span data-i18n="model">Model</span> <input id="model" list="modelList" autocomplete="off" spellcheck="false"></label>
     <datalist id="modelList"></datalist>
     <span class="spacer"></span>
-    <button id="thesaurusBtn" class="ghost"title="Meaning, synonyms and antonyms of the selected word (Ctrl+T)">Thesaurus</button>
-    <button id="settingsBtn" class="ghost" title="About you, hotkey, speech">Settings</button>
+    <span class="toolbar-actions">
+    <button id="translateBtn" class="ghost" data-i18n="translate" data-i18n-title="translate.title">Translate</button>
+    <button id="thesaurusBtn" class="ghost" data-i18n="thesaurus" data-i18n-title="thesaurus.title">Thesaurus</button>
+    <button id="settingsBtn" class="ghost" data-i18n="settings" data-i18n-title="settings.title">Settings</button>
+    </span>
   </header>
 
   <main class="grid">
     <div class="column">
       <section class="card prompt-card">
         <div class="card-head">
-          <h2>Prompt</h2>
-          <span class="hint">context or instructions, optional for review</span>
+          <h2 data-i18n="prompt">Prompt</h2>
+          <span class="hint" data-i18n="prompt.hint">context or instructions, optional for review</span>
           <span class="spacer"></span>
-          <select id="preset" title="Insert a common prompt">
-            <option value="">Insert preset...</option>
+          <select id="preset" data-i18n-title="preset.title">
+            <option value="" data-i18n="preset">Insert preset...</option>
           </select>
-          <button class="tool mic" data-target="prompt" title="Dictate into Prompt"></button>
+          <button class="tool mic" data-target="prompt" data-i18n-title="dictate.prompt"></button>
         </div>
-        <textarea id="prompt" spellcheck="true" placeholder="e.g. Email to a client, make it shorter"></textarea>
+        <textarea id="prompt" spellcheck="true" data-i18n-placeholder="prompt.placeholder"></textarea>
       </section>
 
       <section class="card draft-card">
         <div class="card-head">
-          <h2>Draft</h2>
-          <span class="hint">text to review, leave empty to create</span>
+          <h2 data-i18n="draft">Draft</h2>
+          <span class="hint" data-i18n="draft.hint">text to review, leave empty to create</span>
           <span class="spacer"></span>
-          <button class="tool mic" data-target="draft" title="Dictate into Draft"></button>
-          <button class="tool" id="pasteBtn" title="Paste the clipboard and review (Ctrl+Shift+V)">Paste &amp; review</button>
-          <button class="tool" id="clearBtn">Clear</button>
+          <button class="tool mic" data-target="draft" data-i18n-title="dictate.draft"></button>
+          <button class="tool" id="pasteBtn" data-i18n="paste" data-i18n-title="paste.title">Paste &amp; review</button>
+          <button class="tool" id="clearBtn" data-i18n="clear">Clear</button>
         </div>
-        <textarea id="draft" spellcheck="true" placeholder="Paste or type what you wrote"></textarea>
+        <textarea id="draft" spellcheck="true" data-i18n-placeholder="draft.placeholder"></textarea>
       </section>
     </div>
 
     <div class="column">
       <section class="card result-card">
         <div class="card-head">
-          <h2 id="resultTitle">Result</h2>
+          <h2 id="resultTitle" data-i18n="result">Result</h2>
           <span class="spacer"></span>
-          <button class="tool" id="useDraftBtn" title="Move the result into Draft">Use as draft</button>
-          <button class="tool primary-soft" id="copyBtn" title="Copy the result (Ctrl+Shift+C)">Copy</button>
+          <button class="tool" id="useDraftBtn" data-i18n="useDraft" data-i18n-title="useDraft.title">Use as draft</button>
+          <button class="tool primary-soft" id="copyBtn" data-i18n="copy" data-i18n-title="copy.title">Copy</button>
         </div>
-        <div id="result" class="result" contenteditable="plaintext-only" spellcheck="false"></div>
+        <div id="result" class="result" contenteditable="plaintext-only" spellcheck="false" data-i18n-placeholder="result.placeholder"></div>
       </section>
 
       <section class="card changes-card">
-        <div class="card-head"><h2>Changes and notes</h2></div>
+        <div class="card-head"><h2 data-i18n="changes">Changes and notes</h2></div>
         <div id="changes" class="changes"></div>
       </section>
     </div>
@@ -93,58 +110,102 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
 
   <footer class="statusbar">
     <button id="runBtn" class="primary">Review <kbd>Ctrl+Enter</kbd></button>
-    <label class="check"><input type="checkbox" id="autoCopy"> Copy result automatically</label>
+    <label class="check"><input type="checkbox" id="autoCopy"> <span data-i18n="autoCopy">Copy result automatically</span></label>
     <button id="updateBtn" class="update" hidden></button>
     <span id="status" class="status"></span>
   </footer>
 
   <div id="thesaurus" class="popover" hidden>
     <div class="popover-head">
-      <button class="ghost small" id="thBack" title="Back to the previous word" hidden>←</button>
-      <input id="thSearch" type="search" placeholder="Type a word and press Enter" spellcheck="true" autocomplete="off">
-      <button class="ghost small" id="thClose" title="Close (Esc)">✕</button>
+      <button class="ghost small" id="thBack" data-i18n-title="th.back" hidden>←</button>
+      <input id="thSearch" type="search" data-i18n-placeholder="th.search" spellcheck="true" autocomplete="off">
+      <button class="ghost small" id="thClose" data-i18n-title="th.close">✕</button>
     </div>
     <div id="thBody" class="popover-body"></div>
     <div id="thMenu" class="chip-menu" hidden>
-      <button class="tool" id="thReplace">Replace</button>
-      <button class="tool" id="thLookup">Search</button>
+      <button class="tool" id="thReplace" data-i18n="th.replace">Replace</button>
+      <button class="tool" id="thLookup" data-i18n="th.lookup">Search</button>
+    </div>
+  </div>
+
+  <div id="translatePanel" class="popover" hidden>
+    <div class="popover-head">
+      <strong data-i18n="translate">Translate</strong>
+      <span class="muted" data-i18n="tr.to">to</span>
+      <select id="trTarget">
+        <option value="auto" data-i18n="tr.auto">English ⇄ Spanish</option>
+        <option value="English">English</option>
+        <option value="Spanish">Español</option>
+        <option value="French">Français</option>
+        <option value="Portuguese">Português</option>
+        <option value="German">Deutsch</option>
+        <option value="Italian">Italiano</option>
+      </select>
+      <span class="spacer"></span>
+      <button class="ghost small" id="trClose" data-i18n-title="th.close">✕</button>
+    </div>
+    <div class="popover-body">
+      <textarea id="trSource" rows="3" spellcheck="true" data-i18n-placeholder="tr.placeholder"></textarea>
+      <div class="tr-actions">
+        <button class="primary small-primary" id="trGo"><span data-i18n="tr.go">Translate</span> <kbd>Ctrl+Enter</kbd></button>
+      </div>
+      <div id="trOut" hidden>
+        <p id="trMeta" class="tr-meta muted"></p>
+        <div id="trText" class="tr-text"></div>
+        <div id="trAltBlock" hidden>
+          <h3 data-i18n="tr.alternatives">Other options</h3>
+          <div id="trAlts" class="chips"></div>
+        </div>
+        <p id="trNote" class="tr-note" hidden></p>
+        <div class="tr-actions">
+          <button class="tool" id="trReplace" data-i18n="tr.replace" data-i18n-title="tr.replace.title">Replace selection</button>
+          <button class="tool" id="trUseDraft" data-i18n="tr.useDraft">Use as draft</button>
+          <button class="tool primary-soft" id="trCopy" data-i18n="tr.copy">Copy</button>
+        </div>
+      </div>
     </div>
   </div>
 
   <dialog id="settingsDialog">
     <form method="dialog" class="dialog">
-      <h2 id="settingsTitle">Settings</h2>
-      <p id="welcomeText" class="muted" hidden>Tell Write Assist a little about you, so it corrects and writes like you. You can change this any time in Settings.</p>
-      <label class="block">About you
-        <span class="muted">Your first language, the languages you write in, what you usually write, your name.</span>
-        <textarea id="profile" rows="4" spellcheck="true"
-          placeholder="e.g. Native Spanish speaker from Mexico. I mostly write in English for work (emails, Teams) and sometimes in Spanish. My name is ..."></textarea>
+      <h2 id="settingsTitle" data-i18n="settings">Settings</h2>
+      <p id="welcomeText" class="muted" data-i18n="settings.welcomeText" hidden></p>
+      <label class="block"><span data-i18n="settings.about">About you</span>
+        <span class="muted" data-i18n="settings.aboutHint"></span>
+        <textarea id="profile" rows="4" spellcheck="true" data-i18n-placeholder="settings.aboutPlaceholder"></textarea>
       </label>
-      <label class="block">Global hotkey
-        <span class="muted">Opens Write Assist from any app, e.g. Win+Ctrl+W or Ctrl+Alt+F9.</span>
+      <label class="block"><span data-i18n="settings.hotkey">Global hotkey</span>
+        <span class="muted" data-i18n="settings.hotkeyHint"></span>
         <input id="hotkey" spellcheck="false">
       </label>
       <div class="row">
-        <label class="block">Speech model
+        <label class="block"><span data-i18n="settings.speechModel">Speech model</span>
           <select id="speechModel">
-            <option value="base">base (faster, 145 MB)</option>
-            <option value="small">small (recommended, 465 MB)</option>
-            <option value="medium">medium (most accurate, 1.5 GB)</option>
+            <option value="base" data-i18n="settings.speechBase">base</option>
+            <option value="small" data-i18n="settings.speechSmall">small</option>
+            <option value="medium" data-i18n="settings.speechMedium">medium</option>
           </select>
         </label>
-        <label class="block">Speech language
+        <label class="block"><span data-i18n="settings.speechLanguage">Speech language</span>
           <select id="speechLanguage">
-            <option value="">Detect automatically</option>
+            <option value="" data-i18n="settings.detect">Detect automatically</option>
+            <option value="en" data-i18n="settings.english">English</option>
+            <option value="es" data-i18n="settings.spanish">Spanish</option>
+          </select>
+        </label>
+        <label class="block"><span data-i18n="settings.uiLanguage">Interface language</span>
+          <select id="uiLanguage">
+            <option value="" data-i18n="settings.uiAuto">Same as Windows</option>
             <option value="en">English</option>
-            <option value="es">Spanish</option>
+            <option value="es">Español</option>
           </select>
         </label>
       </div>
       <p id="versionText" class="muted small"></p>
       <p id="settingsError" class="error" hidden></p>
       <div class="dialog-buttons">
-        <button type="button" id="settingsCancel" class="ghost">Cancel</button>
-        <button type="button" id="settingsSave" class="primary">Save</button>
+        <button type="button" id="settingsCancel" class="ghost" data-i18n="cancel">Cancel</button>
+        <button type="button" id="settingsSave" class="primary" data-i18n="save">Save</button>
       </div>
     </form>
   </dialog>
@@ -154,12 +215,13 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
       <h2 id="confirmTitle"></h2>
       <p id="confirmText"></p>
       <div class="dialog-buttons">
-        <button type="button" id="confirmNo" class="ghost">Not now</button>
-        <button type="button" id="confirmYes" class="primary">OK</button>
+        <button type="button" id="confirmNo" class="ghost" data-i18n="notNow">Not now</button>
+        <button type="button" id="confirmYes" class="primary" data-i18n="ok">OK</button>
       </div>
     </form>
   </dialog>
 
+  <script src="i18n.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

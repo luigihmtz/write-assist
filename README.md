@@ -3,7 +3,7 @@
 A small Windows app that reviews and writes text with AI: messages, emails,
 posts, docs. Paste what you wrote and get it proofread, or describe what you
 need and get it written. It also has a context-aware thesaurus and offline
-dictation. It uses your existing Claude subscription through Claude Code, so
+dictation, a translator, and an English or Spanish interface. It uses your existing Claude subscription through Claude Code, so
 there are no API keys and nothing extra to pay.
 
 ![Write Assist icon](assets/writeAssist.ico)
@@ -51,19 +51,21 @@ Press **Ctrl+Enter**, then **Copy** the result.
 | **Prompt** | Review: optional context or instructions, e.g. "Email to a client", "Reply to my boss, make it shorter". Create: describe what to write, e.g. "Email to Sarah: the storyboard is two days late, we need the brand guidelines". *Insert preset...* adds a common one. |
 | **Draft** | The text to review. Leave empty to create. |
 | **Mode** | Review only (grayed out when creating). *fix errors only*: spelling, typos, grammar, punctuation, with minimal edits. *fix and polish wording*: also smooths awkward or unclear phrasing. Anything the prompt asks for overrides it. |
+| **Language** | The text's language and regional variant (English US/UK, Spanish Mexico/Spain, French, Portuguese, German, Italian). Review corrects for it (e.g. US vs UK spelling); Create writes in it. *Auto* lets the AI decide from the text and your *About you*. |
 | **Tone** | `keep` (default), or lean it: more formal, more casual, friendlier, more concise. |
 | **AI** | The AIs installed on this PC: Claude, and GitHub Copilot if its CLI is installed. If the chosen AI hits its usage limit, the request goes to the other one automatically and the status bar says so (turn off with `"auto_fallback": false` in `user_settings.json`). |
 | **Model** | Claude: `haiku` (default, fastest and lightest on your plan's limits), `sonnet`, `opus` (strongest). Copilot: `auto`. You can type any other model name the AI accepts. |
 | **Thesaurus** | Select a word (or put the cursor on it) in Prompt, Draft or the result, then click *Thesaurus* at the top or press **Ctrl+T**: meaning, synonyms and antonyms that fit your sentence. Click a synonym or antonym to **Replace** your word with it or **Search** it in turn (← goes back). You can also type any word in the panel's search box. It asks the AI only when you look something up. |
+| **Translate** | Select text (a word, a sentence, a paragraph) in Prompt, Draft or the result, then click *Translate* at the top or press **Ctrl+Shift+T**. Pick the target language; *English ⇄ Spanish* translates English into Spanish and anything else into English. Then **Replace selection**, **Use as draft** or **Copy**. For a single word it also offers other options; click one to swap it in. You can also type or paste text straight into the panel. It asks the AI only when you translate. |
 | **Dictate** | Speak into Prompt or Draft; click again to stop (Esc cancels). Transcribed on your computer with faster-whisper: free, offline, private. The first time, it offers a one-time download (speech engine about 250 MB, plus the model: 465 MB for *small*). |
-| **Settings** | *About you*, the global hotkey, and the speech model and language. |
+| **Settings** | *About you*, the global hotkey, the speech model and language, and the interface language (English or Spanish; by default the same as Windows). |
 
 **Review** shows the corrected text with the edits highlighted, and below it
 each change (old → new) with a short reason, plus an optional note (e.g. "this
 may sound blunt for a client email"). **Create** shows the new text; anything
 essential missing from the prompt is left as a placeholder like `[date]`.
 
-Shortcuts: **Ctrl+Enter** run · **Ctrl+Shift+V** paste the clipboard as the
+Shortcuts: **Ctrl+Enter** run · **Ctrl+T** thesaurus · **Ctrl+Shift+T** translate · **Ctrl+Shift+V** paste the clipboard as the
 draft and review · **Ctrl+Shift+C** copy the result. *Use as draft* moves the
 result into Draft, to refine it with a new prompt. The result is editable, and
 emojis are kept as they are.
@@ -79,7 +81,7 @@ answered.
 | `writeAssist.pyw` | The app: the window (pywebview on WebView2) and the bridge the page calls. |
 | `waCore.py` | Settings, Review/Create and Thesaurus requests to the AI CLIs, edit highlighting, update check. |
 | `waSpeech.py` | Offline dictation with faster-whisper, installed on first use. |
-| `ui/` | The window's page: `index.html`, `style.css`, `app.js`. |
+| `ui/` | The window's page: `index.html`, `style.css`, `app.js`, and `i18n.js` with the English and Spanish interface text. |
 | `hotkeyListener.pyw` | Background listener for the global hotkey; opens or wakes the app. |
 | `system_prompt.md` | Instructions for both tasks, shared by all AIs. `{{profile}}` becomes the user's *About you*. |
 | `settings.json` | Shipped defaults: hotkey, AIs and models, timeout, font, prompt presets. |
@@ -104,8 +106,8 @@ access without prompts.
 Each run builds one request from the Prompt, Draft, Mode and Tone, adds
 `system_prompt.md`, and sends it to the chosen AI's command-line tool in the
 background. The AI gets no tools: it can't read files, run commands or browse.
-The thesaurus is a separate, small request, sent only when you click it, and
-cached for the session.
+The thesaurus and the translator are separate, small requests, sent only
+when you use them, and cached for the session.
 
 **Dictation** records in the page (MediaRecorder, webm/opus) and hands the
 audio to faster-whisper on the CPU (int8). The model stays loaded while you

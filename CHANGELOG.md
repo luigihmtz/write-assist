@@ -1,7 +1,14 @@
 # Changelog
 
-## v02.02.00 - 2026-11-24
+## v02.03.00 - 2026-11-24
 
+- Translate: select text anywhere and click *Translate* (Ctrl+Shift+T). Pick
+  the language, or leave *English ⇄ Spanish*; then replace the selection,
+  use it as the draft, or copy it. Single words also get other options.
+- Language: choose the text's language and variant (e.g. English US or UK,
+  Spanish Mexico or Spain) for Review and Create, or leave it on *Auto*.
+- The interface is now in English or Spanish (Settings > Interface
+  language; by default the same as Windows).
 - One *Thesaurus* button, in the top bar, instead of one per field. Click a
   synonym or antonym to replace your word with it or to look it up in turn,
   go back with ←, or type any word in the panel's search box.

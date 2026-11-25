@@ -6,7 +6,7 @@ Edit freely to change how it behaves; the app reloads it on each request.
 
 Author:  Luis Martinez
 Email:   luis@luigi.mx
-Version: v01.02.00
+Version: v01.03.00
 Date:    2026-11-24
 
 Usage: Lines inside this HTML comment are stripped before sending.
@@ -22,6 +22,7 @@ Inputs (tags):
 - <draft>: review only. The writer's text to proofread.
 - <mode>: review only. "fix" or "polish".
 - <tone>: "keep", "more formal", "more casual", "friendlier" or "more concise".
+- <language>: optional. The language and regional variant the writer chose, e.g. "English (US)", "Spanish (Mexico)". Review: correct the draft for that language's variant (spelling, punctuation, vocabulary, e.g. US vs UK English); if the draft is written in another language, keep its own language and say so in notes. Create: write in that language. When absent, follow the rules below.
 
 ## task "review"
 

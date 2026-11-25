@@ -1,11 +1,12 @@
 /*
  * style.css
  * Styles for the Write Assist window: light and dark themes (follows
- * Windows), toolbar, cards, result highlights, popover, dialogs.
+ * Windows), toolbar, cards, result highlights, thesaurus and translate
+ * panels, dialogs.
  *
  * Author:  Luis Martinez
  * Email:   luis@luigi.mx
- * Version: v01.01.00
+ * Version: v01.02.00
  * Date:    2026-11-24
  *
  * Usage: linked from ui/index.html. --fs is set from settings.json font_size.
@@ -78,7 +79,7 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .toolbar {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 8px 12px;
   padding: 10px 14px 6px;
   flex-wrap: wrap;
 }
@@ -92,7 +93,13 @@ button, select, input, textarea { font: inherit; color: inherit; }
 }
 
 .field select, .field input { min-width: 0; }
-#model { width: 9em; }
+#model { width: 6.5em; }
+#mode { max-width: 11em; }
+#tone { max-width: 8.5em; }
+#provider { max-width: 9em; }
+#textLanguage { max-width: 9.5em; }
+.toolbar-actions { display: flex; gap: 6px; margin-left: auto; white-space: nowrap; }
+.toolbar-actions button { padding-left: 10px; padding-right: 10px; }
 
 select, input:not([type="checkbox"]) {
   background: var(--surface);
@@ -182,7 +189,7 @@ textarea, .result, .changes {
 }
 
 .result:empty::before {
-  content: "The corrected or written text appears here.";
+  content: attr(data-placeholder);  /* set from i18n.js */
   color: var(--muted);
 }
 
@@ -332,7 +339,7 @@ dialog {
 
 dialog::backdrop { background: rgba(0, 0, 0, 0.35); }
 
-.dialog { padding: 18px 20px; width: min(560px, 90vw); display: flex; flex-direction: column; gap: 12px; }
+.dialog { padding: 18px 20px; width: min(640px, 92vw); display: flex; flex-direction: column; gap: 12px; }
 .dialog.narrow { width: min(440px, 90vw); }
 .dialog h2 { margin: 0; font-size: 1.1em; }
 .dialog p { margin: 0; }
@@ -347,8 +354,8 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.35); }
   font-weight: 400;
 }
 .block input, .block select { font-weight: 400; }
-.row { display: flex; gap: 14px; }
-.row .block { flex: 1; }
+.row { display: flex; flex-wrap: wrap; gap: 14px; }
+.row .block { flex: 1; min-width: 150px; }
 .small { font-size: 0.85em; }
 .error { color: var(--danger); }
 .dialog-buttons { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
@@ -357,3 +364,32 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.35); }
   .grid { grid-template-columns: minmax(0, 1fr); overflow: auto; }
   .hint { display: none; }
 }
+
+/* ---- translate panel ---------------------------------------------------- */
+#translatePanel .popover-head { gap: 8px; }
+#translatePanel .popover-head select { max-width: 11em; }
+#trSource {
+  width: 100%;
+  resize: vertical;
+  min-height: 4.5em;
+  max-height: 30vh;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin-top: 4px;
+}
+.tr-actions { display: flex; gap: 6px; justify-content: flex-end; margin-top: 8px; flex-wrap: wrap; }
+.primary.small-primary { padding: 3px 12px; font-size: 0.9em; }
+.tr-meta { margin: 10px 0 4px; font-size: 0.85em; }
+.tr-text {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  user-select: text;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--accent-soft);
+  max-height: 30vh;
+  overflow: auto;
+}
+.tr-note { margin: 8px 0 0; color: var(--note); font-size: 0.9em; }

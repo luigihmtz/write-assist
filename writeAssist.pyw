@@ -1,8 +1,8 @@
 # writeAssist.pyw
 # Write Assist: small Windows writing assistant. Fill in a Draft to have it
 # reviewed (grammar, spelling, typos, punctuation), a Prompt to have a text
-# written, or both. Also a context-aware thesaurus (on demand) and offline
-# speech-to-text. It runs an AI's local CLI headless, so it uses your existing
+# written, or both. Also a context-aware thesaurus and translator (on demand), offline
+# speech-to-text, and an English or Spanish interface. It runs an AI's local CLI headless, so it uses your existing
 # subscription and needs no API key: Claude (Claude Code) or GitHub Copilot.
 # If the chosen AI hits a usage limit, the request goes to the other one.
 # This file is the desktop window (pywebview on Microsoft WebView2, page in
@@ -10,7 +10,7 @@
 #
 # Author:  Luis Martinez
 # Email:   luis@luigi.mx
-# Version: v02.01.00
+# Version: v02.03.00
 # Date:    2026-11-24
 #
 # Usage: installed by install.ps1 (Start Menu shortcut + global hotkey, default
@@ -139,6 +139,7 @@ class Bridge:
         self._state = core.load_json(core.STATE_FILE, {})
         self._version, self._repo = core.read_release()
         self._thesaurus_cache = {}
+        self._translate_cache = {}
         self._transcriber = speech.Transcriber()
         self._speech_install_lock = threading.Lock()
 
@@ -164,6 +165,7 @@ class Bridge:
             "font_size": self._settings.get("font_size", 11),
             "auto_copy_default": self._settings.get("auto_copy", False),
             "hotkey": self._settings.get("hotkey", ""),
+            "ui_language": self._settings.get("ui_language", ""),
             "state": self._state,
             "needs_profile": "profile" not in user,
         }
@@ -210,7 +212,8 @@ class Bridge:
         result, extra = self._ask_with_fallback(request, lambda name, provider, model: core.run_text_task(
             name, provider, model, task, request.get("prompt", ""), request.get("draft", ""),
             request.get("mode", "fix"), request.get("tone", "keep"),
-            core.load_user_settings().get("profile", ""), self._settings.get("timeout_seconds", 120)))
+            core.load_user_settings().get("profile", ""), self._settings.get("timeout_seconds", 120),
+            request.get("language", "")))
         return {"task": task, "elapsed": time.time() - started, **extra, **result}
 
     # ---- Thesaurus (only when the user asks) ------------------------------ #
@@ -227,6 +230,23 @@ class Bridge:
             name, provider, model, word, context, self._settings.get("timeout_seconds", 120)))
         if "fallback_from" not in extra:  # cache only real answers from the chosen AI
             self._thesaurus_cache[key] = result
+        return {**result, **extra}
+
+    # ---- Translate (only when the user asks) ------------------------------ #
+    @safely
+    def translate(self, request):
+        text = (request.get("text") or "").strip()
+        if not text:
+            raise RuntimeError("Select some text or type it in the box first.")
+        target = request.get("target") or "auto"
+        context = (request.get("context") or "").strip()
+        key = (text, target, context, request["provider"], request.get("model", ""))
+        if key in self._translate_cache:
+            return self._translate_cache[key]
+        result, extra = self._ask_with_fallback(request, lambda name, provider, model: core.run_translate(
+            name, provider, model, text, target, context, self._settings.get("timeout_seconds", 120)))
+        if "fallback_from" not in extra:
+            self._translate_cache[key] = result
         return {**result, **extra}
 
     # ---- Speech ----------------------------------------------------------- #
@@ -273,13 +293,14 @@ class Bridge:
         user = core.load_user_settings()
         return {"profile": user.get("profile", ""), "hotkey": self._settings.get("hotkey", ""),
                 "speech_model": self._speech_model(), "speech_language": self._settings.get("speech_language", ""),
+                "ui_language": self._settings.get("ui_language", ""),
                 "version": self._version, "is_dev": core.IS_DEV}
 
     @safely
     def save_settings(self, values):
         user = core.load_user_settings()
         user["profile"] = (values.get("profile") or "").strip()
-        for key in ("speech_model", "speech_language"):
+        for key in ("speech_model", "speech_language", "ui_language"):
             if key in values:
                 user[key] = values[key]
         new_hotkey = (values.get("hotkey") or "").strip()

@@ -1,0 +1,344 @@
+// i18n.js
+// Interface strings of Write Assist in English and Spanish, and the helpers
+// that apply them: t(key, vars) for text built in app.js, and data-i18n*
+// attributes for the static text in index.html.
+//
+// Author:  Luis Martinez
+// Email:   luis@luigi.mx
+// Version: v01.00.00
+// Date:    2026-11-24
+//
+// Usage: loaded by ui/index.html before app.js. In index.html:
+//          data-i18n="key"             sets the element's text
+//          data-i18n-title="key"       sets its tooltip
+//          data-i18n-placeholder="key" sets its placeholder (data-placeholder too)
+//        To add a language: copy the "en" block, translate the values, and
+//        add an option to #uiLanguage in index.html.
+
+const STRINGS = {
+  en: {
+    // toolbar
+    "mode": "Mode",
+    "mode.title": "Review only: how much to change the draft",
+    "mode.fix": "fix errors only",
+    "mode.fix.title": "Spelling, typos, grammar, punctuation. Minimal edits.",
+    "mode.polish": "fix and polish wording",
+    "mode.polish.title": "Also smooths awkward or unclear wording.",
+    "tone": "Tone",
+    "tone.keep": "keep",
+    "tone.formal": "more formal",
+    "tone.casual": "more casual",
+    "tone.friendlier": "friendlier",
+    "tone.concise": "more concise",
+    "language": "Language",
+    "language.title": "Language of the text: Review corrects for it, Create writes in it",
+    "language.auto": "Auto",
+    "ai": "AI",
+    "model": "Model",
+    "translate": "Translate",
+    "translate.title": "Translate the selected text (Ctrl+Shift+T)",
+    "thesaurus": "Thesaurus",
+    "thesaurus.title": "Meaning, synonyms and antonyms of the selected word (Ctrl+T)",
+    "settings": "Settings",
+    "settings.title": "About you, hotkey, speech, interface language",
+
+    // cards
+    "prompt": "Prompt",
+    "prompt.hint": "context or instructions, optional for review",
+    "prompt.placeholder": "e.g. Email to a client, make it shorter",
+    "preset": "Insert preset...",
+    "preset.title": "Insert a common prompt",
+    "draft": "Draft",
+    "draft.hint": "text to review, leave empty to create",
+    "draft.placeholder": "Paste or type what you wrote",
+    "dictate": "Dictate",
+    "dictate.prompt": "Dictate into Prompt",
+    "dictate.draft": "Dictate into Draft",
+    "dictate.stop": "Stop {time}",
+    "paste": "Paste & review",
+    "paste.title": "Paste the clipboard and review (Ctrl+Shift+V)",
+    "clear": "Clear",
+    "result": "Result",
+    "result.placeholder": "The corrected or written text appears here.",
+    "result.corrected": "Corrected ({provider})",
+    "result.written": "Written ({provider})",
+    "useDraft": "Use as draft",
+    "useDraft.title": "Move the result into Draft",
+    "copy": "Copy",
+    "copy.title": "Copy the result (Ctrl+Shift+C)",
+    "changes": "Changes and notes",
+    "changes.none": "No changes needed. Looks good.",
+    "changes.note": "Note: {text}",
+
+    // footer
+    "run.review": "Review",
+    "run.create": "Create",
+    "autoCopy": "Copy result automatically",
+    "update.button": "Update to {tag}",
+
+    // status
+    "status.empty": "Paste a draft to review, or write a prompt to create.",
+    "status.notInstalled": "{provider} isn't installed. Run the Write Assist installer again.",
+    "status.reviewing": "Reviewing with {provider}... {seconds}s",
+    "status.writing": "Writing with {provider}... {seconds}s",
+    "status.reviewed": "Reviewed with {provider} · {count} change(s)",
+    "status.written": "Written with {provider}",
+    "status.copiedSuffix": "copied",
+    "status.fallback": "{from} hit a usage limit{why}, used {provider}",
+    "status.copied": "Copied.",
+    "status.clipboardEmpty": "The clipboard has no text.",
+    "status.settingsSaved": "Settings saved.",
+    "status.settingsSavedHotkey": "Settings saved. Hotkey: {message}",
+    "status.updateFailed": "Couldn't start the update: {error}",
+
+    // thesaurus
+    "th.back": "Back to the previous word",
+    "th.search": "Type a word and press Enter",
+    "th.close": "Close (Esc)",
+    "th.replace": "Replace",
+    "th.lookup": "Search",
+    "th.replace.title": "Replace \"{old}\" with \"{new}\"",
+    "th.lookup.title": "Look up \"{word}\" in the thesaurus",
+    "th.empty": "Select a word in Prompt, Draft or the result before clicking Thesaurus, or type a word above and press Enter.",
+    "th.tooLong": "Select a single word or a short phrase for the thesaurus.",
+    "th.looking": "Looking up \"{word}\" with {provider}...",
+    "th.target": "Click a word to replace \"{word}\" in your text, or to look it up.",
+    "th.meaning": "Meaning",
+    "th.synonyms": "Synonyms",
+    "th.antonyms": "Antonyms",
+    "th.none": "None",
+    "th.replaced": "Replaced \"{old}\" with \"{new}\".",
+
+    // translate
+    "tr.to": "to",
+    "tr.auto": "English ⇄ Spanish",
+    "tr.placeholder": "Select text in Prompt, Draft or the result before clicking Translate, or type it here.",
+    "tr.go": "Translate",
+    "tr.working": "Translating with {provider}...",
+    "tr.meta": "{from} → {to}",
+    "tr.alternatives": "Other options",
+    "tr.replace": "Replace selection",
+    "tr.replace.title": "Put the translation in place of the text you selected",
+    "tr.copy": "Copy",
+    "tr.useDraft": "Use as draft",
+    "tr.replaced": "Replaced the selection with the translation.",
+
+    // speech
+    "speech.setupTitle": "Set up speech-to-text?",
+    "speech.setupText": "Dictation runs on this computer: free, offline and private. It needs a one-time download of about {mb} MB (speech engine and the \"{model}\" model). You can pick a lighter model in Settings.",
+    "speech.download": "Download",
+    "speech.installing": "Installing the speech engine (one time, a few minutes)...",
+    "speech.ready": "Speech engine ready. Recording...",
+    "speech.noMic": "Can't use the microphone ({error}). Check Windows Settings > Privacy > Microphone.",
+    "speech.recording": "Recording... click the button again to stop (Esc cancels).",
+    "speech.cancelled": "Recording cancelled.",
+    "speech.nothing": "Nothing was recorded.",
+    "speech.downloadingModel": "Downloading the speech model (one time), then transcribing...",
+    "speech.transcribing": "Transcribing...",
+    "speech.noSpeech": "No speech was recognized. Try again, a little closer to the microphone.",
+    "speech.added": "Dictation added.",
+
+    // settings
+    "settings.welcome": "Welcome to Write Assist",
+    "settings.welcomeText": "Tell Write Assist a little about you, so it corrects and writes like you. You can change this any time in Settings.",
+    "settings.about": "About you",
+    "settings.aboutHint": "Your first language, the languages you write in, what you usually write, your name.",
+    "settings.aboutPlaceholder": "e.g. Native Spanish speaker from Mexico. I mostly write in English for work (emails, Teams) and sometimes in Spanish. My name is ...",
+    "settings.hotkey": "Global hotkey",
+    "settings.hotkeyHint": "Opens Write Assist from any app, e.g. Win+Ctrl+W or Ctrl+Alt+F9.",
+    "settings.speechModel": "Speech model",
+    "settings.speechBase": "base (faster, 145 MB)",
+    "settings.speechSmall": "small (recommended, 465 MB)",
+    "settings.speechMedium": "medium (most accurate, 1.5 GB)",
+    "settings.speechLanguage": "Speech language",
+    "settings.detect": "Detect automatically",
+    "settings.english": "English",
+    "settings.spanish": "Spanish",
+    "settings.uiLanguage": "Interface language",
+    "settings.uiAuto": "Same as Windows",
+    "settings.version": "Version {version}",
+    "settings.devCopy": " (development copy, no automatic updates)",
+    "settings.hotkeyFailed": "Saved, but the hotkey couldn't be set: {message}. Try another one.",
+    "cancel": "Cancel",
+    "skip": "Skip",
+    "save": "Save",
+    "notNow": "Not now",
+    "ok": "OK",
+
+    // updates
+    "update.title": "Update Write Assist?",
+    "update.text": "Update from {from} to {to}? The app closes, a window shows the update, and the app opens again.",
+    "update.yes": "Update",
+  },
+
+  es: {
+    "mode": "Modo",
+    "mode.title": "Solo para revisar: cuánto cambiar el borrador",
+    "mode.fix": "solo corregir errores",
+    "mode.fix.title": "Ortografía, errores de tecleo, gramática, puntuación. Cambios mínimos.",
+    "mode.polish": "corregir y pulir redacción",
+    "mode.polish.title": "También mejora frases torpes o poco claras.",
+    "tone": "Tono",
+    "tone.keep": "igual",
+    "tone.formal": "más formal",
+    "tone.casual": "más casual",
+    "tone.friendlier": "más amable",
+    "tone.concise": "más breve",
+    "language": "Idioma",
+    "language.title": "Idioma del texto: Revisar corrige para ese idioma, Crear escribe en él",
+    "language.auto": "Automático",
+    "ai": "IA",
+    "model": "Modelo",
+    "translate": "Traducir",
+    "translate.title": "Traducir el texto seleccionado (Ctrl+Shift+T)",
+    "thesaurus": "Sinónimos",
+    "thesaurus.title": "Significado, sinónimos y antónimos de la palabra seleccionada (Ctrl+T)",
+    "settings": "Ajustes",
+    "settings.title": "Sobre ti, atajo de teclado, dictado, idioma de la interfaz",
+
+    "prompt": "Instrucciones",
+    "prompt.hint": "contexto o indicaciones, opcional al revisar",
+    "prompt.placeholder": "p. ej. Correo para un cliente, hazlo más corto",
+    "preset": "Insertar plantilla...",
+    "preset.title": "Insertar una instrucción común",
+    "draft": "Borrador",
+    "draft.hint": "texto a revisar, déjalo vacío para crear",
+    "draft.placeholder": "Pega o escribe tu texto",
+    "dictate": "Dictar",
+    "dictate.prompt": "Dictar en Instrucciones",
+    "dictate.draft": "Dictar en Borrador",
+    "dictate.stop": "Detener {time}",
+    "paste": "Pegar y revisar",
+    "paste.title": "Pegar el portapapeles y revisar (Ctrl+Shift+V)",
+    "clear": "Borrar",
+    "result": "Resultado",
+    "result.placeholder": "Aquí aparece el texto corregido o escrito.",
+    "result.corrected": "Corregido ({provider})",
+    "result.written": "Escrito ({provider})",
+    "useDraft": "Usar como borrador",
+    "useDraft.title": "Pasar el resultado al Borrador",
+    "copy": "Copiar",
+    "copy.title": "Copiar el resultado (Ctrl+Shift+C)",
+    "changes": "Cambios y notas",
+    "changes.none": "No hace falta cambiar nada. Se ve bien.",
+    "changes.note": "Nota: {text}",
+
+    "run.review": "Revisar",
+    "run.create": "Crear",
+    "autoCopy": "Copiar el resultado automáticamente",
+    "update.button": "Actualizar a {tag}",
+
+    "status.empty": "Pega un borrador para revisarlo, o escribe instrucciones para crear un texto.",
+    "status.notInstalled": "{provider} no está instalado. Vuelve a ejecutar el instalador de Write Assist.",
+    "status.reviewing": "Revisando con {provider}... {seconds}s",
+    "status.writing": "Escribiendo con {provider}... {seconds}s",
+    "status.reviewed": "Revisado con {provider} · {count} cambio(s)",
+    "status.written": "Escrito con {provider}",
+    "status.copiedSuffix": "copiado",
+    "status.fallback": "{from} llegó a su límite de uso{why}, se usó {provider}",
+    "status.copied": "Copiado.",
+    "status.clipboardEmpty": "El portapapeles no tiene texto.",
+    "status.settingsSaved": "Ajustes guardados.",
+    "status.settingsSavedHotkey": "Ajustes guardados. Atajo: {message}",
+    "status.updateFailed": "No se pudo iniciar la actualización: {error}",
+
+    "th.back": "Volver a la palabra anterior",
+    "th.search": "Escribe una palabra y pulsa Enter",
+    "th.close": "Cerrar (Esc)",
+    "th.replace": "Reemplazar",
+    "th.lookup": "Buscar",
+    "th.replace.title": "Reemplazar \"{old}\" por \"{new}\"",
+    "th.lookup.title": "Buscar \"{word}\" en el diccionario de sinónimos",
+    "th.empty": "Selecciona una palabra en Instrucciones, Borrador o el resultado antes de pulsar Sinónimos, o escribe una arriba y pulsa Enter.",
+    "th.tooLong": "Selecciona una sola palabra o una frase corta.",
+    "th.looking": "Buscando \"{word}\" con {provider}...",
+    "th.target": "Haz clic en una palabra para reemplazar \"{word}\" en tu texto, o para buscarla.",
+    "th.meaning": "Significado",
+    "th.synonyms": "Sinónimos",
+    "th.antonyms": "Antónimos",
+    "th.none": "Ninguno",
+    "th.replaced": "Se reemplazó \"{old}\" por \"{new}\".",
+
+    "tr.to": "a",
+    "tr.auto": "Inglés ⇄ Español",
+    "tr.placeholder": "Selecciona texto en Instrucciones, Borrador o el resultado antes de pulsar Traducir, o escríbelo aquí.",
+    "tr.go": "Traducir",
+    "tr.working": "Traduciendo con {provider}...",
+    "tr.meta": "{from} → {to}",
+    "tr.alternatives": "Otras opciones",
+    "tr.replace": "Reemplazar selección",
+    "tr.replace.title": "Poner la traducción en lugar del texto que seleccionaste",
+    "tr.copy": "Copiar",
+    "tr.useDraft": "Usar como borrador",
+    "tr.replaced": "Se reemplazó la selección con la traducción.",
+
+    "speech.setupTitle": "¿Configurar el dictado?",
+    "speech.setupText": "El dictado funciona en esta computadora: gratis, sin internet y privado. Necesita una descarga única de unos {mb} MB (el motor de voz y el modelo \"{model}\"). Puedes elegir un modelo más ligero en Ajustes.",
+    "speech.download": "Descargar",
+    "speech.installing": "Instalando el motor de voz (solo una vez, unos minutos)...",
+    "speech.ready": "Motor de voz listo. Grabando...",
+    "speech.noMic": "No se puede usar el micrófono ({error}). Revisa Configuración de Windows > Privacidad > Micrófono.",
+    "speech.recording": "Grabando... pulsa el botón otra vez para detener (Esc cancela).",
+    "speech.cancelled": "Grabación cancelada.",
+    "speech.nothing": "No se grabó nada.",
+    "speech.downloadingModel": "Descargando el modelo de voz (solo una vez), luego transcribiendo...",
+    "speech.transcribing": "Transcribiendo...",
+    "speech.noSpeech": "No se reconoció voz. Inténtalo de nuevo, un poco más cerca del micrófono.",
+    "speech.added": "Dictado agregado.",
+
+    "settings.welcome": "Bienvenido a Write Assist",
+    "settings.welcomeText": "Cuéntale a Write Assist un poco sobre ti, para que corrija y escriba como tú. Puedes cambiarlo cuando quieras en Ajustes.",
+    "settings.about": "Sobre ti",
+    "settings.aboutHint": "Tu idioma materno, los idiomas en que escribes, qué sueles escribir, tu nombre.",
+    "settings.aboutPlaceholder": "p. ej. Hablante nativo de español, de México. Escribo sobre todo en inglés para el trabajo (correos, Teams) y a veces en español. Me llamo ...",
+    "settings.hotkey": "Atajo de teclado global",
+    "settings.hotkeyHint": "Abre Write Assist desde cualquier aplicación, p. ej. Win+Ctrl+W o Ctrl+Alt+F9.",
+    "settings.speechModel": "Modelo de voz",
+    "settings.speechBase": "base (más rápido, 145 MB)",
+    "settings.speechSmall": "small (recomendado, 465 MB)",
+    "settings.speechMedium": "medium (más preciso, 1.5 GB)",
+    "settings.speechLanguage": "Idioma del dictado",
+    "settings.detect": "Detectar automáticamente",
+    "settings.english": "Inglés",
+    "settings.spanish": "Español",
+    "settings.uiLanguage": "Idioma de la interfaz",
+    "settings.uiAuto": "El mismo que Windows",
+    "settings.version": "Versión {version}",
+    "settings.devCopy": " (copia de desarrollo, sin actualizaciones automáticas)",
+    "settings.hotkeyFailed": "Guardado, pero no se pudo activar el atajo: {message}. Prueba otro.",
+    "cancel": "Cancelar",
+    "skip": "Omitir",
+    "save": "Guardar",
+    "notNow": "Ahora no",
+    "ok": "Aceptar",
+
+    "update.title": "¿Actualizar Write Assist?",
+    "update.text": "¿Actualizar de {from} a {to}? La aplicación se cierra, una ventana muestra la actualización y la aplicación se vuelve a abrir.",
+    "update.yes": "Actualizar",
+  },
+};
+
+let uiLang = "en";
+
+// "" means follow Windows (the page gets the system language from WebView2).
+function resolveLanguage(setting) {
+  const wanted = setting || (navigator.language || "en").slice(0, 2).toLowerCase();
+  return STRINGS[wanted] ? wanted : "en";
+}
+
+function t(key, vars = {}) {
+  const text = STRINGS[uiLang][key] ?? STRINGS.en[key] ?? key;
+  return text.replace(/\{(\w+)\}/g, (m, name) => (name in vars ? vars[name] : m));
+}
+
+function applyLanguage(setting) {
+  uiLang = resolveLanguage(setting);
+  document.documentElement.lang = uiLang;
+  document.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = t(el.dataset.i18n); });
+  document.querySelectorAll("[data-i18n-title]").forEach((el) => { el.title = t(el.dataset.i18nTitle); });
+  document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
+    const text = t(el.dataset.i18nPlaceholder);
+    if ("placeholder" in el) el.placeholder = text;
+    else el.dataset.placeholder = text;
+  });
+}
