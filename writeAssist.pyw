@@ -1,11 +1,11 @@
 # writeAssist.pyw
 # Write Assist: small Windows writing assistant. Fill in a Draft to have it
 # reviewed (grammar, spelling, typos, punctuation), a Prompt to have a text
-# written, or both. Also a context-aware thesaurus and translator (on demand), offline
-# speech-to-text, and an English or Spanish interface. It runs an AI's local CLI headless, so it uses your existing
-# subscription and needs no API key: Claude (Claude Code), ChatGPT (Codex CLI) or
-# GitHub Copilot,
-# or a free AI model that runs on this computer (Ollama), set up on first use.
+# written, or both. Also a context-aware thesaurus and translator (on demand),
+# offline speech-to-text, and an English or Spanish interface. It runs an AI's
+# local CLI headless, so it uses your existing subscription and needs no API
+# key: Claude (Claude Code), ChatGPT (Codex CLI) or GitHub Copilot, or a free AI
+# model that runs on this computer (Ollama), set up on first use.
 # If the chosen AI hits a usage limit, the request goes to the other one.
 # This file is the desktop window (pywebview on Microsoft WebView2, page in
 # ui/) and the bridge the page calls; the logic is in waCore.py / waSpeech.py.
