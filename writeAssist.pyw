@@ -10,7 +10,7 @@
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v02.04.01
+# Version: v02.04.02
 # Date:    2026-11-24
 #
 # Usage: installed by install.ps1 (Start Menu shortcut + global hotkey, default
@@ -334,8 +334,10 @@ class Bridge:
     @safely
     def start_update(self):
         script = core.download_installer(self._repo)
+        # Started from the temp folder: a process whose working folder is the app
+        # folder keeps Windows from deleting it, and the update replaces it.
         subprocess.Popen(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script)],
-                         creationflags=NEW_CONSOLE)
+                         cwd=str(script.parent), creationflags=NEW_CONSOLE)
         threading.Timer(0.3, self._window.destroy).start()
 
     # ---- Window ----------------------------------------------------------- #

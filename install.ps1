@@ -10,7 +10,7 @@
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v01.01.01
+# Version: v01.01.02
 # Date:    2026-11-24
 #
 # Usage:   Install or update (PowerShell):
@@ -89,6 +89,22 @@ function Install-WriteAssist {
         Get-CimInstance Win32_Process -Filter "Name like 'python%'" |
             Where-Object { $_.CommandLine -match "writeAssist\.pyw|hotkeyListener\.pyw" } |
             ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+    }
+
+    # Deletes the installed copy, retrying while closing programs release it.
+    function Remove-InstallDir {
+        for ($try = 1; $try -le 10; $try++) {
+            if (-not (Test-Path $installDir)) { return }
+            try {
+                Remove-Item $installDir -Recurse -Force -ErrorAction Stop
+                return
+            } catch {
+                if ($try -eq 10) {
+                    throw "Close Write Assist and any window open in $installDir, then run the installer again. ($($_.Exception.Message))"
+                }
+                Start-Sleep -Seconds 1
+            }
+        }
     }
 
     function New-Shortcut($path, $target, $arguments, $workDir, $icon, $description) {
@@ -225,8 +241,7 @@ public static class WriteAssistLinkAppId {
             Invoke-WebRequest "https://github.com/$repo/archive/refs/tags/$tag.zip" -OutFile $zip -UseBasicParsing
             Expand-Archive $zip -DestinationPath $temp
             $source = Get-ChildItem $temp -Directory | Select-Object -First 1
-            Start-Sleep -Milliseconds 500   # let stopped processes release their files
-            if (Test-Path $installDir) { Remove-Item $installDir -Recurse -Force }
+            Remove-InstallDir
             Copy-Item $source.FullName $installDir -Recurse
         } finally {
             Remove-Item $temp -Recurse -Force -ErrorAction SilentlyContinue
@@ -288,11 +303,21 @@ public static class WriteAssistLinkAppId {
     Start-Process -FilePath $pythonw -ArgumentList "`"$appScript`"" -WorkingDirectory $appDir
 }
 
+# Never stand in the folder being replaced: Windows won't delete a folder that
+# is a process's working folder (the Update button used to start us there).
+# Set-Location only moves PowerShell's own location, so the process's working
+# folder is moved too; both are restored at the end.
+$previousCwd = [Environment]::CurrentDirectory
+Push-Location $env:TEMP
+[Environment]::CurrentDirectory = $env:TEMP
 try {
     Install-WriteAssist
 } catch {
     Write-Host ""
     Write-Host "Write Assist couldn't be installed: $($_.Exception.Message)" -ForegroundColor Red
+} finally {
+    Pop-Location
+    [Environment]::CurrentDirectory = $previousCwd
 }
 Write-Host ""
 Read-Host "Press Enter to close" | Out-Null
