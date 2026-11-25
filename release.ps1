@@ -1,11 +1,13 @@
 # release.ps1
 # Publishes a new Write Assist version: checks the working tree is committed
 # and pushed, tags the commit with the version in release.json, and creates
-# the GitHub release that installed copies offer as an update.
+# the GitHub release that installed copies offer as an update. If the tag is
+# already pushed but its release is missing (a failed run), it creates just
+# the release.
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v01.00.01
+# Version: v01.01.00
 # Date:    2026-11-24
 #
 # Usage:   1. Bump "version" (and "date") in release.json, add a CHANGELOG.md entry.
@@ -15,24 +17,50 @@
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
 
-$version = (Get-Content release.json -Raw | ConvertFrom-Json).version
+# Native commands (git, gh) don't throw on failure; check their exit code.
+function Invoke-Checked([string]$what, [scriptblock]$command) {
+    & $command
+    if ($LASTEXITCODE -ne 0) { throw "$what failed (exit $LASTEXITCODE)." }
+}
+
+$utf8 = New-Object System.Text.UTF8Encoding $false   # PowerShell 5.1 reads files as ANSI by default
+$version = ([IO.File]::ReadAllText((Join-Path $PSScriptRoot "release.json"), $utf8) | ConvertFrom-Json).version
 if (-not ($version -match '^v\d{2}\.\d{2}\.\d{2}$')) { throw "release.json version '$version' isn't vXX.XX.XX" }
 
 if (git status --porcelain) { throw "Commit your changes first (git status isn't clean)." }
-git fetch origin main --quiet
+Invoke-Checked "git fetch" { git fetch origin main --quiet }
 if ((git rev-parse HEAD) -ne (git rev-parse origin/main)) { throw "Push main first (HEAD differs from origin/main)." }
-if (git tag --list $version) { throw "Tag $version already exists. Bump the version in release.json." }
 
-# Notes: this version's section of CHANGELOG.md, if there is one.
+$tagExists = [bool](git tag --list $version)
+if ($tagExists) {
+    gh release view $version *> $null
+    if ($LASTEXITCODE -eq 0) { throw "$version is already released. Bump the version in release.json." }
+    if ((git rev-list -n 1 $version) -ne (git rev-parse HEAD)) {
+        throw "Tag $version points to another commit. Bump the version in release.json."
+    }
+    Write-Host "Tag $version exists without a release; creating the release."
+}
+
+# Notes: this version's section of CHANGELOG.md, if there is one. Passed to gh
+# through a file: PowerShell 5.1 mangles quotes in arguments to programs.
 $notes = ""
-if (Test-Path CHANGELOG.md) {
-    $changelog = Get-Content CHANGELOG.md -Raw
+$changelogPath = Join-Path $PSScriptRoot "CHANGELOG.md"
+if (Test-Path $changelogPath) {
+    $changelog = [IO.File]::ReadAllText($changelogPath, $utf8) -replace "`r`n", "`n"
     $pattern = "(?ms)^## $([regex]::Escape($version))[^\n]*\n(.*?)(?=^## |\z)"
     if ($changelog -match $pattern) { $notes = $Matches[1].Trim() }
 }
 if (-not $notes) { $notes = "Write Assist $version" }
+$notesFile = Join-Path $env:TEMP "WriteAssist-release-notes.md"
+[IO.File]::WriteAllText($notesFile, $notes, $utf8)
 
-git tag -a $version -m "Write Assist $version"
-git push origin $version
-gh release create $version --title "Write Assist $version" --notes $notes
+try {
+    if (-not $tagExists) {
+        Invoke-Checked "git tag" { git tag -a $version -m "Write Assist $version" }
+        Invoke-Checked "git push of the tag" { git push origin $version }
+    }
+    Invoke-Checked "gh release create" { gh release create $version --title "Write Assist $version" --notes-file $notesFile }
+} finally {
+    Remove-Item $notesFile -ErrorAction SilentlyContinue
+}
 Write-Host "Released $version. Installed copies will offer the update next time they open."
