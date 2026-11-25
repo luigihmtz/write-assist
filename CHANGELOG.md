@@ -1,7 +1,13 @@
 # Changelog
 
-## v02.06.01 - 2026-11-24
+## v02.07.00 - 2026-11-25
 
+- Thesaurus and Translate panels open next to the text they work on, and that
+  text stays highlighted in yellow while the panel is open.
+- Translate shows only the translation when you've selected text (the box to
+  type text in appears only when nothing is selected).
+- Detach (⧉): a panel can float anywhere in the window, stays open while you
+  keep working, and can be resized from its corner.
 - Fixed the free local AI failing on some texts with "Couldn't read the reply
   as JSON": the model sometimes got stuck repeating itself until its reply was
   cut off. Write Assist now gives it more room, stops a runaway reply early and

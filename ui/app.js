@@ -7,8 +7,8 @@
 //
 // Author:  Luis Martinez
 // Email:   16788942+luigihmtz@users.noreply.github.com
-// Version: v01.06.00
-// Date:    2026-11-24
+// Version: v01.07.00
+// Date:    2026-11-25
 //
 // Usage: loaded by ui/index.html after i18n.js (t(), applyLanguage()). Every
 //        api.* call returns a Promise of {ok: true, ...} or {ok: false, error}.
@@ -380,6 +380,7 @@ function textareaSelection(area) {
   if (!word) return null;
   return {
     word, context: value.slice(Math.max(0, start - 160), Math.min(value.length, end + 160)),
+    field: area.id, area, start, end,
     replace: (text) => {
       area.focus();
       area.setSelectionRange(start, end);
@@ -399,7 +400,7 @@ function resultSelection() {
   const at = all.indexOf(word);
   const context = at >= 0 ? all.slice(Math.max(0, at - 160), at + word.length + 160) : all.slice(0, 320);
   return {
-    word, context,
+    word, context, field: "result", range,
     replace: (text) => {
       range.deleteContents();
       range.insertNode(document.createTextNode(text));
@@ -420,18 +421,122 @@ function matchCase(original, replacement) {
   return replacement;
 }
 
-// Both panels open under the toolbar, on the right; only one at a time.
-function placePanel(panel) {
-  const bar = document.querySelector(".toolbar").getBoundingClientRect();
-  const width = Math.min(400, window.innerWidth - 16);
+// A panel opens over the column opposite its source, at the source's height,
+// so the original and the panel sit side by side. A floating panel stays where
+// the user dragged it. Call after the panel is shown (it needs its height).
+function placePanel(panel, field) {
+  if (panel.classList.contains("floating")) { keepOnScreen(panel); return; }
+  const columns = document.querySelectorAll(".grid > .column");
+  const fromResult = field === "result";
+  const other = columns[fromResult ? 0 : 1].getBoundingClientRect();
+  const source = (fromResult ? els.result : (els[field] || els.draft)).closest(".card").getBoundingClientRect();
+  const width = Math.min(Math.max(other.width, 300), 480, window.innerWidth - 16);
   panel.style.width = `${width}px`;
-  panel.style.left = `${Math.max(8, window.innerWidth - width - 14)}px`;
-  panel.style.top = `${bar.bottom + 4}px`;
+  panel.style.height = "";
+  panel.style.left = `${fromResult ? other.right - width : other.left}px`;
+  panel.style.top = `${source.top}px`;
+  keepOnScreen(panel);
+}
+
+function keepOnScreen(panel) {
+  const r = panel.getBoundingClientRect();
+  panel.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - r.width - 8))}px`;
+  panel.style.top = `${Math.max(8, Math.min(r.top, window.innerHeight - r.height - 8))}px`;
+}
+
+function toggleFloating(panel) {
+  const floating = panel.classList.toggle("floating");
+  const button = panel.querySelector(".detach");
+  button.title = t(floating ? "panel.dock" : "panel.detach");
+  if (!floating) placePanel(panel, panel === els.translate ? tr.target?.field : th.target?.field);
+}
+
+// Drag a floating panel by its title bar.
+function startDrag(panel, e) {
+  if (!panel.classList.contains("floating") || e.button !== 0) return;
+  if (e.target.closest("button, input, select, textarea")) return;
+  e.preventDefault();
+  const r = panel.getBoundingClientRect();
+  const dx = e.clientX - r.left;
+  const dy = e.clientY - r.top;
+  document.body.classList.add("dragging");
+  const move = (ev) => {
+    panel.style.left = `${Math.max(0, Math.min(ev.clientX - dx, window.innerWidth - 60))}px`;
+    panel.style.top = `${Math.max(0, Math.min(ev.clientY - dy, window.innerHeight - 40))}px`;
+  };
+  const up = () => {
+    document.body.classList.remove("dragging");
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", up);
+  };
+  window.addEventListener("pointermove", move);
+  window.addEventListener("pointerup", up);
 }
 
 function closePanels() {
   closeThesaurus();
   closeTranslate();
+}
+
+// ---------------------------------------------------------------------------
+// Source highlight: the text a panel is working on stays marked in yellow
+// ---------------------------------------------------------------------------
+const hl = { area: null, mirror: null, target: null };
+const MIRROR_STYLES = ["fontFamily", "fontSize", "fontWeight", "fontStyle", "lineHeight", "letterSpacing", "wordSpacing",
+  "tabSize", "textIndent", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft",
+  "borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth", "boxSizing"];
+
+function showSourceHighlight(target) {
+  clearSourceHighlight();
+  if (!target) return;
+  // The blue selection would cover the yellow, so it's cleared; the yellow now
+  // marks the text (and the caret stays where the selection ended).
+  if (target.range) {   // the result: highlight the DOM range itself
+    if (window.Highlight && CSS.highlights) {
+      CSS.highlights.set("wa-source", new Highlight(target.range));
+      window.getSelection().removeAllRanges();
+    }
+    return;
+  }
+  target.area.setSelectionRange(target.end, target.end);
+  // Prompt / Draft: a text box can't color part of its text, so a layer with
+  // the same text, font and wrapping sits behind it with the words marked.
+  const mirror = document.createElement("div");
+  mirror.className = "hl-mirror";
+  target.area.before(mirror);
+  target.area.classList.add("hl-on");
+  Object.assign(hl, { area: target.area, mirror, target });
+  syncSourceHighlight();
+}
+
+function syncSourceHighlight() {
+  const { area, mirror, target } = hl;
+  if (!area) return;
+  const style = getComputedStyle(area);
+  for (const name of MIRROR_STYLES) mirror.style[name] = style[name];
+  // Same text width as the box: its client width leaves out its scrollbar.
+  const borders = parseFloat(style.borderLeftWidth) + parseFloat(style.borderRightWidth);
+  mirror.style.left = `${area.offsetLeft}px`;
+  mirror.style.top = `${area.offsetTop}px`;
+  mirror.style.width = `${area.clientWidth + borders}px`;
+  mirror.style.height = `${area.offsetHeight}px`;
+  const v = area.value;
+  mirror.innerHTML = `${escapeHtml(v.slice(0, target.start))}<mark>${escapeHtml(v.slice(target.start, target.end))}</mark>${escapeHtml(v.slice(target.end))}\n`;
+  mirror.scrollTop = area.scrollTop;
+}
+
+function clearSourceHighlight() {
+  if (hl.mirror) hl.mirror.remove();
+  if (hl.area) hl.area.classList.remove("hl-on");
+  Object.assign(hl, { area: null, mirror: null, target: null });
+  if (window.CSS && CSS.highlights) CSS.highlights.delete("wa-source");
+}
+
+// The highlight of whichever panel is still open (the other may have just closed).
+function refreshSourceHighlight() {
+  if (!els.translate.hidden && tr.target) showSourceHighlight(tr.target);
+  else if (!els.thesaurus.hidden && th.target) showSourceHighlight(th.target);
+  else clearSourceHighlight();
 }
 
 // ---------------------------------------------------------------------------
@@ -445,6 +550,7 @@ function closeThesaurus() {
   hideChipMenu();
   els.thesaurus.hidden = true;
   th.seq++;  // ignore answers still on their way
+  refreshSourceHighlight();
 }
 
 function openThesaurus() {
@@ -453,12 +559,13 @@ function openThesaurus() {
     setStatus(t("th.tooLong"));
     return;
   }
-  closeTranslate();
+  if (!els.translate.classList.contains("floating")) closeTranslate();
   th.target = target;
   th.history = [];
   th.current = "";
-  placePanel(els.thesaurus);
   els.thesaurus.hidden = false;
+  placePanel(els.thesaurus, target ? target.field : app.lastField);
+  showSourceHighlight(target);
   if (target) { lookup(target.word); return; }
   els.thSearch.value = "";
   els.thBack.hidden = true;
@@ -537,7 +644,9 @@ function replaceWithChip() {
   const { target } = th;
   if (!target) return;
   const word = matchCase(target.word, th.chipWord);
+  clearSourceHighlight();
   target.replace(word);
+  th.target = null;
   closeThesaurus();
   setStatus(t("th.replaced", { old: target.word, new: word }));
 }
@@ -552,17 +661,22 @@ const tr = { target: null, source: "", seq: 0 };
 function closeTranslate() {
   els.translate.hidden = true;
   tr.seq++;
+  refreshSourceHighlight();
 }
 
+// With selected text, the panel shows only the translation (the source stays
+// highlighted in place); with nothing selected, a box to type the text in.
 function openTranslate() {
   const target = selectedTarget();
-  closeThesaurus();
+  if (!els.thesaurus.classList.contains("floating")) closeThesaurus();
   tr.target = target;
   tr.source = target ? target.word : "";
   els.trSource.value = tr.source;
+  $("trInput").hidden = Boolean(target);
   els.trOut.hidden = true;
-  placePanel(els.translate);
   els.translate.hidden = false;
+  placePanel(els.translate, target ? target.field : app.lastField);
+  showSourceHighlight(target);
   if (target) translateNow();
   else els.trSource.focus();
 }
@@ -611,7 +725,9 @@ async function translateNow() {
 function replaceWithTranslation() {
   const text = els.trText.textContent;
   if (!tr.target || !text) return;
+  clearSourceHighlight();
   tr.target.replace(text);
+  tr.target = null;
   closeTranslate();
   setStatus(t("tr.replaced"));
 }
@@ -876,6 +992,25 @@ function wire() {
   els.thBody.addEventListener("scroll", hideChipMenu);
 
   $("trClose").addEventListener("click", closeTranslate);
+  for (const panel of [els.thesaurus, els.translate]) {
+    panel.querySelector(".detach").addEventListener("click", () => toggleFloating(panel));
+    panel.querySelector(".popover-head").addEventListener("pointerdown", (e) => startDrag(panel, e));
+  }
+  // The highlight follows the text box's scrolling and size; typing in it
+  // shifts the text, so the highlight and the pending Replace no longer apply.
+  for (const area of [els.prompt, els.draft]) {
+    area.addEventListener("scroll", () => { if (hl.area === area) hl.mirror.scrollTop = area.scrollTop; });
+    area.addEventListener("input", () => {
+      if (hl.area !== area) return;
+      clearSourceHighlight();
+      if (tr.target?.area === area) { tr.target = null; $("trReplace").hidden = true; }
+      if (th.target?.area === area) { th.target = null; $("thReplace").hidden = true; }
+    });
+  }
+  window.addEventListener("resize", () => {
+    syncSourceHighlight();
+    for (const panel of [els.thesaurus, els.translate]) if (!panel.hidden) keepOnScreen(panel);
+  });
   $("trGo").addEventListener("click", translateNow);
   $("trReplace").addEventListener("click", replaceWithTranslation);
   $("trCopy").addEventListener("click", () => copyText(els.trText.textContent));
@@ -928,9 +1063,10 @@ function wire() {
   });
   document.addEventListener("mousedown", (e) => {
     if (e.target.closest("#thesaurusBtn, #translateBtn")) return;
-    if (!els.translate.hidden && !els.translate.contains(e.target)) closeTranslate();
+    const floating = (panel) => panel.classList.contains("floating");
+    if (!els.translate.hidden && !floating(els.translate) && !els.translate.contains(e.target)) closeTranslate();
     if (els.thesaurus.hidden) return;
-    if (!els.thesaurus.contains(e.target)) closeThesaurus();
+    if (!els.thesaurus.contains(e.target)) { if (floating(els.thesaurus)) hideChipMenu(); else closeThesaurus(); }
     else if (!e.target.closest(".chip, #thMenu")) hideChipMenu();
   });
 }

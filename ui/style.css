@@ -6,8 +6,8 @@
  *
  * Author:  Luis Martinez
  * Email:   16788942+luigihmtz@users.noreply.github.com
- * Version: v01.03.01
- * Date:    2026-11-24
+ * Version: v01.04.00
+ * Date:    2026-11-25
  *
  * Usage: linked from ui/index.html. --fs is set from settings.json font_size.
  */
@@ -24,6 +24,7 @@
   --accent-text: #ffffff;
   --accent-soft: #e8efff;
   --mark: #fff1a8;
+  --source-hl: #ffe066;
   --mark-text: #1d2129;
   --old: #b3261e;
   --new: #1e7b34;
@@ -45,6 +46,7 @@
     --accent-text: #0b1020;
     --accent-soft: #24304a;
     --mark: rgba(250, 204, 21, 0.32);
+    --source-hl: rgba(250, 204, 21, 0.55);
     --mark-text: #fff7d1;
     --old: #ff8a80;
     --new: #7ddc94;
@@ -129,6 +131,7 @@ select, input:not([type="checkbox"]) {
 }
 
 .card {
+  position: relative;   /* holds the source-highlight layer */
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -287,7 +290,12 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
   position: fixed;
   z-index: 10;
   width: 360px;
-  max-height: 60vh;
+  max-height: calc(100vh - 16px);
+  max-width: calc(100vw - 16px);
+  min-width: 280px;
+  min-height: 140px;
+  resize: both;          /* grip at the bottom-right corner */
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   background: var(--surface);
@@ -304,7 +312,34 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
   border-bottom: 1px solid var(--border);
 }
 
-.popover-body { padding: 8px 12px 12px; overflow: auto; }
+.popover-body { padding: 8px 12px 12px; overflow: auto; flex: 1; min-height: 0; }
+
+/* Detached panel: floats where the user drags it and stays open. */
+.popover.floating { box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35); }
+.popover.floating .popover-head { cursor: move; }
+.popover .detach { font-size: 1em; }
+.popover.floating .detach { color: var(--accent); }
+body.dragging, body.dragging * { user-select: none; cursor: move !important; }
+
+/* Source highlight: the text a panel is working on, in yellow. In Prompt and
+   Draft a layer behind the (transparent) text box draws it; in the result the
+   CSS Custom Highlight API does. */
+.hl-mirror {
+  position: absolute;
+  z-index: 0;
+  margin: 0;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  color: transparent;
+  border-style: solid;
+  border-color: transparent;
+  pointer-events: none;
+}
+.hl-mirror mark { color: transparent; background: var(--source-hl); border-radius: 3px; }
+textarea.hl-on { position: relative; z-index: 1; }
+::highlight(wa-source) { background-color: var(--source-hl); color: var(--mark-text); }
 .popover-body h3 { margin: 10px 0 6px; font-size: 0.8em; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
 .popover-body .meaning { margin: 0 0 4px; }
 .popover-body .pos { color: var(--muted); font-style: italic; margin-right: 4px; }

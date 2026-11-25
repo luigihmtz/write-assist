@@ -5,8 +5,8 @@
 //
 // Author:  Luis Martinez
 // Email:   16788942+luigihmtz@users.noreply.github.com
-// Version: v01.03.00
-// Date:    2026-11-24
+// Version: v01.04.00
+// Date:    2026-11-25
 //
 // Usage: loaded by ui/index.html before app.js. In index.html:
 //          data-i18n="key"             sets the element's text
@@ -104,6 +104,8 @@ const STRINGS = {
     "status.updateFailed": "Couldn't start the update: {error}",
 
     // thesaurus
+    "panel.detach": "Detach: float this panel, drag it by its title bar, resize it from the corner",
+    "panel.dock": "Dock this panel again",
     "th.back": "Back to the previous word",
     "th.search": "Type a word and press Enter",
     "th.close": "Close (Esc)",
@@ -269,6 +271,8 @@ const STRINGS = {
     "status.settingsSavedHotkey": "Ajustes guardados. Atajo: {message}",
     "status.updateFailed": "No se pudo iniciar la actualización: {error}",
 
+    "panel.detach": "Desacoplar: el panel flota, arrástralo por su barra y cambia su tamaño desde la esquina",
+    "panel.dock": "Volver a acoplar el panel",
     "th.back": "Volver a la palabra anterior",
     "th.search": "Escribe una palabra y pulsa Enter",
     "th.close": "Cerrar (Esc)",

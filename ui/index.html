@@ -7,8 +7,8 @@ buttons, settings dialog. Rendered by writeAssist.pyw in a WebView2 window.
 
 Author:  Luis Martinez
 Email:   16788942+luigihmtz@users.noreply.github.com
-Version: v01.04.01
-Date:    2026-11-24
+Version: v01.05.00
+Date:    2026-11-25
 
 Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
        window.pywebview.api (see app.js). Visible text comes from i18n.js
@@ -118,6 +118,7 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
     <div class="popover-head">
       <button class="ghost small" id="thBack" data-i18n-title="th.back" hidden>←</button>
       <input id="thSearch" type="search" data-i18n-placeholder="th.search" spellcheck="true" autocomplete="off">
+      <button class="ghost small detach" data-i18n-title="panel.detach" aria-label="Detach">⧉</button>
       <button class="ghost small" id="thClose" data-i18n-title="th.close">✕</button>
     </div>
     <div id="thBody" class="popover-body"></div>
@@ -141,12 +142,15 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
         <option value="Italian">Italiano</option>
       </select>
       <span class="spacer"></span>
+      <button class="ghost small detach" data-i18n-title="panel.detach" aria-label="Detach">⧉</button>
       <button class="ghost small" id="trClose" data-i18n-title="th.close">✕</button>
     </div>
     <div class="popover-body">
-      <textarea id="trSource" rows="3" spellcheck="true" data-i18n-placeholder="tr.placeholder"></textarea>
-      <div class="tr-actions">
-        <button class="primary small-primary" id="trGo"><span data-i18n="tr.go">Translate</span> <kbd>Ctrl+Enter</kbd></button>
+      <div id="trInput">
+        <textarea id="trSource" rows="3" spellcheck="true" data-i18n-placeholder="tr.placeholder"></textarea>
+        <div class="tr-actions">
+          <button class="primary small-primary" id="trGo"><span data-i18n="tr.go">Translate</span> <kbd>Ctrl+Enter</kbd></button>
+        </div>
       </div>
       <div id="trOut" hidden>
         <p id="trMeta" class="tr-meta muted"></p>
