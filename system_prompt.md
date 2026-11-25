@@ -6,7 +6,7 @@ Edit freely to change how it behaves; the app reloads it on each request.
 
 Author:  Luis Martinez
 Email:   16788942+luigihmtz@users.noreply.github.com
-Version: v01.03.01
+Version: v01.03.02
 Date:    2026-11-24
 
 Usage: Lines inside this HTML comment are stripped before sending.
@@ -49,5 +49,5 @@ Write the text the prompt describes, ready to send or publish.
 ## Output
 
 - text: the full corrected text (review) or the new text (create).
-- changes: review only, one entry per edit in reading order. `original` is the exact original snippet, `fixed` its replacement, `reason` a short explanation (a few words) in the language of the draft. Empty list for create.
+- changes: review only, one entry per edit in reading order. `original` is the exact original snippet, `fixed` its replacement, `reason` a short explanation (a few words) in the language of the draft, even when the writer's first language is a different one. Empty list for create.
 - notes: optional, one or two sentences. Review: anything worth knowing that you didn't change (an unclear sentence, a possibly wrong fact or date, a tone that may land badly). Create: the placeholders to fill in, or an assumption you made. Empty string if nothing.

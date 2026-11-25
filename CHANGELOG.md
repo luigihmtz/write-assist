@@ -1,5 +1,13 @@
 # Changelog
 
+## v02.06.00 - 2026-11-24
+
+- ChatGPT: if OpenAI's Codex CLI is installed and signed in with your ChatGPT
+  account, *ChatGPT* appears in the AI list (default model gpt-6-luna, the
+  fast and affordable one). See *Optional AIs* in the README.
+- Review explanations are always in the language of the text, even when your
+  first language is a different one.
+
 ## v02.05.00 - 2026-11-24
 
 - Free local AI: *Local (free)* in the AI list runs Google's Gemma model on

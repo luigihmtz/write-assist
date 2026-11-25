@@ -8,6 +8,7 @@ need and get it written. It also has a context-aware thesaurus and offline
 dictation, a translator, and an English or Spanish interface. It works with
 your existing Claude subscription through Claude Code, or with a **free AI that
 runs on your own computer**, so there are no API keys and nothing extra to pay.
+ChatGPT and GitHub Copilot plans work too.
 
 ![Write Assist reviewing a client email: the corrected text with the edits highlighted, and each change listed with its reason](assets/screenshot.png)
 
@@ -70,8 +71,8 @@ Press **Ctrl+Enter**, then **Copy** the result.
 | **Mode** | Review only (grayed out when creating). *fix and polish wording* (default): fixes errors and also smooths awkward or unclear phrasing. *fix errors only*: spelling, typos, grammar, punctuation, with minimal edits. Anything the prompt asks for overrides it. |
 | **Language** | The text's language and regional variant (English US/UK, Spanish Mexico/Spain, French, Portuguese, German, Italian). Review corrects for it (e.g. US vs UK spelling); Create writes in it. *Auto* lets the AI decide from the text and your *About you*. |
 | **Tone** | `keep` (default), or lean it: more formal, more casual, friendlier, more concise. |
-| **AI** | Cheapest first: **Local (free)**, the AI on your computer; **Claude**; and **GitHub Copilot** if its CLI is installed. The default is the cheapest one that's set up. Choosing *Local (free)* the first time offers its one-time download, with the size shown before anything downloads. If the chosen AI hits its usage limit, the request goes to the cheapest other one automatically and the status bar says so (turn off with `"auto_fallback": false` in `user_settings.json`). |
-| **Model** | Local: `gemma3:4b` (default, about 3.3 GB), `gemma3:12b` (better, about 8 GB, for PCs with a good graphics card or lots of memory). Claude: `haiku` (default, fastest and lightest on your plan's limits), `sonnet`, `opus` (strongest). Copilot: `auto`. *Other...* lets you enter any other model name the AI accepts. |
+| **AI** | Cheapest first: **Local (free)**, the AI on your computer; **Claude**; **ChatGPT** and **GitHub Copilot** if their command-line apps are installed (see *Optional AIs* below). The default is the cheapest one that's set up. Choosing *Local (free)* the first time offers its one-time download, with the size shown before anything downloads. If the chosen AI hits its usage limit, the request goes to the cheapest other one automatically and the status bar says so (turn off with `"auto_fallback": false` in `user_settings.json`). |
+| **Model** | Local: `gemma3:4b` (default, about 3.3 GB), `gemma3:12b` (better, about 8 GB, for PCs with a good graphics card or lots of memory). Claude: `haiku` (default, fastest and lightest on your plan's limits), `sonnet`, `opus` (strongest). ChatGPT: `gpt-6-luna` (default, fast and affordable), `gpt-5.6-terra`. Copilot: `auto`. *Other...* lets you enter any other model name the AI accepts. |
 | **Thesaurus** | Select a word (or put the cursor on it) in Prompt, Draft or the result, then click *Thesaurus* at the top or press **Ctrl+T**: meaning, synonyms and antonyms that fit your sentence. Click a synonym or antonym to **Replace** your word with it or **Search** it in turn (← goes back). You can also type any word in the panel's search box. It asks the AI only when you look something up. |
 | **Translate** | Select text (a word, a sentence, a paragraph) in Prompt, Draft or the result, then click *Translate* at the top or press **Ctrl+Shift+T**. Pick the target language; *English ⇄ Spanish* translates English into Spanish and anything else into English. Then **Replace selection**, **Use as draft** or **Copy**. For a single word it also offers other options; click one to swap it in. You can also type or paste text straight into the panel. It asks the AI only when you translate. |
 | **Dictate** | Speak into Prompt or Draft; click again to stop (Esc cancels). Transcribed on your computer with faster-whisper: free, offline, private. The first time, it offers a one-time download (speech engine about 250 MB, plus the model: 465 MB for *small*). |
@@ -91,11 +92,25 @@ The Draft is only ever treated as text to correct, never as instructions:
 a pasted email saying "reply ASAP with the numbers" gets proofread, not
 answered.
 
+### Optional AIs
+
+To use one of these, install its command-line app once and sign in with your
+existing account; it then appears in the AI list. Restart Write Assist after
+installing.
+
+- **ChatGPT** (a ChatGPT plan that includes Codex): in PowerShell, run
+  `irm https://chatgpt.com/codex/install.ps1 | iex`, then `codex login`.
+- **GitHub Copilot** (a Copilot plan): run `winget install GitHub.Copilot`,
+  then `copilot` once to sign in.
+
+Google's Gemini isn't offered: its command-line app for personal accounts was
+replaced in June 2026 by one without a documented way for other apps to use it.
+
 ## Privacy
 
 - **What you send to the AI:** the text you review, create, look up in the
   thesaurus or translate, together with your *About you*, goes to the AI you
-  chose (Anthropic for Claude, GitHub for Copilot) through its own
+  chose (Anthropic for Claude, OpenAI for ChatGPT, GitHub for Copilot) through its own
   command-line app, signed in with your own account. Their privacy policies
   and terms apply to it. With **Local (free)**, the text stays on your
   computer: the model runs there, through Ollama.
@@ -181,8 +196,8 @@ dictado por voz.
   **Write Assist** y elige **Anclar a la barra de tareas**.
 - **Micrófono:** Dictar usa el micrófono predeterminado de Windows. Para usar
   otro, elígelo en **Ajustes > Micrófono para dictar**.
-- **IA:** arriba eliges entre **Local (gratis)**, **Claude** y, si lo
-  tienes, **GitHub Copilot**. La primera vez que eliges Local (gratis), la
+- **IA:** arriba eliges entre **Local (gratis)**, **Claude** y, si los
+  tienes instalados, **ChatGPT** y **GitHub Copilot**. La primera vez que eliges Local (gratis), la
   app te avisa del tamaño de la descarga antes de bajar nada.
 - **El idioma de la app** sigue al de Windows. Puedes cambiarlo en
   **Ajustes > Idioma de la interfaz**.
@@ -190,7 +205,7 @@ dictado por voz.
 ### Privacidad
 
 El texto que revisas, creas, buscas en sinónimos o traduces se envía a la IA
-que elegiste (Anthropic para Claude, GitHub para Copilot) con tu propia
+que elegiste (Anthropic para Claude, OpenAI para ChatGPT, GitHub para Copilot) con tu propia
 cuenta, y se rige por sus políticas. Con la IA local gratuita, tu texto no
 sale de tu computadora. El dictado se procesa en tu
 computadora: el audio nunca sale de ella. Write Assist no recopila nada.
@@ -259,6 +274,21 @@ claude -p --safe-mode --no-session-persistence --model haiku --effort low
   small: every loaded tool's description is sent with each request, ~22k
   tokens in total, so a review would cost ~23k input tokens instead of ~3k.
 
+**ChatGPT:** OpenAI's Codex CLI, signed in with the user's ChatGPT account:
+
+```
+codex exec - --ephemeral --ignore-user-config --ignore-rules --skip-git-repo-check
+      -s read-only -C <empty temp folder> --json --output-schema <schema> -o <reply>
+      -c model_instructions_file=<one line> -c web_search="disabled"
+      --disable shell_tool --disable unified_exec ...   (prompt sent on stdin)
+```
+
+Codex is a coding agent, so the app swaps its long built-in instructions for a
+one-line file and turns off its tools (shell, browser, images, plugins and
+others). That keeps each request around 6k input tokens instead of 15k. The
+schema is made strict (`additionalProperties: false`, every field required), as
+OpenAI's structured output requires.
+
 **Local (free):** Ollama's local API (`http://127.0.0.1:11434/api/chat`) with
 the JSON schema as `format`, `think: false` and `temperature: 0.2`. If Ollama
 isn't running, the app starts only its engine (`ollama serve`) in the
@@ -316,6 +346,7 @@ download these from their official sources, each under its own license:
 | [Claude Code](https://www.anthropic.com/claude-code) | Talks to Claude | Anthropic's terms |
 | [Ollama](https://ollama.com) (optional) | Runs the free local AI | MIT |
 | [Gemma 3](https://ai.google.dev/gemma) models by Google (optional) | The free local AI | Gemma Terms of Use |
+| [OpenAI Codex CLI](https://github.com/openai/codex) (optional) | Talks to ChatGPT | Apache-2.0 (use under OpenAI's terms) |
 | [GitHub Copilot CLI](https://github.com/features/copilot) (optional) | Talks to Copilot | GitHub's terms |
 | [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (with CTranslate2, PyAV) | Dictation | MIT (PyAV: BSD-3-Clause, with FFmpeg under LGPL) |
 | [Whisper](https://github.com/openai/whisper) models by OpenAI | Dictation | MIT |
@@ -327,8 +358,8 @@ modify and share it, as long as the copyright notice stays with it. It comes
 as is, without warranty of any kind.
 
 Write Assist is an independent project, not affiliated with or endorsed by
-Anthropic, GitHub, Microsoft, Google or Ollama. Claude, GitHub Copilot, Windows,
-Gemma and the other
+Anthropic, OpenAI, GitHub, Microsoft, Google or Ollama. Claude, ChatGPT, GitHub
+Copilot, Windows, Gemma and the other
 product names mentioned are trademarks of their respective owners. Using
-Claude or Copilot through Write Assist is subject to your own agreement with
-Anthropic or GitHub.
+Claude, ChatGPT or Copilot through Write Assist is subject to your own agreement
+with Anthropic, OpenAI or GitHub.

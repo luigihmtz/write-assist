@@ -3,7 +3,8 @@
 # reviewed (grammar, spelling, typos, punctuation), a Prompt to have a text
 # written, or both. Also a context-aware thesaurus and translator (on demand), offline
 # speech-to-text, and an English or Spanish interface. It runs an AI's local CLI headless, so it uses your existing
-# subscription and needs no API key: Claude (Claude Code) or GitHub Copilot,
+# subscription and needs no API key: Claude (Claude Code), ChatGPT (Codex CLI) or
+# GitHub Copilot,
 # or a free AI model that runs on this computer (Ollama), set up on first use.
 # If the chosen AI hits a usage limit, the request goes to the other one.
 # This file is the desktop window (pywebview on Microsoft WebView2, page in
@@ -11,7 +12,7 @@
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v02.05.00
+# Version: v02.05.01
 # Date:    2026-11-24
 #
 # Usage: installed by install.ps1 (Start Menu shortcut + global hotkey, default

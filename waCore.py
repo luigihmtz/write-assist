@@ -1,14 +1,14 @@
 # waCore.py
 # Core of Write Assist, without any UI: settings (shipped defaults + per-user
 # overrides), the Review/Create, Thesaurus and Translate requests sent to the AI CLIs
-# (Claude Code `claude -p`, GitHub Copilot CLI `copilot -s`, a free local model
-# through Ollama's local API), the word diff
+# (Claude Code `claude -p`, OpenAI Codex CLI `codex exec` for ChatGPT, GitHub
+# Copilot CLI `copilot -s`, a free local model through Ollama's local API), the word diff
 # used to highlight edits, and the GitHub release check. Usage-limit errors
 # raise LimitReached so the app can hand the request to another AI.
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v01.04.00
+# Version: v01.05.00
 # Date:    2026-11-24
 #
 # Usage: imported by writeAssist.pyw. Per-user files live in
@@ -45,6 +45,7 @@ DEFAULT_PROVIDERS = {
     "Local (free)": {"type": "ollama", "models": ["gemma3:4b", "gemma3:12b"], "default_model": "gemma3:4b"},
     "Claude": {"type": "claude", "models": ["haiku", "sonnet", "opus"],
                "default_model": "haiku", "effort": "low"},
+    "ChatGPT": {"type": "codex", "models": ["gpt-6-luna", "gpt-5.6-terra"], "default_model": "gpt-6-luna", "effort": "low"},
     "GitHub Copilot": {"type": "copilot", "models": ["auto"], "default_model": "auto", "effort": ""},
 }
 
@@ -157,6 +158,8 @@ def find_cli(kind, configured=""):
         candidates = [shutil.which("claude"), Path.home() / ".local" / "bin" / "claude.exe"]
     elif kind == "ollama":
         candidates = [local / "Programs" / "Ollama" / "ollama.exe", shutil.which("ollama")]
+    elif kind == "codex":
+        candidates = [local / "Programs" / "OpenAI" / "Codex" / "bin" / "codex.exe", shutil.which("codex")]
     else:
         # The winget/MSI install comes first: VS Code's `copilot` launcher on
         # PATH only works when the real CLI is installed anyway.
@@ -271,6 +274,79 @@ def run_copilot(cli, provider, model, message, system_prompt, schema, json_hint,
 
 
 # --------------------------------------------------------------------------- #
+# ChatGPT through OpenAI's Codex CLI (signed in with the user's ChatGPT account)
+# --------------------------------------------------------------------------- #
+# Codex is a coding agent: everything it doesn't need for writing is turned off,
+# which also keeps requests small (about 6k input tokens instead of 15k).
+CODEX_DISABLED_FEATURES = [
+    "shell_tool", "unified_exec", "view_image", "image_generation", "browser_use", "browser_use_external",
+    "computer_use", "apps", "plugins", "remote_plugin", "multi_agent", "goals", "hooks", "sleep_tool",
+    "skill_search", "tool_suggest", "in_app_browser", "workspace_dependencies", "skill_mcp_dependency_install",
+    "shell_snapshot",
+]
+CODEX_INSTRUCTIONS = "You are a writing assistant. Follow the user's instructions exactly and reply only with the requested JSON."
+
+
+def strict_schema(schema):
+    """OpenAI's structured output needs additionalProperties false and every property required."""
+    out = dict(schema)
+    if out.get("type") == "object":
+        out["properties"] = {key: strict_schema(value) for key, value in out.get("properties", {}).items()}
+        out["required"] = list(out["properties"])
+        out["additionalProperties"] = False
+    if out.get("type") == "array" and "items" in out:
+        out["items"] = strict_schema(out["items"])
+    return out
+
+
+def run_codex(cli, provider, model, message, system_prompt, schema, json_hint, timeout):
+    with tempfile.TemporaryDirectory(prefix="WriteAssist-codex-") as work:
+        work = Path(work)
+        (work / "schema.json").write_text(json.dumps(strict_schema(schema)), encoding="utf-8")
+        (work / "instructions.md").write_text(CODEX_INSTRUCTIONS, encoding="utf-8")
+        out_file = work / "reply.json"
+        cmd = [
+            cli, "exec", "-",
+            "--ephemeral",                   # don't save the session
+            "--ignore-user-config",          # the user's own Codex settings don't apply
+            "--ignore-rules",
+            "--skip-git-repo-check",
+            "-s", "read-only",
+            "-C", str(work),                 # an empty folder as its workspace
+            "--color", "never", "--json",
+            "--output-schema", str(work / "schema.json"),
+            "-o", str(out_file),
+            "-c", f'model_instructions_file="{(work / "instructions.md").as_posix()}"',
+            "-c", 'web_search="disabled"',
+        ]
+        for feature in CODEX_DISABLED_FEATURES:
+            cmd += ["--disable", feature]
+        if model:
+            cmd += ["-m", model]
+        if provider.get("effort"):
+            cmd += ["-c", f'model_reasoning_effort="{provider["effort"]}"']
+        prompt = f"{system_prompt}\n\n{json_hint}\n\n{message}"
+        proc = subprocess.run(cmd, input=prompt, capture_output=True, text=True, encoding="utf-8",
+                              errors="replace", timeout=timeout, cwd=work, creationflags=NO_WINDOW)
+        if out_file.exists() and out_file.read_text(encoding="utf-8").strip():
+            return parse_json_reply(out_file.read_text(encoding="utf-8"))
+        # No reply: find the reason in the event stream (JSON lines) or stderr.
+        errors = []
+        for line in proc.stdout.splitlines():
+            try:
+                event = json.loads(line)
+            except ValueError:
+                continue
+            if event.get("type") in ("error", "turn.failed"):
+                errors.append(str(event.get("message") or event.get("error") or event))
+        detail = "\n".join(errors) or proc.stderr.strip() or "no output"
+        check_limit(detail)
+        if any(word in detail.lower() for word in ("401", "unauthorized", "not logged in", "login")):
+            raise RuntimeError("ChatGPT isn't signed in. Open a terminal, run: codex login")
+        raise RuntimeError(f"ChatGPT failed (exit {proc.returncode}):\n{detail[:1500]}")
+
+
+# --------------------------------------------------------------------------- #
 # Local AI (Ollama): free, runs on this computer, nothing leaves it
 # --------------------------------------------------------------------------- #
 def ollama_models_dir():
@@ -375,7 +451,7 @@ def run_ollama(cli, provider, model, message, system_prompt, schema, json_hint, 
     return parse_json_reply(reply.get("message", {}).get("content", ""))
 
 
-RUNNERS = {"claude": run_claude, "copilot": run_copilot, "ollama": run_ollama}
+RUNNERS = {"claude": run_claude, "codex": run_codex, "copilot": run_copilot, "ollama": run_ollama}
 
 
 def ask(provider_name, provider, model, message, system_prompt, schema, json_hint, timeout):
