@@ -24,6 +24,9 @@ Enterprise seat; the free plan doesn't include Claude Code).
 
 3. When your browser opens, sign in to Claude.
 
+The line downloads and runs [install.ps1](install.ps1) from this repository.
+If you prefer to read a script before running it, open that file first.
+
 The installer sets up Python (with the small pywebview package), the WebView2
 runtime and Claude Code if they're missing, then opens Write Assist. No admin rights needed. On first launch it asks a little about
 you (your languages, what you write) so it corrects and writes like you.
@@ -75,6 +78,20 @@ emojis are kept as they are.
 The Draft is only ever treated as text to correct, never as instructions:
 a pasted email saying "reply ASAP with the numbers" gets proofread, not
 answered.
+
+## Privacy
+
+- **What you send to the AI:** the text you review, create, look up in the
+  thesaurus or translate, together with your *About you*, goes to the AI you
+  chose (Anthropic for Claude, GitHub for Copilot) through its own
+  command-line app, signed in with your own account. Their privacy policies
+  and terms apply to it.
+- **Dictation** is transcribed on your computer. Audio never leaves it.
+- **Write Assist itself collects nothing:** no accounts, analytics or
+  tracking. Your settings stay in `%APPDATA%\WriteAssist` on your PC. The
+  only other connections it makes are the update check (it asks GitHub for
+  the latest release) and, the first time you dictate, downloading the speech
+  engine and model.
 
 ## En español
 
@@ -145,6 +162,13 @@ traductor y dictado por voz.
 - **El idioma de la app** sigue al de Windows. Puedes cambiarlo en
   **Ajustes > Idioma de la interfaz**.
 
+### Privacidad
+
+El texto que revisas, creas, buscas en sinónimos o traduces se envía a la IA
+que elegiste (Anthropic para Claude, GitHub para Copilot) con tu propia
+cuenta, y se rige por sus políticas. El dictado se procesa en tu
+computadora: el audio nunca sale de ella. Write Assist no recopila nada.
+
 ### Desinstalar
 
 Ve a **Configuración de Windows > Aplicaciones**, busca **Write Assist** y
@@ -155,7 +179,7 @@ haz clic en **Desinstalar**.
 | File | Purpose |
 |---|---|
 | `writeAssist.pyw` | The app: the window (pywebview on WebView2) and the bridge the page calls. |
-| `waCore.py` | Settings, Review/Create and Thesaurus requests to the AI CLIs, edit highlighting, update check. |
+| `waCore.py` | Settings, Review/Create, Thesaurus and Translate requests to the AI CLIs, usage-limit fallback, edit highlighting, update check. |
 | `waSpeech.py` | Offline dictation with faster-whisper, installed on first use. |
 | `ui/` | The window's page: `index.html`, `style.css`, `app.js`, and `i18n.js` with the English and Spanish interface text. |
 | `hotkeyListener.pyw` | Background listener for the global hotkey; opens or wakes the app. |
@@ -166,6 +190,7 @@ haz clic en **Desinstalar**.
 | `uninstall.ps1` | Removes the app, shortcuts and settings. |
 | `release.ps1` | Publishes a new version (maintainer only). |
 | `assets/writeAssist.ico` | Icon. |
+| `LICENSE` | MIT license. |
 
 Per-user files, kept across updates, in `%APPDATA%\WriteAssist\`:
 `user_settings.json` (*About you*, hotkey, and any `settings.json` key to
@@ -241,3 +266,30 @@ To publish a version:
 2. Commit and push to `main`.
 3. Run `.\release.ps1`. It tags the commit and creates the GitHub release;
    installed copies offer the update the next time they open.
+
+## Third-party software
+
+Write Assist doesn't include other people's code. The installer and the app
+download these from their official sources, each under its own license:
+
+| Software | Used for | License |
+|---|---|---|
+| [Python](https://www.python.org) | Runs the app | PSF License |
+| [pywebview](https://github.com/r0x0r/pywebview) (with pythonnet) | The window | BSD-3-Clause (pythonnet: MIT) |
+| Microsoft Edge WebView2 Runtime | Shows the window's page | Microsoft software license |
+| [Claude Code](https://www.anthropic.com/claude-code) | Talks to Claude | Anthropic's terms |
+| [GitHub Copilot CLI](https://github.com/features/copilot) (optional) | Talks to Copilot | GitHub's terms |
+| [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (with CTranslate2, PyAV) | Dictation | MIT (PyAV: BSD-3-Clause, with FFmpeg under LGPL) |
+| [Whisper](https://github.com/openai/whisper) models by OpenAI | Dictation | MIT |
+
+## License
+
+Write Assist is released under the [MIT License](LICENSE): you can use, copy,
+modify and share it, as long as the copyright notice stays with it. It comes
+as is, without warranty of any kind.
+
+Write Assist is an independent project, not affiliated with or endorsed by
+Anthropic, GitHub or Microsoft. Claude, GitHub Copilot, Windows and the other
+product names mentioned are trademarks of their respective owners. Using
+Claude or Copilot through Write Assist is subject to your own agreement with
+Anthropic or GitHub.

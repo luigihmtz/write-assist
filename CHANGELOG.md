@@ -5,6 +5,9 @@
 - Settings > Microphone for dictation: choose which microphone Dictate uses,
   or keep *Same as Windows*. If the chosen one is unplugged, Dictate uses the
   Windows default and says so.
+- Write Assist is now open source under the MIT License. The README adds
+  privacy details, third-party credits, and a note that the project isn't
+  affiliated with Anthropic, GitHub or Microsoft.
 
 ## v02.03.01 - 2026-11-24
 
