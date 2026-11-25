@@ -1,5 +1,12 @@
 # Changelog
 
+## v02.04.01 - 2026-11-24
+
+- Fixed updates failing with "Cannot remove the item ... because it is in
+  use": the installer now leaves the app folder before replacing it, and
+  waits a few seconds if the app is still closing.
+- The status bar says "4 changes" or "1 change" instead of "change(s)".
+
 ## v02.04.00 - 2026-11-24
 
 - Settings > Microphone for dictation: choose which microphone Dictate uses,
