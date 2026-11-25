@@ -7,7 +7,7 @@ buttons, settings dialog. Rendered by writeAssist.pyw in a WebView2 window.
 
 Author:  Luis Martinez
 Email:   16788942+luigihmtz@users.noreply.github.com
-Version: v01.05.00
+Version: v01.06.00
 Date:    2026-11-25
 
 Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
@@ -169,6 +169,12 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
     </div>
   </div>
 
+  <div id="ltPop" class="lt-pop" hidden>
+    <p id="ltMsg" class="lt-msg"></p>
+    <div id="ltReps" class="chips"></div>
+    <div class="lt-actions"><button class="ghost small" id="ltIgnore" data-i18n="lt.ignore">Ignore</button></div>
+  </div>
+
   <dialog id="settingsDialog">
     <form method="dialog" class="dialog">
       <h2 id="settingsTitle" data-i18n="settings">Settings</h2>
@@ -185,6 +191,11 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
         <select id="microphone">
           <option value="" data-i18n="settings.micDefault">Same as Windows</option>
         </select>
+      </label>
+      <label class="check-block">
+        <input type="checkbox" id="liveGrammar">
+        <span><strong data-i18n="settings.liveGrammar">Live grammar check</strong>
+          <span class="muted" data-i18n="settings.liveGrammarHint"></span></span>
       </label>
       <div class="row">
         <label class="block"><span data-i18n="settings.speechModel">Speech model</span>

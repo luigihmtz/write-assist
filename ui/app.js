@@ -2,12 +2,12 @@
 // Behavior of the Write Assist window: picks Review or Create from the
 // filled fields, runs it through Python (window.pywebview.api), shows the
 // result with highlighted edits, the on-demand thesaurus and translator, the
-// free local AI's first-use download,
+// free local AI's first-use download, live grammar underlines (LanguageTool),
 // speech-to-text recording, settings, interface language, and updates.
 //
 // Author:  Luis Martinez
 // Email:   16788942+luigihmtz@users.noreply.github.com
-// Version: v01.07.00
+// Version: v01.08.00
 // Date:    2026-11-25
 //
 // Usage: loaded by ui/index.html after i18n.js (t(), applyLanguage()). Every
@@ -59,6 +59,7 @@ async function init() {
   document.documentElement.style.setProperty("--fs", `${Math.round(info.font_size * 1.33)}px`);
   setUiLanguage(info.ui_language || "");
   app.microphone = info.microphone || "";
+  if (info.live_grammar) setLiveGrammar(true);
 
   const state = info.state || {};
   // models_rev 2: Claude's default became haiku; forget models saved before that.
@@ -509,9 +510,9 @@ function showSourceHighlight(target) {
   syncSourceHighlight();
 }
 
-function syncSourceHighlight() {
-  const { area, mirror, target } = hl;
-  if (!area) return;
+// A layer behind a text box with the same text, font, size and wrapping, so
+// parts of the text can be marked (highlight, grammar underlines).
+function fitMirror(area, mirror) {
   const style = getComputedStyle(area);
   for (const name of MIRROR_STYLES) mirror.style[name] = style[name];
   // Same text width as the box: its client width leaves out its scrollbar.
@@ -520,6 +521,12 @@ function syncSourceHighlight() {
   mirror.style.top = `${area.offsetTop}px`;
   mirror.style.width = `${area.clientWidth + borders}px`;
   mirror.style.height = `${area.offsetHeight}px`;
+}
+
+function syncSourceHighlight() {
+  const { area, mirror, target } = hl;
+  if (!area) return;
+  fitMirror(area, mirror);
   const v = area.value;
   mirror.innerHTML = `${escapeHtml(v.slice(0, target.start))}<mark>${escapeHtml(v.slice(target.start, target.end))}</mark>${escapeHtml(v.slice(target.end))}\n`;
   mirror.scrollTop = area.scrollTop;
@@ -733,6 +740,174 @@ function replaceWithTranslation() {
 }
 
 // ---------------------------------------------------------------------------
+// Live grammar: LanguageTool on this computer underlines mistakes as you type
+// ---------------------------------------------------------------------------
+const LT_FIELDS = ["prompt", "draft"];
+const lt = { on: false, started: false, timers: {}, seq: {}, matches: { prompt: [], draft: [] },
+  mirrors: {}, ignored: new Set(), open: null };
+
+const ltKey = (text, m) => `${m.rule}|${text.slice(m.offset, m.offset + m.length)}`;
+const ltClass = (type) => (type === "misspelling" ? "lt-spell" : ["style", "typographical", "locale-violation"].includes(type) ? "lt-style" : "lt-grammar");
+
+function setLiveGrammar(on) {
+  lt.on = on;
+  hideLtPop();
+  for (const field of LT_FIELDS) {
+    const area = els[field];
+    area.spellcheck = !on;   // LanguageTool underlines spelling too: no double red lines
+    if (on) {
+      if (!lt.mirrors[field]) {
+        const mirror = document.createElement("div");
+        mirror.className = "lt-mirror";
+        area.before(mirror);
+        area.classList.add("lt-on");
+        lt.mirrors[field] = mirror;
+      }
+      scheduleGrammarCheck(field, 0);
+    } else {
+      clearTimeout(lt.timers[field]);
+      lt.mirrors[field]?.remove();
+      delete lt.mirrors[field];
+      lt.matches[field] = [];
+      area.classList.remove("lt-on");
+    }
+  }
+}
+
+function scheduleGrammarCheck(field, delay = 700) {
+  if (!lt.on) return;
+  clearTimeout(lt.timers[field]);
+  lt.timers[field] = setTimeout(() => runGrammarCheck(field), delay);
+}
+
+async function runGrammarCheck(field) {
+  const area = els[field];
+  const text = area.value;
+  if (!lt.on) return;
+  if (!text.trim()) { lt.matches[field] = []; renderGrammar(field); return; }
+  const seq = (lt.seq[field] = (lt.seq[field] || 0) + 1);
+  if (!lt.started) setStatus(t("lt.starting"));   // the first check also starts the checker
+  const res = await api().grammar_check(text, els.textLanguage.value);
+  if (!lt.started && els.status.textContent === t("lt.starting")) setStatus("");
+  if (!res.ok) { setStatus(res.error, true); return; }
+  lt.started = true;
+  if (seq !== lt.seq[field] || area.value !== text) return;   // typed meanwhile: a newer check follows
+  lt.matches[field] = res.matches.filter((m) => !lt.ignored.has(ltKey(text, m))).sort((a, b) => a.offset - b.offset);
+  renderGrammar(field);
+}
+
+function renderGrammar(field) {
+  const area = els[field];
+  const mirror = lt.mirrors[field];
+  if (!mirror) return;
+  fitMirror(area, mirror);
+  const v = area.value;
+  let html = "";
+  let pos = 0;
+  lt.matches[field].forEach((m, i) => {
+    if (m.offset < pos) return;   // overlapping match: skip
+    html += `${escapeHtml(v.slice(pos, m.offset))}<span class="lt-err ${ltClass(m.type)}" data-i="${i}">${escapeHtml(v.slice(m.offset, m.offset + m.length))}</span>`;
+    pos = m.offset + m.length;
+  });
+  mirror.innerHTML = `${html}${escapeHtml(v.slice(pos))}\n`;
+  mirror.scrollTop = area.scrollTop;
+}
+
+// Typing shifts the text under the underlines: hide them until the next check.
+function onGrammarInput(field) {
+  if (!lt.on) return;
+  hideLtPop();
+  if (lt.matches[field].length) { lt.matches[field] = []; renderGrammar(field); }
+  scheduleGrammarCheck(field);
+}
+
+// A click inside an underlined word opens its suggestions.
+function onGrammarClick(field) {
+  if (!lt.on) return;
+  const area = els[field];
+  if (area.selectionStart !== area.selectionEnd) return;
+  const pos = area.selectionStart;
+  const index = lt.matches[field].findIndex((m) => m.offset <= pos && pos <= m.offset + m.length);
+  if (index < 0) { hideLtPop(); return; }
+  showLtPop(field, index);
+}
+
+function showLtPop(field, index) {
+  const m = lt.matches[field][index];
+  const span = lt.mirrors[field]?.querySelector(`[data-i="${index}"]`);
+  if (!m || !span) return;
+  lt.open = { field, index };
+  const pop = $("ltPop");
+  $("ltMsg").textContent = m.message;
+  $("ltMsg").title = m.detail;
+  const reps = $("ltReps");
+  reps.innerHTML = m.replacements.length ? "" : `<span class="muted">${escapeHtml(t("lt.noSuggestions"))}</span>`;
+  for (const value of m.replacements) {
+    const chip = document.createElement("button");
+    chip.className = "chip";
+    chip.textContent = value;
+    chip.addEventListener("click", () => applyGrammarFix(field, m, value));
+    reps.append(chip);
+  }
+  pop.hidden = false;
+  const r = span.getBoundingClientRect();
+  pop.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - pop.offsetWidth - 8))}px`;
+  pop.style.top = `${r.bottom + 6 + pop.offsetHeight > window.innerHeight ? r.top - pop.offsetHeight - 6 : r.bottom + 6}px`;
+}
+
+function hideLtPop() {
+  $("ltPop").hidden = true;
+  lt.open = null;
+}
+
+function applyGrammarFix(field, m, value) {
+  const area = els[field];
+  hideLtPop();
+  area.focus();
+  area.setRangeText(value, m.offset, m.offset + m.length, "end");
+  area.dispatchEvent(new Event("input"));
+}
+
+function ignoreGrammarMatch() {
+  if (!lt.open) return;
+  const { field, index } = lt.open;
+  const m = lt.matches[field][index];
+  lt.ignored.add(ltKey(els[field].value, m));
+  lt.matches[field].splice(index, 1);
+  hideLtPop();
+  renderGrammar(field);
+}
+
+// Turning it on the first time downloads the checker, after the size warning.
+async function enableLiveGrammar() {
+  const info = await api().grammar_info();
+  if (!info.ok) { setStatus(info.error, true); return false; }
+  if (!info.installed) {
+    const ok = await confirmBox(t("lt.setupTitle"),
+      t("lt.setupText", { download: info.download_mb, disk: info.disk_mb }), t("lt.download"));
+    if (!ok) return false;
+    const start = await api().start_grammar_setup();
+    if (!start.ok) { setStatus(start.error, true); return false; }
+    for (;;) {
+      await sleep(700);
+      const s = await api().grammar_progress();
+      if (!s.ok) { setStatus(s.error, true); return false; }
+      if (s.total_mb) {
+        setStatus(t("lt.downloading", { percent: Math.min(100, Math.floor((100 * s.done_mb) / s.total_mb)),
+          done: Math.round(s.done_mb), total: Math.round(s.total_mb) }));
+      }
+      if (s.running) continue;
+      if (s.error) { setStatus(s.error, true); return false; }
+      break;
+    }
+  }
+  await api().set_live_grammar(true);
+  setLiveGrammar(true);
+  setStatus(t("lt.ready"));
+  return true;
+}
+
+// ---------------------------------------------------------------------------
 // Speech-to-text (offline, faster-whisper in Python)
 // ---------------------------------------------------------------------------
 const MIC_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-2.08A7 7 0 0 0 19 12h-2Z"/></svg>';
@@ -901,6 +1076,7 @@ async function openSettings(firstRun = false) {
   $("speechLanguage").value = res.speech_language;
   $("uiLanguage").value = res.ui_language || "";
   fillMicrophones(res.microphone || "");
+  $("liveGrammar").checked = Boolean(res.live_grammar) && lt.on;
   $("versionText").textContent = t("settings.version", { version: res.version }) + (res.is_dev ? t("settings.devCopy") : "");
   $("settingsError").hidden = true;
   const dialog = $("settingsDialog");
@@ -932,10 +1108,16 @@ async function closeSettings(save) {
     profile: $("profile").value, hotkey: $("hotkey").value,
     speech_model: $("speechModel").value, speech_language: $("speechLanguage").value,
     ui_language: uiLanguage, microphone: $("microphone").value,
+    live_grammar: $("liveGrammar").checked && lt.on,   // turned on below, after any download
   });
   if (!res.ok) { $("settingsError").textContent = res.error; $("settingsError").hidden = false; return; }
   app.microphone = $("microphone").value;
   if (uiLanguage !== app.uiLanguage) setUiLanguage(uiLanguage);
+  const wantGrammar = $("liveGrammar").checked;
+  if (wantGrammar !== lt.on) {
+    if (wantGrammar) setTimeout(enableLiveGrammar, 0);   // after the dialog closes
+    else { setLiveGrammar(false); api().set_live_grammar(false); }
+  }
   if (res.hotkey_changed && !res.hotkey_ok) {
     $("settingsError").textContent = t("settings.hotkeyFailed", { message: res.hotkey_message });
     $("settingsError").hidden = false;
@@ -1007,7 +1189,16 @@ function wire() {
       if (th.target?.area === area) { th.target = null; $("thReplace").hidden = true; }
     });
   }
+  for (const field of LT_FIELDS) {
+    const area = els[field];
+    area.addEventListener("input", () => onGrammarInput(field));
+    area.addEventListener("click", () => onGrammarClick(field));
+    area.addEventListener("scroll", () => { if (lt.mirrors[field]) lt.mirrors[field].scrollTop = area.scrollTop; hideLtPop(); });
+  }
+  $("ltIgnore").addEventListener("click", ignoreGrammarMatch);
+  els.textLanguage.addEventListener("change", () => LT_FIELDS.forEach((f) => scheduleGrammarCheck(f, 0)));
   window.addEventListener("resize", () => {
+    LT_FIELDS.forEach(renderGrammar);
     syncSourceHighlight();
     for (const panel of [els.thesaurus, els.translate]) if (!panel.hidden) keepOnScreen(panel);
   });
@@ -1056,12 +1247,14 @@ function wire() {
       else openThesaurus();
     }
     else if (e.key === "Escape") {
-      if (rec.recorder) stopRecording(true);
+      if (!$("ltPop").hidden) hideLtPop();
+      else if (rec.recorder) stopRecording(true);
       else if (!els.thMenu.hidden) hideChipMenu();
       else if (!els.thesaurus.hidden || !els.translate.hidden) closePanels();
     }
   });
   document.addEventListener("mousedown", (e) => {
+    if (!$("ltPop").hidden && !$("ltPop").contains(e.target)) hideLtPop();
     if (e.target.closest("#thesaurusBtn, #translateBtn")) return;
     const floating = (panel) => panel.classList.contains("floating");
     if (!els.translate.hidden && !floating(els.translate) && !els.translate.contains(e.target)) closeTranslate();

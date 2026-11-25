@@ -1,5 +1,15 @@
 # Changelog
 
+## v02.08.00 - 2026-11-25
+
+- Live grammar check (Settings): mistakes in Prompt and Draft are underlined
+  as you type, and a click shows suggestions. It uses LanguageTool, a free,
+  open-source checker that runs on your computer: no account, nothing sent
+  anywhere. The first time, Write Assist asks before a one-time download of
+  about 300 MB. With Language on Auto, each paragraph is checked in its own
+  language, so mixed English and Spanish messages work.
+- Uninstalling also removes the grammar checker.
+
 ## v02.07.00 - 2026-11-25
 
 - Thesaurus and Translate panels open next to the text they work on, and that

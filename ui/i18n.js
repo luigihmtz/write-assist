@@ -5,7 +5,7 @@
 //
 // Author:  Luis Martinez
 // Email:   16788942+luigihmtz@users.noreply.github.com
-// Version: v01.04.00
+// Version: v01.05.00
 // Date:    2026-11-25
 //
 // Usage: loaded by ui/index.html before app.js. In index.html:
@@ -171,6 +171,16 @@ const STRINGS = {
     "settings.microphone": "Microphone for dictation",
     "settings.micDefault": "Same as Windows",
     "speech.micMissing": "\"{name}\" isn't connected, so the Windows default microphone is used.",
+    "settings.liveGrammar": "Live grammar check",
+    "settings.liveGrammarHint": "Underlines mistakes in Prompt and Draft as you type; click one for suggestions. Free, and it runs on this PC (LanguageTool).",
+    "lt.setupTitle": "Set up live grammar checking?",
+    "lt.setupText": "Live grammar uses LanguageTool, a free, open-source checker that runs on this computer: no account, and your text never leaves your PC. It needs a one-time download of about {download} MB (LanguageTool and the Java it runs on), using about {disk} MB of disk space.",
+    "lt.download": "Download",
+    "lt.downloading": "Downloading the grammar checker... {percent}% ({done} of {total} MB)",
+    "lt.ready": "Live grammar check is on: mistakes are underlined as you type. Click one for suggestions.",
+    "lt.starting": "Starting the grammar checker...",
+    "lt.ignore": "Ignore",
+    "lt.noSuggestions": "No suggestions.",
     "settings.uiLanguage": "Interface language",
     "settings.uiAuto": "Same as Windows",
     "settings.version": "Version {version}",
@@ -335,6 +345,16 @@ const STRINGS = {
     "settings.microphone": "Micrófono para dictar",
     "settings.micDefault": "El mismo que Windows",
     "speech.micMissing": "\"{name}\" no está conectado, así que se usa el micrófono predeterminado de Windows.",
+    "settings.liveGrammar": "Revisión gramatical en vivo",
+    "settings.liveGrammarHint": "Subraya los errores en Instrucciones y Borrador mientras escribes; haz clic en uno para ver sugerencias. Gratis y funciona en esta PC (LanguageTool).",
+    "lt.setupTitle": "¿Configurar la revisión gramatical en vivo?",
+    "lt.setupText": "La revisión en vivo usa LanguageTool, un corrector gratuito y de código abierto que funciona en esta computadora: sin cuenta, y tu texto nunca sale de tu PC. Necesita una descarga única de unos {download} MB (LanguageTool y el Java con el que funciona) y ocupa unos {disk} MB de disco.",
+    "lt.download": "Descargar",
+    "lt.downloading": "Descargando el corrector gramatical... {percent}% ({done} de {total} MB)",
+    "lt.ready": "La revisión en vivo está activa: los errores se subrayan mientras escribes. Haz clic en uno para ver sugerencias.",
+    "lt.starting": "Iniciando el corrector gramatical...",
+    "lt.ignore": "Ignorar",
+    "lt.noSuggestions": "Sin sugerencias.",
     "settings.uiLanguage": "Idioma de la interfaz",
     "settings.uiAuto": "El mismo que Windows",
     "settings.version": "Versión {version}",

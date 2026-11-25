@@ -6,7 +6,7 @@
  *
  * Author:  Luis Martinez
  * Email:   16788942+luigihmtz@users.noreply.github.com
- * Version: v01.04.00
+ * Version: v01.05.00
  * Date:    2026-11-25
  *
  * Usage: linked from ui/index.html. --fs is set from settings.json font_size.
@@ -25,6 +25,9 @@
   --accent-soft: #e8efff;
   --mark: #fff1a8;
   --source-hl: #ffe066;
+  --lt-spell: #e5484d;
+  --lt-grammar: #2f7cf6;
+  --lt-style: #8e4ec6;
   --mark-text: #1d2129;
   --old: #b3261e;
   --new: #1e7b34;
@@ -47,6 +50,9 @@
     --accent-soft: #24304a;
     --mark: rgba(250, 204, 21, 0.32);
     --source-hl: rgba(250, 204, 21, 0.55);
+    --lt-spell: #ff6369;
+    --lt-grammar: #70b8ff;
+    --lt-style: #bf7af0;
     --mark-text: #fff7d1;
     --old: #ff8a80;
     --new: #7ddc94;
@@ -338,7 +344,42 @@ body.dragging, body.dragging * { user-select: none; cursor: move !important; }
   pointer-events: none;
 }
 .hl-mirror mark { color: transparent; background: var(--source-hl); border-radius: 3px; }
-textarea.hl-on { position: relative; z-index: 1; }
+textarea.hl-on, textarea.lt-on { position: relative; z-index: 1; }
+
+/* Live grammar: wavy underlines on a layer behind the text box (same trick as
+   the source highlight), and the suggestions box shown on click. */
+.lt-mirror {
+  position: absolute;
+  z-index: 0;
+  margin: 0;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  color: transparent;
+  border-style: solid;
+  border-color: transparent;
+  pointer-events: none;
+}
+.lt-err { text-decoration: underline wavy; text-decoration-skip-ink: none; text-underline-offset: 3px; text-decoration-thickness: 1.5px; }
+.lt-spell { text-decoration-color: var(--lt-spell); }
+.lt-grammar { text-decoration-color: var(--lt-grammar); }
+.lt-style { text-decoration-color: var(--lt-style); }
+.lt-pop {
+  position: fixed;
+  z-index: 20;
+  max-width: 340px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+}
+.lt-msg { margin: 0 0 8px; }
+.lt-actions { display: flex; justify-content: flex-end; margin-top: 8px; }
+.check-block { display: flex; gap: 10px; align-items: flex-start; font-size: 0.92em; }
+.check-block input { margin-top: 3px; }
+.check-block strong { display: block; }
 ::highlight(wa-source) { background-color: var(--source-hl); color: var(--mark-text); }
 .popover-body h3 { margin: 10px 0 6px; font-size: 0.8em; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
 .popover-body .meaning { margin: 0 0 4px; }

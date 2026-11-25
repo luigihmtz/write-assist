@@ -5,7 +5,8 @@
 A small Windows app that reviews and writes text with AI: messages, emails,
 posts, docs. Paste what you wrote and get it proofread, or describe what you
 need and get it written. It also has a context-aware thesaurus and offline
-dictation, a translator, and an English or Spanish interface. It works with
+dictation, a translator, live grammar underlines, and an English or Spanish
+interface. It works with
 your existing Claude subscription through Claude Code, or with a **free AI that
 runs on your own computer**, so there are no API keys and nothing extra to pay.
 ChatGPT and GitHub Copilot plans work too.
@@ -48,8 +49,8 @@ to the taskbar: Start, right-click *Write Assist*, *Pin to taskbar*.
 **Updates:** when a new version is out, an *Update to vX* button appears at
 the bottom of the window. One click and it updates itself.
 
-**Uninstall:** Settings > Apps > Write Assist > Uninstall. Python, Claude Code
-and Ollama stay installed for other uses; remove Ollama and its models from
+**Uninstall:** Settings > Apps > Write Assist > Uninstall. It also removes the
+live grammar checker. Python, Claude Code and Ollama stay installed for other uses; remove Ollama and its models from
 Settings > Apps > Ollama if you don't need them.
 
 ## How to use it
@@ -74,6 +75,7 @@ Press **Ctrl+Enter**, then **Copy** the result.
 | **AI** | Cheapest first: **Local (free)**, the AI on your computer; **Claude**; **ChatGPT** and **GitHub Copilot** if their command-line apps are installed (see *Optional AIs* below). The default is the cheapest one that's set up. Choosing *Local (free)* the first time offers its one-time download, with the size shown before anything downloads. If the chosen AI hits its usage limit, the request goes to the cheapest other one automatically and the status bar says so (turn off with `"auto_fallback": false` in `user_settings.json`). |
 | **Model** | Local: `gemma3:4b` (default, about 3.3 GB), `gemma3:12b` (better, about 8 GB, for PCs with a good graphics card or lots of memory). Claude: `haiku` (default, fastest and lightest on your plan's limits), `sonnet`, `opus` (strongest). ChatGPT: `gpt-6-luna` (default, fast and affordable), `gpt-5.6-terra`. Copilot: `auto`. *Other...* lets you enter any other model name the AI accepts. |
 | **Thesaurus** | Select a word (or put the cursor on it) in Prompt, Draft or the result, then click *Thesaurus* at the top or press **Ctrl+T**: meaning, synonyms and antonyms that fit your sentence. Click a synonym or antonym to **Replace** your word with it or **Search** it in turn (← goes back). You can also type any word in the panel's search box. It asks the AI only when you look something up. |
+| **Live grammar** | Turn on in *Settings*: mistakes in Prompt and Draft are underlined as you type (red: spelling, blue: grammar, purple: style). Click one for suggestions, or *Ignore*. It uses LanguageTool, a free, open-source checker that runs on your computer: no account, nothing sent anywhere, no AI usage. The first time, it asks before a one-time download of about 300 MB (about 500 MB on disk). With *Language* on Auto, each paragraph is checked in its own language. |
 | **Panels** | Thesaurus and Translate open next to the text they work on, and that text stays highlighted in yellow. **⧉** detaches a panel: drag it anywhere by its title bar, and it stays open while you keep working. Drag the bottom-right corner to resize it; **⧉** again docks it. |
 | **Translate** | Select text (a word, a sentence, a paragraph) in Prompt, Draft or the result, then click *Translate* at the top or press **Ctrl+Shift+T**. Pick the target language; *English ⇄ Spanish* translates English into Spanish and anything else into English. The panel shows only the translation, with the original highlighted in place. Then **Replace selection**, **Use as draft** or **Copy**. For a single word it also offers other options; click one to swap it in. With nothing selected, the panel offers a box to type or paste text into. It asks the AI only when you translate. |
 | **Dictate** | Speak into Prompt or Draft; click again to stop (Esc cancels). Transcribed on your computer with faster-whisper: free, offline, private. The first time, it offers a one-time download (speech engine about 250 MB, plus the model: 465 MB for *small*). |
@@ -120,8 +122,9 @@ replaced in June 2026 by one without a documented way for other apps to use it.
   tracking. Your settings stay in `%APPDATA%\WriteAssist` on your PC. The
   only other connections it makes are the update check (it asks GitHub for
   the latest release) and the one-time downloads you agree to: the speech
-  engine and model the first time you dictate, and Ollama and its model when
-  you set up the free local AI.
+  engine and model the first time you dictate, Ollama and its model when you
+  set up the free local AI, and LanguageTool and Java when you turn on live
+  grammar. Live grammar checks your text on your computer too.
 
 ## En español
 
@@ -200,6 +203,10 @@ dictado por voz.
 - **IA:** arriba eliges entre **Local (gratis)**, **Claude** y, si los
   tienes instalados, **ChatGPT** y **GitHub Copilot**. La primera vez que eliges Local (gratis), la
   app te avisa del tamaño de la descarga antes de bajar nada.
+- **Revisión gramatical en vivo:** actívala en **Ajustes**. Subraya los errores
+  mientras escribes; haz clic en uno para ver sugerencias. Es gratuita y
+  funciona en tu computadora (LanguageTool); la primera vez te avisa de la
+  descarga (unos 300 MB) antes de bajar nada.
 - **El idioma de la app** sigue al de Windows. Puedes cambiarlo en
   **Ajustes > Idioma de la interfaz**.
 
@@ -223,6 +230,7 @@ haz clic en **Desinstalar**.
 | `writeAssist.pyw` | The app: the window (pywebview on WebView2) and the bridge the page calls. |
 | `waCore.py` | Settings, Review/Create, Thesaurus and Translate requests to the AIs (Claude Code, Copilot CLI, Ollama), the local AI's setup, usage-limit fallback, edit highlighting, update check. |
 | `waSpeech.py` | Offline dictation with faster-whisper, installed on first use. |
+| `waGrammar.py` | Live grammar check with a self-hosted LanguageTool server, installed on first use. |
 | `ui/` | The window's page: `index.html`, `style.css`, `app.js`, and `i18n.js` with the English and Spanish interface text. |
 | `hotkeyListener.pyw` | Background listener for the global hotkey; opens or wakes the app. |
 | `system_prompt.md` | Instructions for both tasks, shared by all AIs. `{{profile}}` becomes the user's *About you*. |
@@ -274,6 +282,15 @@ claude -p --safe-mode --no-session-persistence --model haiku --effort low
   tools are denied with `--disallowed-tools` instead. This also keeps requests
   small: every loaded tool's description is sent with each request, ~22k
   tokens in total, so a review would cost ~23k input tokens instead of ~3k.
+
+**Live grammar:** LanguageTool's open-source server runs on the user's PC
+(`%LOCALAPPDATA%\WriteAssist-LanguageTool`, with a portable Eclipse Temurin
+Java 21; no admin rights). It starts on the first check, on port 47615, and
+stops after 15 idle minutes and when Write Assist closes. The page sends the
+text about 0.7 s after typing stops; the underlines are drawn on a layer behind
+the text box, with the same font and wrapping. The writer's first language
+(from *About you*) is passed as `motherTongue`, which turns on LanguageTool's
+false-friend rules.
 
 **ChatGPT:** OpenAI's Codex CLI, signed in with the user's ChatGPT account:
 
@@ -349,6 +366,8 @@ download these from their official sources, each under its own license:
 | [Gemma 3](https://ai.google.dev/gemma) models by Google (optional) | The free local AI | Gemma Terms of Use |
 | [OpenAI Codex CLI](https://github.com/openai/codex) (optional) | Talks to ChatGPT | Apache-2.0 (use under OpenAI's terms) |
 | [GitHub Copilot CLI](https://github.com/features/copilot) (optional) | Talks to Copilot | GitHub's terms |
+| [LanguageTool](https://languagetool.org) (optional) | Live grammar check | LGPL-2.1 |
+| [Eclipse Temurin](https://adoptium.net) Java 21 runtime (optional) | Runs LanguageTool | GPL-2.0 with Classpath Exception |
 | [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (with CTranslate2, PyAV) | Dictation | MIT (PyAV: BSD-3-Clause, with FFmpeg under LGPL) |
 | [Whisper](https://github.com/openai/whisper) models by OpenAI | Dictation | MIT |
 

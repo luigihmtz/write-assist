@@ -1,13 +1,14 @@
 # uninstall.ps1
 # Removes Write Assist for the current user: stops the app and the hotkey
 # listener, deletes the shortcuts, the Settings > Apps entry, the installed
-# files (%LOCALAPPDATA%\WriteAssist) and the user's settings
-# (%APPDATA%\WriteAssist). Python and Claude Code are left installed.
+# files (%LOCALAPPDATA%\WriteAssist), the live grammar checker
+# (%LOCALAPPDATA%\WriteAssist-LanguageTool) and the user's settings
+# (%APPDATA%\WriteAssist). Python, Claude Code and Ollama are left installed.
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v01.00.01
-# Date:    2026-11-24
+# Version: v01.01.00
+# Date:    2026-11-25
 #
 # Usage:   Settings > Apps > Write Assist > Uninstall, or run
 #          powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\WriteAssist\uninstall.ps1"
@@ -18,12 +19,16 @@ Set-Location $env:TEMP   # don't hold the folder that gets deleted
 Get-CimInstance Win32_Process -Filter "Name like 'python%'" |
     Where-Object { $_.CommandLine -match "writeAssist\.pyw|hotkeyListener\.pyw" } |
     ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+Get-CimInstance Win32_Process -Filter "Name='java.exe'" |
+    Where-Object { $_.CommandLine -like "*WriteAssist-LanguageTool*" } |
+    ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
 Start-Sleep -Milliseconds 500
 
 Remove-Item (Join-Path ([Environment]::GetFolderPath("Programs")) "Write Assist.lnk")
 Remove-Item (Join-Path ([Environment]::GetFolderPath("Startup")) "Write Assist Hotkey.lnk")
 Remove-Item "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\WriteAssist" -Recurse
 Remove-Item (Join-Path $env:LOCALAPPDATA "WriteAssist") -Recurse -Force
+Remove-Item (Join-Path $env:LOCALAPPDATA "WriteAssist-LanguageTool") -Recurse -Force
 Remove-Item (Join-Path $env:APPDATA "WriteAssist") -Recurse -Force
 
 Write-Host "Write Assist was removed. If you pinned it to the taskbar, unpin the leftover icon."

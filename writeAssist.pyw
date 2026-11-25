@@ -2,7 +2,8 @@
 # Write Assist: small Windows writing assistant. Fill in a Draft to have it
 # reviewed (grammar, spelling, typos, punctuation), a Prompt to have a text
 # written, or both. Also a context-aware thesaurus and translator (on demand),
-# offline speech-to-text, and an English or Spanish interface. It runs an AI's
+# offline speech-to-text, live grammar underlines (LanguageTool, self-hosted),
+# and an English or Spanish interface. It runs an AI's
 # local CLI headless, so it uses your existing subscription and needs no API
 # key: Claude (Claude Code), ChatGPT (Codex CLI) or GitHub Copilot, or a free AI
 # model that runs on this computer (Ollama), set up on first use.
@@ -12,7 +13,7 @@
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v02.05.01
+# Version: v02.06.00
 # Date:    2026-11-24
 #
 # Usage: installed by install.ps1 (Start Menu shortcut + global hotkey, default
@@ -32,6 +33,7 @@ from pathlib import Path
 import webview
 
 import waCore as core
+import waGrammar as grammar
 import waSpeech as speech
 
 UI_FILE = core.APP_DIR / "ui" / "index.html"
@@ -143,6 +145,8 @@ class Bridge:
         self._thesaurus_cache = {}
         self._translate_cache = {}
         self._transcriber = speech.Transcriber()
+        self._grammar = grammar.Checker()
+        self._grammar_setup = {"running": False}   # progress of the grammar checker download
         self._speech_install_lock = threading.Lock()
         self._local_setup = {"running": False}   # progress of the local AI download
 
@@ -171,6 +175,7 @@ class Bridge:
             "hotkey": self._settings.get("hotkey", ""),
             "ui_language": self._settings.get("ui_language", ""),
             "microphone": self._settings.get("microphone", ""),
+            "live_grammar": bool(self._settings.get("live_grammar", False)) and grammar.is_installed(),
             "state": self._state,
             "needs_profile": "profile" not in user,
         }
@@ -322,6 +327,49 @@ class Bridge:
     def local_progress(self):
         return dict(self._local_setup)
 
+    # ---- Live grammar (LanguageTool on this computer) ---------------------- #
+    @safely
+    def grammar_info(self):
+        return {"installed": grammar.is_installed(), "download_mb": grammar.DOWNLOAD_MB, "disk_mb": grammar.DISK_MB}
+
+    @safely
+    def start_grammar_setup(self):
+        """Downloads the checker in the background; the page follows grammar_progress()."""
+        if self._grammar_setup.get("running"):
+            return {}
+        self._grammar_setup = {"running": True, "done_mb": 0, "total_mb": grammar.DOWNLOAD_MB, "error": ""}
+
+        def work():
+            state = self._grammar_setup
+            try:
+                def progress(done_mb, total_mb):
+                    state["done_mb"], state["total_mb"] = done_mb, total_mb
+                grammar.install(progress)
+            except Exception as exc:
+                state["error"] = str(exc) or exc.__class__.__name__
+            finally:
+                state["running"] = False
+        threading.Thread(target=work, daemon=True).start()
+        return {}
+
+    @safely
+    def grammar_progress(self):
+        return dict(self._grammar_setup)
+
+    @safely
+    def grammar_check(self, text, language="auto"):
+        return self._grammar.check(text, language, core.load_user_settings().get("profile", ""))
+
+    @safely
+    def set_live_grammar(self, on):
+        user = core.load_user_settings()
+        user["live_grammar"] = bool(on)
+        core.save_user_settings(user)
+        self._settings = core.load_settings()
+
+    def stop_grammar(self):
+        self._grammar.stop()
+
     # ---- Speech ----------------------------------------------------------- #
     def _speech_model(self):
         return self._settings.get("speech_model", "small")
@@ -368,13 +416,14 @@ class Bridge:
                 "speech_model": self._speech_model(), "speech_language": self._settings.get("speech_language", ""),
                 "ui_language": self._settings.get("ui_language", ""),
                 "microphone": self._settings.get("microphone", ""),
+                "live_grammar": bool(self._settings.get("live_grammar", False)),
                 "version": self._version, "is_dev": core.IS_DEV}
 
     @safely
     def save_settings(self, values):
         user = core.load_user_settings()
         user["profile"] = (values.get("profile") or "").strip()
-        for key in ("speech_model", "speech_language", "ui_language", "microphone"):
+        for key in ("speech_model", "speech_language", "ui_language", "microphone", "live_grammar"):
             if key in values:
                 user[key] = values[key]
         new_hotkey = (values.get("hotkey") or "").strip()
@@ -512,6 +561,7 @@ def main():
             core.save_json(core.STATE_FILE, bridge._state)
         except Exception:
             pass
+        bridge.stop_grammar()   # the grammar server's memory goes with the app
 
     window.events.shown += on_shown
     window.events.loaded += on_loaded

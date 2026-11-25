@@ -3,8 +3,8 @@
   "description": "Default settings for Write Assist, shipped with the app and replaced on update. Per-user changes go in %APPDATA%\\WriteAssist\\user_settings.json (same keys), which overrides these.",
   "author": "Luis Martinez",
   "email": "16788942+luigihmtz@users.noreply.github.com",
-  "version": "v02.06.00",
-  "date": "2026-11-24",
+  "version": "v02.07.00",
+  "date": "2026-11-25",
 
   "hotkey": "Win+Ctrl+W",
   "ui_language": "",
@@ -12,6 +12,7 @@
   "speech_model": "small",
   "speech_language": "",
   "microphone": "",
+  "live_grammar": false,
 
   "default_provider": "",
   "auto_fallback": true,
