@@ -50,11 +50,11 @@ Press **Ctrl+Enter**, then **Copy** the result.
 |---|---|
 | **Prompt** | Review: optional context or instructions, e.g. "Email to a client", "Reply to my boss, make it shorter". Create: describe what to write, e.g. "Email to Sarah: the storyboard is two days late, we need the brand guidelines". *Insert preset...* adds a common one. |
 | **Draft** | The text to review. Leave empty to create. |
-| **Mode** | Review only. `fix`: spelling, typos, grammar, punctuation (minimal edits). `polish`: also smooths awkward or unclear phrasing. Anything the prompt asks for overrides it. |
+| **Mode** | Review only (grayed out when creating). *fix errors only*: spelling, typos, grammar, punctuation, with minimal edits. *fix and polish wording*: also smooths awkward or unclear phrasing. Anything the prompt asks for overrides it. |
 | **Tone** | `keep` (default), or lean it: more formal, more casual, friendlier, more concise. |
 | **AI** | The AIs installed on this PC: Claude, and GitHub Copilot if its CLI is installed. If the chosen AI hits its usage limit, the request goes to the other one automatically and the status bar says so (turn off with `"auto_fallback": false` in `user_settings.json`). |
-| **Model** | Claude: `opus` (default), `sonnet`, `haiku`. Copilot: `auto`. You can type any other model name the AI accepts. |
-| **Thesaurus** | Select a word (or put the cursor on it) in Prompt, Draft or the result, then click *Thesaurus* or press **Ctrl+T**: meaning, synonyms and antonyms that fit your sentence. Click one to swap it in. It asks the AI only when you click. |
+| **Model** | Claude: `haiku` (default, fastest and lightest on your plan's limits), `sonnet`, `opus` (strongest). Copilot: `auto`. You can type any other model name the AI accepts. |
+| **Thesaurus** | Select a word (or put the cursor on it) in Prompt, Draft or the result, then click *Thesaurus* at the top or press **Ctrl+T**: meaning, synonyms and antonyms that fit your sentence. Click a synonym or antonym to **Replace** your word with it or **Search** it in turn (← goes back). You can also type any word in the panel's search box. It asks the AI only when you look something up. |
 | **Dictate** | Speak into Prompt or Draft; click again to stop (Esc cancels). Transcribed on your computer with faster-whisper: free, offline, private. The first time, it offers a one-time download (speech engine about 250 MB, plus the model: 465 MB for *small*). |
 | **Settings** | *About you*, the global hotkey, and the speech model and language. |
 

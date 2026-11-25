@@ -7,7 +7,7 @@ settings dialog. Rendered by writeAssist.pyw in a WebView2 window.
 
 Author:  Luis Martinez
 Email:   luis@luigi.mx
-Version: v01.00.00
+Version: v01.01.00
 Date:    2026-11-24
 
 Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
@@ -22,10 +22,10 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
 </head>
 <body>
   <header class="toolbar">
-    <label class="field">Mode
+    <label class="field" title="Review only: how much to change the draft">Mode
       <select id="mode">
-        <option value="fix">fix</option>
-        <option value="polish">polish</option>
+        <option value="fix" title="Spelling, typos, grammar, punctuation. Minimal edits.">fix errors only</option>
+        <option value="polish" title="Also smooths awkward or unclear wording.">fix and polish wording</option>
       </select>
     </label>
     <label class="field">Tone
@@ -41,6 +41,7 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
     <label class="field">Model <input id="model" list="modelList" autocomplete="off" spellcheck="false"></label>
     <datalist id="modelList"></datalist>
     <span class="spacer"></span>
+    <button id="thesaurusBtn" class="ghost"title="Meaning, synonyms and antonyms of the selected word (Ctrl+T)">Thesaurus</button>
     <button id="settingsBtn" class="ghost" title="About you, hotkey, speech">Settings</button>
   </header>
 
@@ -55,7 +56,6 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
             <option value="">Insert preset...</option>
           </select>
           <button class="tool mic" data-target="prompt" title="Dictate into Prompt"></button>
-          <button class="tool" data-thesaurus="prompt" title="Thesaurus for the selected word (Ctrl+T)">Thesaurus</button>
         </div>
         <textarea id="prompt" spellcheck="true" placeholder="e.g. Email to a client, make it shorter"></textarea>
       </section>
@@ -66,7 +66,6 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
           <span class="hint">text to review, leave empty to create</span>
           <span class="spacer"></span>
           <button class="tool mic" data-target="draft" title="Dictate into Draft"></button>
-          <button class="tool" data-thesaurus="draft" title="Thesaurus for the selected word (Ctrl+T)">Thesaurus</button>
           <button class="tool" id="pasteBtn" title="Paste the clipboard and review (Ctrl+Shift+V)">Paste &amp; review</button>
           <button class="tool" id="clearBtn">Clear</button>
         </div>
@@ -79,7 +78,6 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
         <div class="card-head">
           <h2 id="resultTitle">Result</h2>
           <span class="spacer"></span>
-          <button class="tool" data-thesaurus="result" title="Thesaurus for the selected word (Ctrl+T)">Thesaurus</button>
           <button class="tool" id="useDraftBtn" title="Move the result into Draft">Use as draft</button>
           <button class="tool primary-soft" id="copyBtn" title="Copy the result (Ctrl+Shift+C)">Copy</button>
         </div>
@@ -102,11 +100,15 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
 
   <div id="thesaurus" class="popover" hidden>
     <div class="popover-head">
-      <strong id="thWord"></strong>
-      <span class="spacer"></span>
+      <button class="ghost small" id="thBack" title="Back to the previous word" hidden>←</button>
+      <input id="thSearch" type="search" placeholder="Type a word and press Enter" spellcheck="true" autocomplete="off">
       <button class="ghost small" id="thClose" title="Close (Esc)">✕</button>
     </div>
     <div id="thBody" class="popover-body"></div>
+    <div id="thMenu" class="chip-menu" hidden>
+      <button class="tool" id="thReplace">Replace</button>
+      <button class="tool" id="thLookup">Search</button>
+    </div>
   </div>
 
   <dialog id="settingsDialog">

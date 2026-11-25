@@ -1,5 +1,14 @@
 # Changelog
 
+## v02.02.00 - 2026-11-24
+
+- One *Thesaurus* button, in the top bar, instead of one per field. Click a
+  synonym or antonym to replace your word with it or to look it up in turn,
+  go back with ←, or type any word in the panel's search box.
+- Claude's default model is now haiku (then sonnet, then opus): fast and
+  light on your plan's limits. Everyone starts on haiku once after updating.
+- Clearer Mode options: *fix errors only* and *fix and polish wording*.
+
 ## v02.01.00 - 2026-11-24
 
 - Automatic fallback: if Claude (or Copilot) hits its usage limit, the request

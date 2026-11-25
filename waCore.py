@@ -7,7 +7,7 @@
 #
 # Author:  Luis Martinez
 # Email:   luis@luigi.mx
-# Version: v01.01.00
+# Version: v01.02.00
 # Date:    2026-11-24
 #
 # Usage: imported by writeAssist.pyw. Per-user files live in
@@ -38,8 +38,8 @@ USER_SETTINGS_FILE = USER_DIR / "user_settings.json"  # per-user, survives updat
 STATE_FILE = USER_DIR / "state.json"                   # last-used options, window size
 
 DEFAULT_PROVIDERS = {
-    "Claude": {"type": "claude", "models": ["opus", "sonnet", "haiku"],
-               "default_model": "opus", "effort": "low"},
+    "Claude": {"type": "claude", "models": ["haiku", "sonnet", "opus"],
+               "default_model": "haiku", "effort": "low"},
     "GitHub Copilot": {"type": "copilot", "models": ["auto"], "default_model": "auto", "effort": ""},
 }
 

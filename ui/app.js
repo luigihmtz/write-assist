@@ -6,7 +6,7 @@
 //
 // Author:  Luis Martinez
 // Email:   luis@luigi.mx
-// Version: v01.01.00
+// Version: v01.02.00
 // Date:    2026-11-24
 //
 // Usage: loaded by ui/index.html. Every api.* call returns a Promise of
@@ -20,7 +20,7 @@ const els = {
   prompt: $("prompt"), draft: $("draft"), preset: $("preset"),
   result: $("result"), resultTitle: $("resultTitle"), changes: $("changes"),
   runBtn: $("runBtn"), autoCopy: $("autoCopy"), updateBtn: $("updateBtn"), status: $("status"),
-  thesaurus: $("thesaurus"), thWord: $("thWord"), thBody: $("thBody"),
+  thesaurus: $("thesaurus"), thSearch: $("thSearch"), thBack: $("thBack"), thBody: $("thBody"), thMenu: $("thMenu"),
 };
 
 const app = {
@@ -52,7 +52,8 @@ async function init() {
   document.documentElement.style.setProperty("--fs", `${Math.round(info.font_size * 1.33)}px`);
 
   const state = info.state || {};
-  app.models = state.models || {};
+  // models_rev 2: Claude's default became haiku; forget models saved before that.
+  app.models = state.models_rev === 2 ? (state.models || {}) : {};
   for (const p of info.providers) app.providers[p.name] = p;
   const usable = info.providers.filter((p) => p.installed);
   for (const p of (usable.length ? usable : info.providers)) els.provider.add(new Option(p.name, p.name));
@@ -89,7 +90,7 @@ function saveState() {
   app.models[els.provider.value] = els.model.value.trim();
   api().save_state({
     mode: els.mode.value, tone: els.tone.value, provider: els.provider.value,
-    models: app.models, auto_copy: els.autoCopy.checked,
+    models: app.models, models_rev: 2, auto_copy: els.autoCopy.checked,
   });
 }
 
@@ -284,34 +285,71 @@ function matchCase(original, replacement) {
   return replacement;
 }
 
-function placePopover(field) {
-  const card = (field === "result" ? els.result : els[field]).closest(".card").getBoundingClientRect();
-  const width = 360;
-  const left = Math.min(Math.max(8, card.right - width - 8), window.innerWidth - width - 8);
-  els.thesaurus.style.left = `${left}px`;
-  els.thesaurus.style.top = `${Math.max(8, card.top + 40)}px`;
+// Panel state: the word in the text that Replace swaps (null when the user
+// only typed a word), the words looked up before (for Back), the current one.
+const th = { target: null, history: [], current: "", seq: 0, chipWord: "" };
+
+function selectedTarget() {
+  const field = app.lastField;
+  return field === "result" ? resultSelection() : textareaSelection(els[field]);
 }
 
-function closeThesaurus() { els.thesaurus.hidden = true; }
+function placePanel() {
+  const bar = document.querySelector(".toolbar").getBoundingClientRect();
+  const width = Math.min(380, window.innerWidth - 16);
+  els.thesaurus.style.width = `${width}px`;
+  els.thesaurus.style.left = `${Math.max(8, window.innerWidth - width - 14)}px`;
+  els.thesaurus.style.top = `${bar.bottom + 4}px`;
+}
 
-async function openThesaurus(field) {
-  const target = field === "result" ? resultSelection() : textareaSelection(els[field]);
-  if (!target) { setStatus("Select a word (or put the cursor on it), then click Thesaurus."); return; }
-  if (target.word.split(/\s+/).length > 4) { setStatus("Select a single word or a short phrase for the thesaurus."); return; }
+function closeThesaurus() {
+  hideChipMenu();
+  els.thesaurus.hidden = true;
+  th.seq++;  // ignore answers still on their way
+}
 
-  placePopover(field);
-  els.thWord.textContent = target.word;
-  els.thBody.innerHTML = `<p class="muted">Looking it up with ${escapeHtml(els.provider.value)}...</p>`;
+function openThesaurus() {
+  const target = selectedTarget();
+  if (target && target.word.split(/\s+/).length > 4) {
+    setStatus("Select a single word or a short phrase for the thesaurus.");
+    return;
+  }
+  th.target = target;
+  th.history = [];
+  th.current = "";
+  placePanel();
   els.thesaurus.hidden = false;
+  if (target) { lookup(target.word); return; }
+  els.thSearch.value = "";
+  els.thBack.hidden = true;
+  hideChipMenu();
+  els.thBody.innerHTML = '<p class="muted">Select a word in Prompt, Draft or the result before clicking Thesaurus, or type a word above and press Enter.</p>';
+  els.thSearch.focus();
+}
+
+async function lookup(word, fromBack = false) {
+  word = word.trim();
+  if (!word) return;
+  if (!fromBack && th.current && th.current.toLowerCase() !== word.toLowerCase()) th.history.push(th.current);
+  th.current = word;
+  els.thSearch.value = word;
+  els.thBack.hidden = !th.history.length;
+  hideChipMenu();
+  const seq = ++th.seq;
+  els.thBody.innerHTML = `<p class="muted">Looking up "${escapeHtml(word)}" with ${escapeHtml(els.provider.value)}...</p>`;
 
   const res = await api().thesaurus({
-    word: target.word, context: target.context, provider: els.provider.value, model: els.model.value,
+    word, context: th.target ? th.target.context : "", provider: els.provider.value, model: els.model.value,
   });
-  if (els.thesaurus.hidden || els.thWord.textContent !== target.word) return;  // closed or replaced meanwhile
+  if (seq !== th.seq) return;  // closed or another word looked up meanwhile
   if (!res.ok) { els.thBody.innerHTML = `<p class="error">${escapeHtml(res.error)}</p>`; return; }
+  if (res.fallback_from) setStatus(fallbackNote(res).replace(/ · $/, ""));
 
   els.thBody.innerHTML = "";
-  if (res.fallback_from) setStatus(fallbackNote(res).replace(/ · $/, ""));
+  if (th.target) {
+    els.thBody.insertAdjacentHTML("beforeend",
+      `<p class="th-target muted">Click a word to replace "${escapeHtml(th.target.word)}" in your text, or to look it up.</p>`);
+  }
   if (res.meanings.length) {
     els.thBody.insertAdjacentHTML("beforeend", "<h3>Meaning</h3>");
     for (const m of res.meanings) {
@@ -321,23 +359,46 @@ async function openThesaurus(field) {
   }
   for (const [title, words] of [["Synonyms", res.synonyms], ["Antonyms", res.antonyms]]) {
     els.thBody.insertAdjacentHTML("beforeend", `<h3>${title}</h3>`);
-    if (!words.length) { els.thBody.insertAdjacentHTML("beforeend", `<p class="muted">None</p>`); continue; }
+    if (!words.length) { els.thBody.insertAdjacentHTML("beforeend", '<p class="muted">None</p>'); continue; }
     const chips = document.createElement("div");
     chips.className = "chips";
     for (const w of words) {
       const chip = document.createElement("button");
       chip.className = "chip";
       chip.textContent = w;
-      chip.title = `Replace "${target.word}" with "${w}"`;
-      chip.addEventListener("click", () => {
-        target.replace(matchCase(target.word, w));
-        closeThesaurus();
-        setStatus(`Replaced "${target.word}" with "${w}".`);
-      });
+      chip.addEventListener("click", () => showChipMenu(chip, w));
       chips.append(chip);
     }
     els.thBody.append(chips);
   }
+}
+
+// Replace / Search choice under a clicked synonym or antonym.
+function showChipMenu(chip, word) {
+  th.chipWord = word;
+  els.thBody.querySelectorAll(".chip.active").forEach((c) => c.classList.remove("active"));
+  chip.classList.add("active");
+  $("thReplace").hidden = !th.target;
+  if (th.target) $("thReplace").title = `Replace "${th.target.word}" with "${word}"`;
+  $("thLookup").title = `Look up "${word}" in the thesaurus`;
+  els.thMenu.hidden = false;
+  const r = chip.getBoundingClientRect();
+  els.thMenu.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - els.thMenu.offsetWidth - 8))}px`;
+  els.thMenu.style.top = `${r.bottom + 4}px`;
+}
+
+function hideChipMenu() {
+  els.thMenu.hidden = true;
+  els.thBody.querySelectorAll(".chip.active").forEach((c) => c.classList.remove("active"));
+}
+
+function replaceWithChip() {
+  const { target } = th;
+  if (!target) return;
+  const word = matchCase(target.word, th.chipWord);
+  target.replace(word);
+  closeThesaurus();
+  setStatus(`Replaced "${target.word}" with "${word}".`);
 }
 
 // ---------------------------------------------------------------------------
@@ -547,6 +608,13 @@ function wire() {
   $("settingsCancel").addEventListener("click", () => closeSettings(false));
   $("settingsDialog").addEventListener("cancel", (e) => { e.preventDefault(); closeSettings(false); });
   $("thClose").addEventListener("click", closeThesaurus);
+  $("thesaurusBtn").addEventListener("mousedown", (e) => e.preventDefault());  // keep the selection in the text
+  $("thesaurusBtn").addEventListener("click", openThesaurus);
+  els.thBack.addEventListener("click", () => { if (th.history.length) lookup(th.history.pop(), true); });
+  els.thSearch.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); lookup(els.thSearch.value); } });
+  $("thReplace").addEventListener("click", replaceWithChip);
+  $("thLookup").addEventListener("click", () => lookup(th.chipWord));
+  els.thBody.addEventListener("scroll", hideChipMenu);
   els.updateBtn.addEventListener("click", startUpdate);
 
   for (const el of [els.prompt, els.draft]) el.addEventListener("input", updateTask);
@@ -566,10 +634,6 @@ function wire() {
     els.prompt.focus();
   });
 
-  document.querySelectorAll("[data-thesaurus]").forEach((b) =>
-    b.addEventListener("mousedown", (e) => e.preventDefault()));  // keep the selection
-  document.querySelectorAll("[data-thesaurus]").forEach((b) =>
-    b.addEventListener("click", () => openThesaurus(b.dataset.thesaurus)));
   document.querySelectorAll(".mic").forEach((b) => {
     b.innerHTML = MIC_LABEL;
     b.addEventListener("click", () => toggleRecording(b));
@@ -579,14 +643,21 @@ function wire() {
     if (e.ctrlKey && e.key === "Enter") { e.preventDefault(); run(); }
     else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "v") { e.preventDefault(); pasteAndReview(); }
     else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "c") { e.preventDefault(); copyResult(); }
-    else if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === "t") { e.preventDefault(); openThesaurus(app.lastField); }
+    else if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === "t") {
+      e.preventDefault();
+      if (document.activeElement === els.thSearch) lookup(els.thSearch.value);
+      else openThesaurus();
+    }
     else if (e.key === "Escape") {
       if (rec.recorder) stopRecording(true);
+      else if (!els.thMenu.hidden) hideChipMenu();
       else if (!els.thesaurus.hidden) closeThesaurus();
     }
   });
   document.addEventListener("mousedown", (e) => {
-    if (!els.thesaurus.hidden && !els.thesaurus.contains(e.target) && !e.target.closest("[data-thesaurus]")) closeThesaurus();
+    if (els.thesaurus.hidden || e.target.closest("#thesaurusBtn")) return;
+    if (!els.thesaurus.contains(e.target)) closeThesaurus();
+    else if (!e.target.closest(".chip, #thMenu")) hideChipMenu();
   });
 }
 

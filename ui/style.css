@@ -5,7 +5,7 @@
  *
  * Author:  Luis Martinez
  * Email:   luis@luigi.mx
- * Version: v01.00.00
+ * Version: v01.01.00
  * Date:    2026-11-24
  *
  * Usage: linked from ui/index.html. --fs is set from settings.json font_size.
@@ -292,7 +292,8 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .popover-head {
   display: flex;
   align-items: center;
-  padding: 8px 8px 6px 12px;
+  gap: 6px;
+  padding: 8px 8px 8px 10px;
   border-bottom: 1px solid var(--border);
 }
 
@@ -302,7 +303,21 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .popover-body .pos { color: var(--muted); font-style: italic; margin-right: 4px; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { border-radius: 999px; padding: 2px 10px; font-size: 0.9em; }
-.chip:hover { background: var(--accent-soft); }
+.chip:hover, .chip.active { background: var(--accent-soft); }
+#thSearch { flex: 1; min-width: 0; font-weight: 600; }
+.th-target { margin: 2px 0 0; font-size: 0.85em; }
+/* Replace / Search choice shown under a clicked synonym or antonym */
+.chip-menu {
+  position: fixed;
+  z-index: 11;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
 .muted { color: var(--muted); }
 
 /* ---- dialogs ------------------------------------------------------------ */
