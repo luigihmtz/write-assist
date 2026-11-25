@@ -1,5 +1,12 @@
 # Changelog
 
+## v02.06.01 - 2026-11-24
+
+- Fixed the free local AI failing on some texts with "Couldn't read the reply
+  as JSON": the model sometimes got stuck repeating itself until its reply was
+  cut off. Write Assist now gives it more room, stops a runaway reply early and
+  retries once, and otherwise explains what happened.
+
 ## v02.06.00 - 2026-11-24
 
 - ChatGPT: if OpenAI's Codex CLI is installed and signed in with your ChatGPT

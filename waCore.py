@@ -8,7 +8,7 @@
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v01.05.00
+# Version: v01.05.01
 # Date:    2026-11-24
 #
 # Usage: imported by writeAssist.pyw. Per-user files live in
@@ -438,17 +438,33 @@ def run_ollama(cli, provider, model, message, system_prompt, schema, json_hint, 
     if not local_model_present(model):
         raise RuntimeError(f"The local model {model} isn't downloaded yet. Pick it again to download it.")
     start_ollama(cli)
-    body = {"model": model, "stream": False, "think": False, "format": schema, "keep_alive": "10m",
-            "options": {"temperature": 0.2},
-            "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": message}]}
-    try:
-        # Small PCs run local models slowly: allow the provider's longer timeout.
-        timeout = max(timeout, provider.get("timeout_seconds", 300))
-        with ollama_api("/api/chat", body, timeout=timeout) as response:
-            reply = json.load(response)
-    except urllib.error.HTTPError as exc:
-        raise RuntimeError(f"The local AI failed: {exc.read().decode('utf-8', 'replace')[:500]}")
-    return parse_json_reply(reply.get("message", {}).get("content", ""))
+    # Small models can get stuck repeating themselves inside the JSON, and
+    # Ollama's default 4k context then cuts the reply off mid-string. So: room for
+    # the prompt and reply, and a reply cap of about three times the message (a
+    # correction is never much longer than the text), so a loop ends fast and is
+    # retried. No repetition penalty: proofreading has to reuse the draft's words.
+    options = {"temperature": 0.2, "num_ctx": 8192, "num_predict": len(message) * 3 // 4 + 600}
+    # Small PCs run local models slowly: allow the provider's longer timeout.
+    timeout = max(timeout, provider.get("timeout_seconds", 300))
+    for attempt in (1, 2):
+        body = {"model": model, "stream": False, "think": False, "format": schema, "keep_alive": "10m",
+                "options": options,
+                "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": message}]}
+        try:
+            with ollama_api("/api/chat", body, timeout=timeout) as response:
+                reply = json.load(response)
+        except urllib.error.HTTPError as exc:
+            raise RuntimeError(f"The local AI failed: {exc.read().decode('utf-8', 'replace')[:500]}")
+        content = reply.get("message", {}).get("content", "")
+        if reply.get("done_reason") != "length":
+            try:
+                return parse_json_reply(content)
+            except RuntimeError:
+                pass
+        # Stuck or cut off: one more try with different sampling usually escapes the loop.
+        options = {**options, "temperature": 0.7, "seed": 7}
+    raise RuntimeError("The free local AI got stuck on this text and didn't finish its answer. "
+                       "Try again, shorten the text, or choose Claude or ChatGPT for this one.")
 
 
 RUNNERS = {"claude": run_claude, "codex": run_codex, "copilot": run_copilot, "ollama": run_ollama}
