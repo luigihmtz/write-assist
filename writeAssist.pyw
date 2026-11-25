@@ -10,7 +10,7 @@
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v02.04.02
+# Version: v02.04.03
 # Date:    2026-11-24
 #
 # Usage: installed by install.ps1 (Start Menu shortcut + global hotkey, default
@@ -212,7 +212,7 @@ class Bridge:
         started = time.time()
         result, extra = self._ask_with_fallback(request, lambda name, provider, model: core.run_text_task(
             name, provider, model, task, request.get("prompt", ""), request.get("draft", ""),
-            request.get("mode", "fix"), request.get("tone", "keep"),
+            request.get("mode", "polish"), request.get("tone", "keep"),
             core.load_user_settings().get("profile", ""), self._settings.get("timeout_seconds", 120),
             request.get("language", "")))
         return {"task": task, "elapsed": time.time() - started, **extra, **result}

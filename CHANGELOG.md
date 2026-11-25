@@ -1,5 +1,10 @@
 # Changelog
 
+## v02.04.02 - 2026-11-24
+
+- *fix and polish wording* is now the default Mode (everyone switches to it
+  once after updating; your choice is remembered after that).
+
 ## v02.04.01 - 2026-11-24
 
 - Fixed updates failing with "Cannot remove the item ... because it is in

@@ -55,7 +55,7 @@ Press **Ctrl+Enter**, then **Copy** the result.
 |---|---|
 | **Prompt** | Review: optional context or instructions, e.g. "Email to a client", "Reply to my boss, make it shorter". Create: describe what to write, e.g. "Email to Sarah: the storyboard is two days late, we need the brand guidelines". *Insert preset...* adds a common one. |
 | **Draft** | The text to review. Leave empty to create. |
-| **Mode** | Review only (grayed out when creating). *fix errors only*: spelling, typos, grammar, punctuation, with minimal edits. *fix and polish wording*: also smooths awkward or unclear phrasing. Anything the prompt asks for overrides it. |
+| **Mode** | Review only (grayed out when creating). *fix and polish wording* (default): fixes errors and also smooths awkward or unclear phrasing. *fix errors only*: spelling, typos, grammar, punctuation, with minimal edits. Anything the prompt asks for overrides it. |
 | **Language** | The text's language and regional variant (English US/UK, Spanish Mexico/Spain, French, Portuguese, German, Italian). Review corrects for it (e.g. US vs UK spelling); Create writes in it. *Auto* lets the AI decide from the text and your *About you*. |
 | **Tone** | `keep` (default), or lean it: more formal, more casual, friendlier, more concise. |
 | **AI** | The AIs installed on this PC: Claude, and GitHub Copilot if its CLI is installed. If the chosen AI hits its usage limit, the request goes to the other one automatically and the status bar says so (turn off with `"auto_fallback": false` in `user_settings.json`). |

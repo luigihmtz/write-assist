@@ -6,7 +6,7 @@
 //
 // Author:  Luis Martinez
 // Email:   16788942+luigihmtz@users.noreply.github.com
-// Version: v01.05.02
+// Version: v01.05.03
 // Date:    2026-11-24
 //
 // Usage: loaded by ui/index.html after i18n.js (t(), applyLanguage()). Every
@@ -68,7 +68,8 @@ async function init() {
   const wanted = state.provider || info.default_provider;
   if ([...els.provider.options].some((o) => o.value === wanted)) els.provider.value = wanted;
 
-  els.mode.value = state.mode || "fix";
+  // mode_rev 2: the default became "polish"; forget the mode saved before that.
+  els.mode.value = state.mode_rev === 2 ? (state.mode || "polish") : "polish";
   els.tone.value = state.tone || "keep";
   els.textLanguage.value = state.text_language || "auto";
   els.trTarget.value = state.translate_target || "auto";
@@ -135,7 +136,7 @@ function saveState() {
   api().save_state({
     mode: els.mode.value, tone: els.tone.value, provider: els.provider.value,
     text_language: els.textLanguage.value, translate_target: els.trTarget.value,
-    models: app.models, models_rev: 2, auto_copy: els.autoCopy.checked,
+    mode_rev: 2, models: app.models, models_rev: 2, auto_copy: els.autoCopy.checked,
   });
 }
 
