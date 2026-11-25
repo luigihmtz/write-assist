@@ -4,8 +4,8 @@
 # the GitHub release that installed copies offer as an update.
 #
 # Author:  Luis Martinez
-# Email:   luis@luigi.mx
-# Version: v01.00.00
+# Email:   16788942+luigihmtz@users.noreply.github.com
+# Version: v01.00.01
 # Date:    2026-11-24
 #
 # Usage:   1. Bump "version" (and "date") in release.json, add a CHANGELOG.md entry.

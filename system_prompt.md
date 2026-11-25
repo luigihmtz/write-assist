@@ -5,8 +5,8 @@ System prompt sent to the AI by writeAssist.pyw on every request (Review and Cre
 Edit freely to change how it behaves; the app reloads it on each request.
 
 Author:  Luis Martinez
-Email:   luis@luigi.mx
-Version: v01.03.00
+Email:   16788942+luigihmtz@users.noreply.github.com
+Version: v01.03.01
 Date:    2026-11-24
 
 Usage: Lines inside this HTML comment are stripped before sending.

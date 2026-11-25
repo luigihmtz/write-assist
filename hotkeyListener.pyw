@@ -4,8 +4,8 @@
 # front. Needed because shortcut (.lnk) hotkeys can't use the Win key.
 #
 # Author:  Luis Martinez
-# Email:   luis@luigi.mx
-# Version: v01.02.00
+# Email:   16788942+luigihmtz@users.noreply.github.com
+# Version: v01.02.01
 # Date:    2026-11-24
 #
 # Usage: started at login by the Startup shortcut that install.ps1 creates (or

@@ -9,8 +9,8 @@
 # ui/) and the bridge the page calls; the logic is in waCore.py / waSpeech.py.
 #
 # Author:  Luis Martinez
-# Email:   luis@luigi.mx
-# Version: v02.04.00
+# Email:   16788942+luigihmtz@users.noreply.github.com
+# Version: v02.04.01
 # Date:    2026-11-24
 #
 # Usage: installed by install.ps1 (Start Menu shortcut + global hotkey, default

@@ -6,8 +6,8 @@
 # raise LimitReached so the app can hand the request to another AI.
 #
 # Author:  Luis Martinez
-# Email:   luis@luigi.mx
-# Version: v01.03.00
+# Email:   16788942+luigihmtz@users.noreply.github.com
+# Version: v01.03.01
 # Date:    2026-11-24
 #
 # Usage: imported by writeAssist.pyw. Per-user files live in

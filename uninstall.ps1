@@ -5,8 +5,8 @@
 # (%APPDATA%\WriteAssist). Python and Claude Code are left installed.
 #
 # Author:  Luis Martinez
-# Email:   luis@luigi.mx
-# Version: v01.00.00
+# Email:   16788942+luigihmtz@users.noreply.github.com
+# Version: v01.00.01
 # Date:    2026-11-24
 #
 # Usage:   Settings > Apps > Write Assist > Uninstall, or run

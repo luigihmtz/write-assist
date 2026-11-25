@@ -9,8 +9,8 @@
 # instead of downloading (development copy).
 #
 # Author:  Luis Martinez
-# Email:   luis@luigi.mx
-# Version: v01.01.00
+# Email:   16788942+luigihmtz@users.noreply.github.com
+# Version: v01.01.01
 # Date:    2026-11-24
 #
 # Usage:   Install or update (PowerShell):

@@ -5,8 +5,8 @@
 // speech-to-text recording, settings, interface language, and updates.
 //
 // Author:  Luis Martinez
-// Email:   luis@luigi.mx
-// Version: v01.05.00
+// Email:   16788942+luigihmtz@users.noreply.github.com
+// Version: v01.05.01
 // Date:    2026-11-24
 //
 // Usage: loaded by ui/index.html after i18n.js (t(), applyLanguage()). Every

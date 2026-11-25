@@ -4,8 +4,8 @@
 // attributes for the static text in index.html.
 //
 // Author:  Luis Martinez
-// Email:   luis@luigi.mx
-// Version: v01.02.00
+// Email:   16788942+luigihmtz@users.noreply.github.com
+// Version: v01.02.01
 // Date:    2026-11-24
 //
 // Usage: loaded by ui/index.html before app.js. In index.html:
