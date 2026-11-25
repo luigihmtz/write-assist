@@ -5,7 +5,7 @@
 //
 // Author:  Luis Martinez
 // Email:   luis@luigi.mx
-// Version: v01.00.00
+// Version: v01.01.00
 // Date:    2026-11-24
 //
 // Usage: loaded by ui/index.html before app.js. In index.html:
@@ -35,6 +35,8 @@ const STRINGS = {
     "language.auto": "Auto",
     "ai": "AI",
     "model": "Model",
+    "model.other": "Other...",
+    "model.otherPrompt": "Model name, as the AI accepts it (e.g. claude-sonnet-5-5):",
     "translate": "Translate",
     "translate.title": "Translate the selected text (Ctrl+Shift+T)",
     "thesaurus": "Thesaurus",
@@ -189,6 +191,8 @@ const STRINGS = {
     "language.auto": "Automático",
     "ai": "IA",
     "model": "Modelo",
+    "model.other": "Otro...",
+    "model.otherPrompt": "Nombre del modelo, como lo acepta la IA (p. ej. claude-sonnet-5-5):",
     "translate": "Traducir",
     "translate.title": "Traducir el texto seleccionado (Ctrl+Shift+T)",
     "thesaurus": "Sinónimos",

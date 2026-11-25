@@ -7,7 +7,7 @@ buttons, settings dialog. Rendered by writeAssist.pyw in a WebView2 window.
 
 Author:  Luis Martinez
 Email:   luis@luigi.mx
-Version: v01.02.00
+Version: v01.03.00
 Date:    2026-11-24
 
 Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
@@ -52,8 +52,7 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
       </select>
     </label>
     <label class="field"><span data-i18n="ai">AI</span> <select id="provider"></select></label>
-    <label class="field"><span data-i18n="model">Model</span> <input id="model" list="modelList" autocomplete="off" spellcheck="false"></label>
-    <datalist id="modelList"></datalist>
+    <label class="field"><span data-i18n="model">Model</span> <select id="model"></select></label>
     <span class="spacer"></span>
     <span class="toolbar-actions">
     <button id="translateBtn" class="ghost" data-i18n="translate" data-i18n-title="translate.title">Translate</button>

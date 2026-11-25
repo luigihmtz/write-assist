@@ -6,7 +6,7 @@
  *
  * Author:  Luis Martinez
  * Email:   luis@luigi.mx
- * Version: v01.02.00
+ * Version: v01.03.00
  * Date:    2026-11-24
  *
  * Usage: linked from ui/index.html. --fs is set from settings.json font_size.
@@ -93,7 +93,7 @@ button, select, input, textarea { font: inherit; color: inherit; }
 }
 
 .field select, .field input { min-width: 0; }
-#model { width: 6.5em; }
+#model { max-width: 7.5em; }
 #mode { max-width: 11em; }
 #tone { max-width: 8.5em; }
 #provider { max-width: 9em; }

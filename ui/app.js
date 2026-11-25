@@ -6,7 +6,7 @@
 //
 // Author:  Luis Martinez
 // Email:   luis@luigi.mx
-// Version: v01.03.00
+// Version: v01.04.00
 // Date:    2026-11-24
 //
 // Usage: loaded by ui/index.html after i18n.js (t(), applyLanguage()). Every
@@ -17,7 +17,7 @@ const api = () => window.pywebview.api;
 
 const els = {
   mode: $("mode"), tone: $("tone"), textLanguage: $("textLanguage"),
-  provider: $("provider"), model: $("model"), modelList: $("modelList"),
+  provider: $("provider"), model: $("model"),
   prompt: $("prompt"), draft: $("draft"), preset: $("preset"),
   result: $("result"), resultTitle: $("resultTitle"), changes: $("changes"),
   runBtn: $("runBtn"), autoCopy: $("autoCopy"), updateBtn: $("updateBtn"), status: $("status"),
@@ -92,17 +92,40 @@ function setUiLanguage(setting) {
   app.task = undefined;
   updateTask();
   renderResultTitle();
+  const other = els.model.querySelector(`option[value="${OTHER_MODEL}"]`);
+  if (other) other.textContent = t("model.other");
   if (app.updateTag) els.updateBtn.textContent = t("update.button", { tag: app.updateTag });
 }
 
 function showProviderModels() {
   const p = app.providers[els.provider.value];
   if (!p) return;
-  els.modelList.innerHTML = "";
-  for (const m of p.models) els.modelList.append(new Option(m, m));
-  els.model.value = app.models[p.name] || p.default_model || p.models[0] || "";
+  fillModels(p, app.models[p.name] || p.default_model || p.models[0] || "");
   if (p.installed) setStatus(t("status.empty"));
   else setStatus(t("status.notInstalled", { provider: p.name }), true);
+}
+
+// The provider's models, plus a model typed earlier with "Other...", plus "Other...".
+const OTHER_MODEL = "__other__";
+
+function fillModels(p, selected) {
+  els.model.innerHTML = "";
+  const names = [...p.models];
+  if (selected && !names.includes(selected)) names.push(selected);
+  for (const m of names) els.model.add(new Option(m, m));
+  els.model.add(new Option(t("model.other"), OTHER_MODEL));
+  els.model.value = selected || names[0] || "";
+  els.model.dataset.previous = els.model.value;
+}
+
+function onModelChange() {
+  if (els.model.value === OTHER_MODEL) {
+    const name = (window.prompt(t("model.otherPrompt")) || "").trim();
+    if (!name) { els.model.value = els.model.dataset.previous || ""; return; }
+    fillModels(app.providers[els.provider.value], name);
+  }
+  els.model.dataset.previous = els.model.value;
+  saveState();
 }
 
 function saveState() {
@@ -748,7 +771,8 @@ function wire() {
   els.result.addEventListener("mouseup", () => { app.lastField = "result"; });
 
   els.provider.addEventListener("change", () => { showProviderModels(); saveState(); });
-  for (const el of [els.mode, els.tone, els.textLanguage, els.model, els.autoCopy]) el.addEventListener("change", saveState);
+  for (const el of [els.mode, els.tone, els.textLanguage, els.autoCopy]) el.addEventListener("change", saveState);
+  els.model.addEventListener("change", onModelChange);
 
   els.preset.addEventListener("change", () => {
     const text = els.preset.value;

@@ -1,5 +1,11 @@
 # Changelog
 
+## v02.03.01 - 2026-11-24
+
+- The Model box is now a regular dropdown that always lists every model
+  (before, it only suggested the one already typed). *Other...* lets you
+  enter any other model name.
+
 ## v02.03.00 - 2026-11-24
 
 - Translate: select text anywhere and click *Translate* (Ctrl+Shift+T). Pick
