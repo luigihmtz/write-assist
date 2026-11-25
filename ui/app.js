@@ -6,7 +6,7 @@
 //
 // Author:  Luis Martinez
 // Email:   luis@luigi.mx
-// Version: v01.00.00
+// Version: v01.01.00
 // Date:    2026-11-24
 //
 // Usage: loaded by ui/index.html. Every api.* call returns a Promise of
@@ -178,12 +178,19 @@ function showResult(res) {
     els.changes.append(p);
   }
 
-  let message = res.task === "review"
+  let message = fallbackNote(res) + (res.task === "review"
     ? `Reviewed with ${res.provider} · ${res.changes.length} change${res.changes.length === 1 ? "" : "s"}`
-    : `Written with ${res.provider}`;
+    : `Written with ${res.provider}`);
   message += ` · ${res.elapsed.toFixed(1)}s`;
   if (els.autoCopy.checked) { copyResult(true); message += " · copied"; }
   setStatus(message);
+}
+
+// "Claude hit a usage limit (...), used GitHub Copilot · " when the backup AI answered.
+function fallbackNote(res) {
+  if (!res.fallback_from) return "";
+  const why = res.limit_note ? ` (${res.limit_note})` : "";
+  return `${res.fallback_from} hit a usage limit${why}, used ${res.provider} · `;
 }
 
 function resultText() {
@@ -304,6 +311,7 @@ async function openThesaurus(field) {
   if (!res.ok) { els.thBody.innerHTML = `<p class="error">${escapeHtml(res.error)}</p>`; return; }
 
   els.thBody.innerHTML = "";
+  if (res.fallback_from) setStatus(fallbackNote(res).replace(/ · $/, ""));
   if (res.meanings.length) {
     els.thBody.insertAdjacentHTML("beforeend", "<h3>Meaning</h3>");
     for (const m of res.meanings) {

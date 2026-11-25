@@ -2,11 +2,12 @@
 # Core of Write Assist, without any UI: settings (shipped defaults + per-user
 # overrides), the Review/Create and Thesaurus requests sent to the AI CLIs
 # (Claude Code `claude -p`, GitHub Copilot CLI `copilot -s`), the word diff
-# used to highlight edits, and the GitHub release check.
+# used to highlight edits, and the GitHub release check. Usage-limit errors
+# raise LimitReached so the app can hand the request to another AI.
 #
 # Author:  Luis Martinez
 # Email:   luis@luigi.mx
-# Version: v01.00.00
+# Version: v01.01.00
 # Date:    2026-11-24
 #
 # Usage: imported by writeAssist.pyw. Per-user files live in
@@ -42,8 +43,19 @@ DEFAULT_PROVIDERS = {
     "GitHub Copilot": {"type": "copilot", "models": ["auto"], "default_model": "auto", "effort": ""},
 }
 
-# Claude Code tools the assistant never needs; denied so pasted text can't make it act.
-CLAUDE_DENIED_TOOLS = "Bash PowerShell Read Edit Write NotebookEdit Glob Grep WebFetch WebSearch Agent Skill"
+# Claude Code tools the assistant never needs: denied so pasted text can't make
+# it act, and because each tool's definition is sent with every request (all of
+# them cost ~22k input tokens per request; without them it's ~1.5k). Check the
+# `tools` list of `claude -p --output-format stream-json --verbose` after
+# Claude Code updates and add any new ones here.
+CLAUDE_DENIED_TOOLS = " ".join([
+    "Bash", "PowerShell", "Read", "Edit", "Write", "NotebookEdit", "Glob", "Grep",
+    "WebFetch", "WebSearch", "Agent", "Skill",
+    "Artifact", "ArtifactComments", "ArtifactData", "CronCreate", "CronDelete", "CronList",
+    "DesignSync", "EnterWorktree", "ExitWorktree", "ListAgents", "McpTaskCheck",
+    "PushNotification", "RemoteTrigger", "ReportFindings", "ScheduleWakeup", "SendMessage",
+    "TaskStop", "ToolSearch",
+])
 
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
@@ -173,6 +185,22 @@ def parse_json_reply(text):
         raise RuntimeError(f"Couldn't read the reply as JSON ({exc}):\n{text[:800]}")
 
 
+class LimitReached(RuntimeError):
+    """The AI refused because a usage limit, quota or overload was hit; another AI can take over."""
+
+
+# Wording the CLIs use for plan limits, quotas, rate limits and overload.
+LIMIT_RE = re.compile(
+    r"usage limit|limit reached|hit your (usage )?limit|rate[ _-]?limit|quota|allowance"
+    r"|out of (extra )?usage|too many requests|\b429\b|overloaded|\b529\b", re.I)
+
+
+def check_limit(detail):
+    """Raises LimitReached when an error message is about a usage limit."""
+    if LIMIT_RE.search(detail or ""):
+        raise LimitReached(detail.strip()[:1500])
+
+
 def run_claude(cli, provider, model, message, system_prompt, schema, json_hint, timeout):
     cmd = [
         cli, "-p",
@@ -193,11 +221,16 @@ def run_claude(cli, provider, model, message, system_prompt, schema, json_hint, 
         payload = json.loads(out)
     except ValueError:
         detail = (err or out or "no output").strip()
+        check_limit(detail)
         if "login" in detail.lower() or "auth" in detail.lower():
             detail += "\n\nSign in by running `claude auth login` in a terminal."
         raise RuntimeError(f"Claude failed (exit {code}):\n{detail[:1500]}")
     if payload.get("is_error"):
-        raise RuntimeError(str(payload.get("result") or payload)[:1500])
+        detail = str(payload.get("result") or payload)
+        if payload.get("api_error_status") in (429, 529):
+            raise LimitReached(detail[:1500])
+        check_limit(detail)
+        raise RuntimeError(detail[:1500])
     result = payload.get("structured_output")
     return result if isinstance(result, dict) else parse_json_reply(payload.get("result") or "")
 
@@ -219,6 +252,7 @@ def run_copilot(cli, provider, model, message, system_prompt, schema, json_hint,
         cmd += ["--reasoning-effort", provider["effort"]]
     code, out, err = run_cli(cmd, prompt, timeout)
     if code != 0 or not out.strip():
+        check_limit(f"{err}\n{out}")
         raise RuntimeError(f"Copilot failed (exit {code}):\n{(err or out or 'no output').strip()[:1500]}")
     return parse_json_reply(out)
 

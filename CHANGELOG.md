@@ -1,5 +1,12 @@
 # Changelog
 
+## v02.01.00 - 2026-11-24
+
+- Automatic fallback: if Claude (or Copilot) hits its usage limit, the request
+  goes to the other AI, and the status bar says which one answered and why.
+- Claude requests are about 8 times smaller (~3k input tokens instead of
+  ~23k), so Write Assist uses much less of your Claude plan's limits.
+
 ## v02.00.00 - 2026-11-24
 
 - New window built on WebView2 (the engine inside Microsoft Edge): color

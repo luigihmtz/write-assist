@@ -4,12 +4,13 @@
 # written, or both. Also a context-aware thesaurus (on demand) and offline
 # speech-to-text. It runs an AI's local CLI headless, so it uses your existing
 # subscription and needs no API key: Claude (Claude Code) or GitHub Copilot.
+# If the chosen AI hits a usage limit, the request goes to the other one.
 # This file is the desktop window (pywebview on Microsoft WebView2, page in
 # ui/) and the bridge the page calls; the logic is in waCore.py / waSpeech.py.
 #
 # Author:  Luis Martinez
 # Email:   luis@luigi.mx
-# Version: v02.00.00
+# Version: v02.01.00
 # Date:    2026-11-24
 #
 # Usage: installed by install.ps1 (Start Menu shortcut + global hotkey, default
@@ -172,21 +173,45 @@ class Bridge:
         self._state.update(state or {})
         core.save_json(core.STATE_FILE, self._state)
 
+    # ---- Automatic fallback ----------------------------------------------- #
+    def _backup_for(self, provider_name):
+        """Another installed AI to use when provider_name hits a usage limit, or None."""
+        if not self._settings.get("auto_fallback", True):
+            return None
+        for name, p in self._settings["providers"].items():
+            if name != provider_name and core.find_cli(p.get("type", "claude"), p.get("path", "")):
+                return name, p
+        return None
+
+    def _ask_with_fallback(self, request, call):
+        """Runs call(name, provider, model) with the chosen AI; if it hits a usage
+        limit, runs it again with a backup AI. Returns (result, extra fields)."""
+        name = request["provider"]
+        provider = self._settings["providers"][name]
+        model = (request.get("model") or "").strip() or provider.get("default_model", "")
+        try:
+            return call(name, provider, model), {"provider": name}
+        except core.LimitReached as exc:
+            backup = self._backup_for(name)
+            if not backup:
+                raise RuntimeError(f"{name} hit a usage limit and no other AI is installed to take over.\n\n{exc}")
+            backup_name, backup_provider = backup
+            result = call(backup_name, backup_provider, backup_provider.get("default_model", ""))
+            limit_note = str(exc).strip().splitlines()[0][:120]
+            return result, {"provider": backup_name, "fallback_from": name, "limit_note": limit_note}
+
     # ---- Review / Create -------------------------------------------------- #
     @safely
     def run(self, request):
-        provider_name = request["provider"]
-        provider = self._settings["providers"][provider_name]
-        model = (request.get("model") or "").strip() or provider.get("default_model", "")
         task = core.detect_task(request.get("prompt", ""), request.get("draft", ""))
         if not task:
             raise RuntimeError("Paste a draft to review, or write a prompt to create.")
         started = time.time()
-        result = core.run_text_task(
-            provider_name, provider, model, task, request.get("prompt", ""), request.get("draft", ""),
+        result, extra = self._ask_with_fallback(request, lambda name, provider, model: core.run_text_task(
+            name, provider, model, task, request.get("prompt", ""), request.get("draft", ""),
             request.get("mode", "fix"), request.get("tone", "keep"),
-            core.load_user_settings().get("profile", ""), self._settings.get("timeout_seconds", 120))
-        return {"task": task, "provider": provider_name, "elapsed": time.time() - started, **result}
+            core.load_user_settings().get("profile", ""), self._settings.get("timeout_seconds", 120)))
+        return {"task": task, "elapsed": time.time() - started, **extra, **result}
 
     # ---- Thesaurus (only when the user asks) ------------------------------ #
     @safely
@@ -196,12 +221,13 @@ class Bridge:
             raise RuntimeError("Select a word first.")
         context = (request.get("context") or "").strip()
         key = (word.lower(), context, request["provider"], request.get("model", ""))
-        if key not in self._thesaurus_cache:
-            provider = self._settings["providers"][request["provider"]]
-            model = (request.get("model") or "").strip() or provider.get("default_model", "")
-            self._thesaurus_cache[key] = core.run_thesaurus(
-                request["provider"], provider, model, word, context, self._settings.get("timeout_seconds", 120))
-        return self._thesaurus_cache[key]
+        if key in self._thesaurus_cache:
+            return self._thesaurus_cache[key]
+        result, extra = self._ask_with_fallback(request, lambda name, provider, model: core.run_thesaurus(
+            name, provider, model, word, context, self._settings.get("timeout_seconds", 120)))
+        if "fallback_from" not in extra:  # cache only real answers from the chosen AI
+            self._thesaurus_cache[key] = result
+        return {**result, **extra}
 
     # ---- Speech ----------------------------------------------------------- #
     def _speech_model(self):

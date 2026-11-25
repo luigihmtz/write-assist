@@ -52,7 +52,7 @@ Press **Ctrl+Enter**, then **Copy** the result.
 | **Draft** | The text to review. Leave empty to create. |
 | **Mode** | Review only. `fix`: spelling, typos, grammar, punctuation (minimal edits). `polish`: also smooths awkward or unclear phrasing. Anything the prompt asks for overrides it. |
 | **Tone** | `keep` (default), or lean it: more formal, more casual, friendlier, more concise. |
-| **AI** | The AIs installed on this PC: Claude, and GitHub Copilot if its CLI is installed. |
+| **AI** | The AIs installed on this PC: Claude, and GitHub Copilot if its CLI is installed. If the chosen AI hits its usage limit, the request goes to the other one automatically and the status bar says so (turn off with `"auto_fallback": false` in `user_settings.json`). |
 | **Model** | Claude: `opus` (default), `sonnet`, `haiku`. Copilot: `auto`. You can type any other model name the AI accepts. |
 | **Thesaurus** | Select a word (or put the cursor on it) in Prompt, Draft or the result, then click *Thesaurus* or press **Ctrl+T**: meaning, synonyms and antonyms that fit your sentence. Click one to swap it in. It asks the AI only when you click. |
 | **Dictate** | Speak into Prompt or Draft; click again to stop (Esc cancels). Transcribed on your computer with faster-whisper: free, offline, private. The first time, it offers a one-time download (speech engine about 250 MB, plus the model: 465 MB for *small*). |
@@ -124,8 +124,10 @@ claude -p --safe-mode --no-session-persistence --model opus --effort low
   is fast (~3–6 s) and nothing from other projects leaks into it.
 - `--json-schema` makes Claude return `{text, changes[], notes}`.
 - Don't pass `--tools ""` together with `--json-schema`: structured output
-  needs its internal tool, and the call hangs. File, shell and web tools are
-  denied with `--disallowed-tools` instead.
+  needs its internal tool, and the call has hung. All of Claude Code's own
+  tools are denied with `--disallowed-tools` instead. This also keeps requests
+  small: every loaded tool's description is sent with each request, ~22k
+  tokens in total, so a review would cost ~23k input tokens instead of ~3k.
 
 **GitHub Copilot** (optional, needs `winget install GitHub.Copilot` and a
 Copilot plan):
