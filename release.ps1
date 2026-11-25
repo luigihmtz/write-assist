@@ -33,12 +33,14 @@ if ((git rev-parse HEAD) -ne (git rev-parse origin/main)) { throw "Push main fir
 
 $tagExists = [bool](git tag --list $version)
 if ($tagExists) {
+    # gh writes "release not found" to stderr, which PowerShell 5.1 turns into
+    # an error under "Stop"; here it's the expected answer.
+    $ErrorActionPreference = "Continue"
     gh release view $version *> $null
-    if ($LASTEXITCODE -eq 0) { throw "$version is already released. Bump the version in release.json." }
-    if ((git rev-list -n 1 $version) -ne (git rev-parse HEAD)) {
-        throw "Tag $version points to another commit. Bump the version in release.json."
-    }
-    Write-Host "Tag $version exists without a release; creating the release."
+    $released = $LASTEXITCODE -eq 0
+    $ErrorActionPreference = "Stop"
+    if ($released) { throw "$version is already released. Bump the version in release.json." }
+    Write-Host "Tag $version exists without a release; creating the release from that tag."
 }
 
 # Notes: this version's section of CHANGELOG.md, if there is one. Passed to gh
