@@ -5,7 +5,7 @@
 //
 // Author:  Luis Martinez
 // Email:   16788942+luigihmtz@users.noreply.github.com
-// Version: v01.02.02
+// Version: v01.03.00
 // Date:    2026-11-24
 //
 // Usage: loaded by ui/index.html before app.js. In index.html:
@@ -34,6 +34,15 @@ const STRINGS = {
     "language.title": "Language of the text: Review corrects for it, Create writes in it",
     "language.auto": "Auto",
     "ai": "AI",
+    "ai.local": "Local (free)",
+    "local.setupTitle": "Set up the free local AI?",
+    "local.setupText": "Write Assist can use a free AI that runs on this computer: no account or subscription, it works offline, and your text never leaves your PC. It needs a one-time download of about {download} GB (the free Ollama app and the {model} model), using about {disk} GB of disk space. A review takes a second or two on a fast PC and up to about a minute on an older laptop. Claude gives better results if you have it.",
+    "local.modelText": "The {model} model is free and runs on this computer; your text never leaves your PC. It needs a one-time download of about {download} GB.",
+    "local.download": "Download",
+    "local.installing": "Installing Ollama, the free local AI app (one time, a few minutes)...",
+    "local.downloading": "Downloading the free local AI... {percent}% ({done} of {total} GB)",
+    "local.ready": "The free local AI is ready.",
+    "local.notSetUp": "The free local AI isn't set up yet. Choose it again, or press Review, to download it.",
     "model": "Model",
     "model.other": "Other...",
     "model.otherPrompt": "Model name, as the AI accepts it (e.g. claude-sonnet-5-5):",
@@ -194,6 +203,15 @@ const STRINGS = {
     "language.title": "Idioma del texto: Revisar corrige para ese idioma, Crear escribe en él",
     "language.auto": "Automático",
     "ai": "IA",
+    "ai.local": "Local (gratis)",
+    "local.setupTitle": "¿Configurar la IA local gratuita?",
+    "local.setupText": "Write Assist puede usar una IA gratuita que funciona en esta computadora: sin cuenta ni suscripción, funciona sin internet y tu texto nunca sale de tu PC. Necesita una descarga única de unos {download} GB (la app gratuita Ollama y el modelo {model}) y ocupa unos {disk} GB de disco. Una revisión tarda uno o dos segundos en una PC rápida y hasta un minuto en una laptop más antigua. Claude da mejores resultados si lo tienes.",
+    "local.modelText": "El modelo {model} es gratuito y funciona en esta computadora; tu texto nunca sale de tu PC. Necesita una descarga única de unos {download} GB.",
+    "local.download": "Descargar",
+    "local.installing": "Instalando Ollama, la app gratuita de IA local (solo una vez, unos minutos)...",
+    "local.downloading": "Descargando la IA local gratuita... {percent}% ({done} de {total} GB)",
+    "local.ready": "La IA local gratuita está lista.",
+    "local.notSetUp": "La IA local gratuita aún no está configurada. Elígela otra vez, o pulsa Revisar, para descargarla.",
     "model": "Modelo",
     "model.other": "Otro...",
     "model.otherPrompt": "Nombre del modelo, como lo acepta la IA (p. ej. claude-sonnet-5-5):",

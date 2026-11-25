@@ -5,15 +5,23 @@
 A small Windows app that reviews and writes text with AI: messages, emails,
 posts, docs. Paste what you wrote and get it proofread, or describe what you
 need and get it written. It also has a context-aware thesaurus and offline
-dictation, a translator, and an English or Spanish interface. It uses your existing Claude subscription through Claude Code, so
-there are no API keys and nothing extra to pay.
+dictation, a translator, and an English or Spanish interface. It works with
+your existing Claude subscription through Claude Code, or with a **free AI that
+runs on your own computer**, so there are no API keys and nothing extra to pay.
 
 ![Write Assist reviewing a client email: the corrected text with the edits highlighted, and each change listed with its reason](assets/screenshot.png)
 
 ## Install
 
-You need **Windows 10 or 11** and a **Claude Pro or Max** plan (or a Team or
-Enterprise seat; the free plan doesn't include Claude Code).
+You need **Windows 10 or 11**, and one of these:
+
+- a **Claude Pro or Max** plan (or a Team or Enterprise seat; Claude's free
+  plan doesn't include Claude Code): the best results; or
+- nothing at all: the **free local AI** (Google's Gemma model, run by the free
+  Ollama app) works on your computer, with no account, offline and private.
+  It's a one-time download of about 5.3 GB (6.7 GB of disk space). It handles
+  everyday fixes well; Claude is better with subtle wording. A review takes a
+  second or two on a fast PC and up to about a minute on an older laptop.
 
 1. Open **PowerShell** (Start, type *PowerShell*, Enter).
 2. Paste this line and press Enter:
@@ -22,13 +30,15 @@ Enterprise seat; the free plan doesn't include Claude Code).
    irm https://raw.githubusercontent.com/luigihmtz/write-assist/main/install.ps1 | iex
    ```
 
-3. When your browser opens, sign in to Claude.
+3. If neither AI is set up yet, the installer asks which one to use. For
+   Claude, sign in when your browser opens.
 
 The line downloads and runs [install.ps1](install.ps1) from this repository.
 If you prefer to read a script before running it, open that file first.
 
 The installer sets up Python (with the small pywebview package), the WebView2
-runtime and Claude Code if they're missing, then opens Write Assist. No admin rights needed. On first launch it asks a little about
+runtime and the AI you chose (Claude Code, or Ollama and the Gemma model) if
+they're missing, then opens Write Assist. No admin rights needed. On first launch it asks a little about
 you (your languages, what you write) so it corrects and writes like you.
 
 **Open it** from the Start Menu or with **Win+Ctrl+W** from any app. To pin it
@@ -37,7 +47,9 @@ to the taskbar: Start, right-click *Write Assist*, *Pin to taskbar*.
 **Updates:** when a new version is out, an *Update to vX* button appears at
 the bottom of the window. One click and it updates itself.
 
-**Uninstall:** Settings > Apps > Write Assist > Uninstall.
+**Uninstall:** Settings > Apps > Write Assist > Uninstall. Python, Claude Code
+and Ollama stay installed for other uses; remove Ollama and its models from
+Settings > Apps > Ollama if you don't need them.
 
 ## How to use it
 
@@ -58,8 +70,8 @@ Press **Ctrl+Enter**, then **Copy** the result.
 | **Mode** | Review only (grayed out when creating). *fix and polish wording* (default): fixes errors and also smooths awkward or unclear phrasing. *fix errors only*: spelling, typos, grammar, punctuation, with minimal edits. Anything the prompt asks for overrides it. |
 | **Language** | The text's language and regional variant (English US/UK, Spanish Mexico/Spain, French, Portuguese, German, Italian). Review corrects for it (e.g. US vs UK spelling); Create writes in it. *Auto* lets the AI decide from the text and your *About you*. |
 | **Tone** | `keep` (default), or lean it: more formal, more casual, friendlier, more concise. |
-| **AI** | The AIs installed on this PC: Claude, and GitHub Copilot if its CLI is installed. If the chosen AI hits its usage limit, the request goes to the other one automatically and the status bar says so (turn off with `"auto_fallback": false` in `user_settings.json`). |
-| **Model** | Claude: `haiku` (default, fastest and lightest on your plan's limits), `sonnet`, `opus` (strongest). Copilot: `auto`. *Other...* lets you enter any other model name the AI accepts. |
+| **AI** | Cheapest first: **Local (free)**, the AI on your computer; **Claude**; and **GitHub Copilot** if its CLI is installed. The default is the cheapest one that's set up. Choosing *Local (free)* the first time offers its one-time download, with the size shown before anything downloads. If the chosen AI hits its usage limit, the request goes to the cheapest other one automatically and the status bar says so (turn off with `"auto_fallback": false` in `user_settings.json`). |
+| **Model** | Local: `gemma3:4b` (default, about 3.3 GB), `gemma3:12b` (better, about 8 GB, for PCs with a good graphics card or lots of memory). Claude: `haiku` (default, fastest and lightest on your plan's limits), `sonnet`, `opus` (strongest). Copilot: `auto`. *Other...* lets you enter any other model name the AI accepts. |
 | **Thesaurus** | Select a word (or put the cursor on it) in Prompt, Draft or the result, then click *Thesaurus* at the top or press **Ctrl+T**: meaning, synonyms and antonyms that fit your sentence. Click a synonym or antonym to **Replace** your word with it or **Search** it in turn (← goes back). You can also type any word in the panel's search box. It asks the AI only when you look something up. |
 | **Translate** | Select text (a word, a sentence, a paragraph) in Prompt, Draft or the result, then click *Translate* at the top or press **Ctrl+Shift+T**. Pick the target language; *English ⇄ Spanish* translates English into Spanish and anything else into English. Then **Replace selection**, **Use as draft** or **Copy**. For a single word it also offers other options; click one to swap it in. You can also type or paste text straight into the panel. It asks the AI only when you translate. |
 | **Dictate** | Speak into Prompt or Draft; click again to stop (Esc cancels). Transcribed on your computer with faster-whisper: free, offline, private. The first time, it offers a one-time download (speech engine about 250 MB, plus the model: 465 MB for *small*). |
@@ -85,24 +97,32 @@ answered.
   thesaurus or translate, together with your *About you*, goes to the AI you
   chose (Anthropic for Claude, GitHub for Copilot) through its own
   command-line app, signed in with your own account. Their privacy policies
-  and terms apply to it.
+  and terms apply to it. With **Local (free)**, the text stays on your
+  computer: the model runs there, through Ollama.
 - **Dictation** is transcribed on your computer. Audio never leaves it.
 - **Write Assist itself collects nothing:** no accounts, analytics or
   tracking. Your settings stay in `%APPDATA%\WriteAssist` on your PC. The
   only other connections it makes are the update check (it asks GitHub for
-  the latest release) and, the first time you dictate, downloading the speech
-  engine and model.
+  the latest release) and the one-time downloads you agree to: the speech
+  engine and model the first time you dictate, and Ollama and its model when
+  you set up the free local AI.
 
 ## En español
 
 Write Assist es una pequeña app para Windows que revisa y escribe tus textos
-con Claude: mensajes, correos, publicaciones. También tiene sinónimos,
-traductor y dictado por voz.
+con IA: mensajes, correos, publicaciones. También tiene sinónimos, traductor y
+dictado por voz.
 
 **Qué necesitas**
 
 - Una computadora con Windows 10 u 11.
-- Un plan de pago de Claude (Pro o Max). El plan gratuito no funciona.
+- Una de estas dos IAs:
+  - **Claude**, con un plan de pago (Pro o Max): da los mejores resultados.
+  - **La IA local gratuita**: funciona en tu computadora, sin cuenta ni
+    suscripción, sin internet y en privado. Es una descarga única de unos
+    5.3 GB (ocupa unos 6.7 GB). Corrige bien lo cotidiano; Claude es mejor
+    con los matices. Una revisión tarda uno o dos segundos en una PC rápida
+    y hasta un minuto en una laptop más antigua.
 
 ### Instalar (unos 5 minutos, solo una vez)
 
@@ -118,8 +138,10 @@ traductor y dictado por voz.
 3. Espera mientras se instala. Verás texto en inglés pasando por la
    pantalla; es normal, y la primera vez puede tardar unos minutos. Si
    Windows te pide permiso para instalar algo, haz clic en **Sí**.
-4. Tu navegador se abrirá y te pedirá iniciar sesión en Claude. Entra con tu
-   cuenta de Claude de siempre y luego regresa a la ventana de PowerShell.
+4. Si todavía no tienes ninguna IA, el instalador te pregunta cuál usar:
+   escribe **1** para Claude o **2** para la IA local gratuita y presiona
+   **Enter**. Con Claude, tu navegador se abrirá para iniciar sesión: entra
+   con tu cuenta de siempre y luego regresa a la ventana de PowerShell.
 5. Cuando diga que terminó, presiona **Enter** para cerrarla. Write Assist
    se abre solo.
 6. La primera vez te pregunta un poco sobre ti, como los idiomas en que
@@ -159,6 +181,9 @@ traductor y dictado por voz.
   **Write Assist** y elige **Anclar a la barra de tareas**.
 - **Micrófono:** Dictar usa el micrófono predeterminado de Windows. Para usar
   otro, elígelo en **Ajustes > Micrófono para dictar**.
+- **IA:** arriba eliges entre **Local (gratis)**, **Claude** y, si lo
+  tienes, **GitHub Copilot**. La primera vez que eliges Local (gratis), la
+  app te avisa del tamaño de la descarga antes de bajar nada.
 - **El idioma de la app** sigue al de Windows. Puedes cambiarlo en
   **Ajustes > Idioma de la interfaz**.
 
@@ -166,7 +191,8 @@ traductor y dictado por voz.
 
 El texto que revisas, creas, buscas en sinónimos o traduces se envía a la IA
 que elegiste (Anthropic para Claude, GitHub para Copilot) con tu propia
-cuenta, y se rige por sus políticas. El dictado se procesa en tu
+cuenta, y se rige por sus políticas. Con la IA local gratuita, tu texto no
+sale de tu computadora. El dictado se procesa en tu
 computadora: el audio nunca sale de ella. Write Assist no recopila nada.
 
 ### Desinstalar
@@ -179,7 +205,7 @@ haz clic en **Desinstalar**.
 | File | Purpose |
 |---|---|
 | `writeAssist.pyw` | The app: the window (pywebview on WebView2) and the bridge the page calls. |
-| `waCore.py` | Settings, Review/Create, Thesaurus and Translate requests to the AI CLIs, usage-limit fallback, edit highlighting, update check. |
+| `waCore.py` | Settings, Review/Create, Thesaurus and Translate requests to the AIs (Claude Code, Copilot CLI, Ollama), the local AI's setup, usage-limit fallback, edit highlighting, update check. |
 | `waSpeech.py` | Offline dictation with faster-whisper, installed on first use. |
 | `ui/` | The window's page: `index.html`, `style.css`, `app.js`, and `i18n.js` with the English and Spanish interface text. |
 | `hotkeyListener.pyw` | Background listener for the global hotkey; opens or wakes the app. |
@@ -220,7 +246,7 @@ near-silence ("Thank you.", "Gracias.").
 **Claude:**
 
 ```
-claude -p --safe-mode --no-session-persistence --model opus --effort low
+claude -p --safe-mode --no-session-persistence --model haiku --effort low
        --system-prompt <system_prompt.md> --output-format json --json-schema <schema>
 ```
 
@@ -232,6 +258,15 @@ claude -p --safe-mode --no-session-persistence --model opus --effort low
   tools are denied with `--disallowed-tools` instead. This also keeps requests
   small: every loaded tool's description is sent with each request, ~22k
   tokens in total, so a review would cost ~23k input tokens instead of ~3k.
+
+**Local (free):** Ollama's local API (`http://127.0.0.1:11434/api/chat`) with
+the JSON schema as `format`, `think: false` and `temperature: 0.2`. If Ollama
+isn't running, the app starts only its engine (`ollama serve`) in the
+background, with no window; when Write Assist installs Ollama it removes
+Ollama's own login item. The model unloads after 10 idle minutes. Small
+models need things spelled out, so the app detects whether a text is English
+or Spanish and names the language in the request (for Review and for
+Translate's *English ⇄ Spanish*); antonyms that repeat a synonym are dropped.
 
 **GitHub Copilot** (optional, needs `winget install GitHub.Copilot` and a
 Copilot plan):
@@ -279,6 +314,8 @@ download these from their official sources, each under its own license:
 | [pywebview](https://github.com/r0x0r/pywebview) (with pythonnet) | The window | BSD-3-Clause (pythonnet: MIT) |
 | Microsoft Edge WebView2 Runtime | Shows the window's page | Microsoft software license |
 | [Claude Code](https://www.anthropic.com/claude-code) | Talks to Claude | Anthropic's terms |
+| [Ollama](https://ollama.com) (optional) | Runs the free local AI | MIT |
+| [Gemma 3](https://ai.google.dev/gemma) models by Google (optional) | The free local AI | Gemma Terms of Use |
 | [GitHub Copilot CLI](https://github.com/features/copilot) (optional) | Talks to Copilot | GitHub's terms |
 | [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (with CTranslate2, PyAV) | Dictation | MIT (PyAV: BSD-3-Clause, with FFmpeg under LGPL) |
 | [Whisper](https://github.com/openai/whisper) models by OpenAI | Dictation | MIT |
@@ -290,7 +327,8 @@ modify and share it, as long as the copyright notice stays with it. It comes
 as is, without warranty of any kind.
 
 Write Assist is an independent project, not affiliated with or endorsed by
-Anthropic, GitHub or Microsoft. Claude, GitHub Copilot, Windows and the other
+Anthropic, GitHub, Microsoft, Google or Ollama. Claude, GitHub Copilot, Windows,
+Gemma and the other
 product names mentioned are trademarks of their respective owners. Using
 Claude or Copilot through Write Assist is subject to your own agreement with
 Anthropic or GitHub.

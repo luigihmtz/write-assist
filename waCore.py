@@ -1,13 +1,14 @@
 # waCore.py
 # Core of Write Assist, without any UI: settings (shipped defaults + per-user
 # overrides), the Review/Create, Thesaurus and Translate requests sent to the AI CLIs
-# (Claude Code `claude -p`, GitHub Copilot CLI `copilot -s`), the word diff
+# (Claude Code `claude -p`, GitHub Copilot CLI `copilot -s`, a free local model
+# through Ollama's local API), the word diff
 # used to highlight edits, and the GitHub release check. Usage-limit errors
 # raise LimitReached so the app can hand the request to another AI.
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v01.03.01
+# Version: v01.04.00
 # Date:    2026-11-24
 #
 # Usage: imported by writeAssist.pyw. Per-user files live in
@@ -22,6 +23,8 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -37,7 +40,9 @@ USER_DIR = Path(os.environ.get("APPDATA") or Path.home()) / "WriteAssist"
 USER_SETTINGS_FILE = USER_DIR / "user_settings.json"  # per-user, survives updates
 STATE_FILE = USER_DIR / "state.json"                   # last-used options, window size
 
+# Cheapest first: the first one that's set up is the default AI.
 DEFAULT_PROVIDERS = {
+    "Local (free)": {"type": "ollama", "models": ["gemma3:4b", "gemma3:12b"], "default_model": "gemma3:4b"},
     "Claude": {"type": "claude", "models": ["haiku", "sonnet", "opus"],
                "default_model": "haiku", "effort": "low"},
     "GitHub Copilot": {"type": "copilot", "models": ["auto"], "default_model": "auto", "effort": ""},
@@ -58,6 +63,12 @@ CLAUDE_DENIED_TOOLS = " ".join([
 ])
 
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
+OLLAMA_URL = "http://127.0.0.1:11434"
+# Download sizes in MB, for the warning shown before setup.
+OLLAMA_DOWNLOAD_MB = 2000          # OllamaSetup.exe (bundles GPU support)
+OLLAMA_DISK_MB = 3300
+LOCAL_MODEL_MB = {"gemma3:4b": 3300, "gemma3:12b": 8100}
 
 
 # --------------------------------------------------------------------------- #
@@ -144,6 +155,8 @@ def find_cli(kind, configured=""):
     local = Path(os.environ.get("LOCALAPPDATA", ""))
     if kind == "claude":
         candidates = [shutil.which("claude"), Path.home() / ".local" / "bin" / "claude.exe"]
+    elif kind == "ollama":
+        candidates = [local / "Programs" / "Ollama" / "ollama.exe", shutil.which("ollama")]
     else:
         # The winget/MSI install comes first: VS Code's `copilot` launcher on
         # PATH only works when the real CLI is installed anyway.
@@ -257,7 +270,112 @@ def run_copilot(cli, provider, model, message, system_prompt, schema, json_hint,
     return parse_json_reply(out)
 
 
-RUNNERS = {"claude": run_claude, "copilot": run_copilot}
+# --------------------------------------------------------------------------- #
+# Local AI (Ollama): free, runs on this computer, nothing leaves it
+# --------------------------------------------------------------------------- #
+def ollama_models_dir():
+    return Path(os.environ.get("OLLAMA_MODELS") or Path.home() / ".ollama" / "models")
+
+
+def local_model_present(model):
+    """True if the model is downloaded (checked on disk, so Ollama needn't be running)."""
+    name, _, tag = model.partition(":")
+    if "/" not in name:
+        name = f"library/{name}"
+    return (ollama_models_dir() / "manifests" / "registry.ollama.ai" / name / (tag or "latest")).exists()
+
+
+def provider_ready(provider):
+    """True when the provider can answer now: its CLI is installed and, for the
+    local AI, its default model is downloaded."""
+    kind = provider.get("type", "claude")
+    if not find_cli(kind, provider.get("path", "")):
+        return False
+    return kind != "ollama" or local_model_present(provider.get("default_model", ""))
+
+
+def ollama_api(path, body=None, timeout=10):
+    data = json.dumps(body).encode() if body is not None else None
+    request = urllib.request.Request(f"{OLLAMA_URL}{path}", data, {"Content-Type": "application/json"})
+    return urllib.request.urlopen(request, timeout=timeout)
+
+
+def ollama_running():
+    try:
+        with ollama_api("/api/version", timeout=2):
+            return True
+    except OSError:
+        return False
+
+
+def start_ollama(cli):
+    """Starts Ollama's engine in the background (no window, no tray app) if it isn't running."""
+    if ollama_running():
+        return
+    subprocess.Popen([cli, "serve"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                     stderr=subprocess.DEVNULL, creationflags=NO_WINDOW)
+    for _ in range(40):
+        time.sleep(0.5)
+        if ollama_running():
+            return
+    raise RuntimeError("The local AI (Ollama) didn't start. Restart the computer and try again.")
+
+
+def install_ollama():
+    """Installs Ollama for this user with winget."""
+    winget = shutil.which("winget")
+    if not winget:
+        raise RuntimeError("Windows' winget isn't available. Install Ollama from https://ollama.com/download and try again.")
+    proc = subprocess.run([winget, "install", "--id", "Ollama.Ollama", "-e", "--silent",
+                           "--accept-package-agreements", "--accept-source-agreements", "--disable-interactivity"],
+                          capture_output=True, text=True, encoding="utf-8", errors="replace", creationflags=NO_WINDOW)
+    if not find_cli("ollama"):
+        raise RuntimeError(f"Ollama couldn't be installed:\n{(proc.stdout + proc.stderr).strip()[-800:]}")
+    remove_ollama_autostart()
+
+
+def remove_ollama_autostart():
+    """Ollama's installer starts its tray app at every login; Write Assist starts
+    Ollama's engine only when it's needed, so a copy it installed doesn't need that."""
+    startup = Path(os.environ.get("APPDATA", "")) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup"
+    try:
+        (startup / "Ollama.lnk").unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+def pull_local_model(cli, model, progress):
+    """Downloads a model, calling progress(done_mb, total_mb) as it goes."""
+    start_ollama(cli)
+    with ollama_api("/api/pull", {"model": model, "stream": True}, timeout=60) as response:
+        for line in response:
+            event = json.loads(line or b"{}")
+            if event.get("error"):
+                raise RuntimeError(f"The model couldn't be downloaded: {event['error']}")
+            if event.get("total"):
+                progress(event.get("completed", 0) / 1e6, event["total"] / 1e6)
+    if not local_model_present(model):
+        raise RuntimeError(f"The model {model} didn't finish downloading. Try again.")
+
+
+def run_ollama(cli, provider, model, message, system_prompt, schema, json_hint, timeout):
+    if not local_model_present(model):
+        raise RuntimeError(f"The local model {model} isn't downloaded yet. Pick it again to download it.")
+    start_ollama(cli)
+    body = {"model": model, "stream": False, "think": False, "format": schema, "keep_alive": "10m",
+            "options": {"temperature": 0.2},
+            "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": message}]}
+    try:
+        # Small PCs run local models slowly: allow the provider's longer timeout.
+        timeout = max(timeout, provider.get("timeout_seconds", 300))
+        with ollama_api("/api/chat", body, timeout=timeout) as response:
+            reply = json.load(response)
+    except urllib.error.HTTPError as exc:
+        raise RuntimeError(f"The local AI failed: {exc.read().decode('utf-8', 'replace')[:500]}")
+    return parse_json_reply(reply.get("message", {}).get("content", ""))
+
+
+RUNNERS = {"claude": run_claude, "copilot": run_copilot, "ollama": run_ollama}
 
 
 def ask(provider_name, provider, model, message, system_prompt, schema, json_hint, timeout):
@@ -301,6 +419,27 @@ Escape quotes and line breaks inside strings as JSON requires.
 """.strip()
 
 
+# Frequent short words that tell English and Spanish apart; small local models
+# need the language spelled out, and naming it is cheap for every AI.
+_EN_WORDS = set("the and is are you to of in that it for with this we have be will was not on at your my".split())
+_ES_WORDS = set("el la los las que de y en es un una para por con no se lo te me mi su pero como más está "
+                "hay muy ya del al".split())
+
+
+def detect_language(text):
+    """'English', 'Spanish', or '' when unsure (other languages, too little text)."""
+    words = re.findall(r"[a-záéíóúüñ]+", text.lower())
+    en = sum(w in _EN_WORDS for w in words)
+    es = sum(w in _ES_WORDS for w in words) + 2 * len(re.findall(r"[ñ¿¡áéíóú]", text.lower()))
+    if en + es < 2:
+        return ""
+    if es >= 2 * en:
+        return "Spanish"
+    if en >= 2 * es:
+        return "English"
+    return ""
+
+
 def detect_task(prompt, draft):
     """'review' when there's a draft, 'create' when there's only a prompt, else None."""
     if draft.strip():
@@ -319,6 +458,8 @@ def build_text_message(task, prompt, draft, mode, tone, language=""):
     parts.append(f"<tone>{tone}</tone>")
     if language and language != "auto":
         parts.append(f"<language>{language}</language>")
+    elif task == "review" and detect_language(draft):
+        parts.append(f"<language>{detect_language(draft)}</language>")
     if task == "review":
         parts.append(f"<draft>\n{draft}\n</draft>")
     return "\n".join(parts)
@@ -388,11 +529,24 @@ def run_thesaurus(provider_name, provider, model, word, context, timeout):
     message = f"<word>{word.strip()}</word>\n<context>\n{context.strip()}\n</context>"
     result = ask(provider_name, provider, model, message, THESAURUS_PROMPT,
                  THESAURUS_SCHEMA, THESAURUS_JSON_HINT, timeout)
+    def clean(words, exclude=()):
+        """Distinct words, without the looked-up word or any word in exclude
+        (small models sometimes repeat synonyms as antonyms)."""
+        seen = {word.strip().lower(), *exclude}
+        out = []
+        for item in words or []:
+            text = str(item).strip()
+            if text and text.lower() not in seen:
+                seen.add(text.lower())
+                out.append(text)
+        return out
+
+    synonyms = clean(result.get("synonyms"))[:10]
     return {
         "word": str(result.get("word") or word),
         "meanings": [m for m in (result.get("meanings") or []) if isinstance(m, dict)][:3],
-        "synonyms": [str(s) for s in (result.get("synonyms") or []) if str(s).strip()][:10],
-        "antonyms": [str(s) for s in (result.get("antonyms") or []) if str(s).strip()][:6],
+        "synonyms": synonyms,
+        "antonyms": clean(result.get("antonyms"), {s.lower() for s in synonyms})[:6],
     }
 
 
@@ -433,7 +587,13 @@ You are a translator. <target> says which language to translate into. <text> is 
 
 def run_translate(provider_name, provider, model, text, target, context, timeout):
     if not target or target == "auto":
-        target_rule = "If the text is in English, translate it into Spanish. Otherwise translate it into English."
+        source = detect_language(text) or detect_language(context)
+        if source == "English":
+            target_rule = "The text is in English. Translate it into Spanish."
+        elif source == "Spanish":
+            target_rule = "The text is in Spanish. Translate it into English."
+        else:
+            target_rule = "If the text is in English, translate it into Spanish. Otherwise translate it into English."
     else:
         target_rule = f"Translate it into {target}."
     message = ""

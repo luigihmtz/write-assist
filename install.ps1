@@ -1,7 +1,8 @@
 # install.ps1
 # Installs or updates Write Assist for the current Windows user, with nothing
-# to configure: makes sure Python (plus the pywebview package), the WebView2
-# runtime and Claude Code are installed, downloads the latest GitHub release,
+# to configure: makes sure Python (plus the pywebview package) and the WebView2
+# runtime are installed, sets up an AI (Claude Code, or a free AI that runs on
+# this computer through Ollama, the user's choice), downloads the latest release,
 # creates the Start Menu shortcut and the global-hotkey listener, registers it
 # in Settings > Apps, and helps sign in to Claude. The optional speech engine
 # is installed later by the app, the first time the microphone is used.
@@ -10,7 +11,7 @@
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v01.01.02
+# Version: v01.02.00
 # Date:    2026-11-24
 #
 # Usage:   Install or update (PowerShell):
@@ -83,6 +84,59 @@ function Install-WriteAssist {
         $local = Join-Path $env:USERPROFILE ".local\bin\claude.exe"
         if (Test-Path $local) { return $local }
         return $null
+    }
+
+    function Find-Ollama {
+        $cmd = Get-Command ollama.exe -ErrorAction SilentlyContinue
+        if ($cmd) { return $cmd.Source }
+        $local = Join-Path $env:LOCALAPPDATA "Programs\Ollama\ollama.exe"
+        if (Test-Path $local) { return $local }
+        return $null
+    }
+
+    # True if the local model is downloaded (checked on disk; Ollama needn't run).
+    function Test-LocalModel($model) {
+        $name, $tag = $model.Split(":")
+        $models = if ($env:OLLAMA_MODELS) { $env:OLLAMA_MODELS } else { Join-Path $env:USERPROFILE ".ollama\models" }
+        return Test-Path (Join-Path $models "manifests\registry.ollama.ai\library\$name\$tag")
+    }
+
+    function Test-OllamaRunning {
+        try { Invoke-RestMethod "http://127.0.0.1:11434/api/version" -TimeoutSec 2 | Out-Null; return $true } catch { return $false }
+    }
+
+    # Installs Ollama (free, open source) and downloads the model. The user
+    # already agreed to the download size when choosing the free AI.
+    function Install-LocalAI($model) {
+        $ollama = Find-Ollama
+        if (-not $ollama) {
+            if (-not (Get-Command winget.exe -ErrorAction SilentlyContinue)) {
+                throw "winget isn't available. Install Ollama from https://ollama.com/download and run this installer again."
+            }
+            Write-Note "Installing Ollama, the free local AI app (about 2 GB, a few minutes)..."
+            winget install --exact --id Ollama.Ollama --silent `
+                --accept-package-agreements --accept-source-agreements --disable-interactivity | Out-Host
+            Update-SessionPath
+            $ollama = Find-Ollama
+            if (-not $ollama) { throw "Ollama couldn't be installed. Get it from https://ollama.com/download and run this installer again." }
+            # Its installer starts the tray app at every login; Write Assist starts
+            # Ollama's engine only when it's needed.
+            Remove-Item (Join-Path ([Environment]::GetFolderPath("Startup")) "Ollama.lnk") -ErrorAction SilentlyContinue
+        }
+        Write-Ok "Ollama: $ollama"
+        if (-not (Test-OllamaRunning)) {
+            # Its engine only, in the background: no window, no tray app.
+            Start-Process -FilePath $ollama -ArgumentList "serve" -WindowStyle Hidden
+            for ($i = 0; $i -lt 40 -and -not (Test-OllamaRunning); $i++) { Start-Sleep -Milliseconds 500 }
+        }
+        if (-not (Test-LocalModel $model)) {
+            Write-Note "Downloading the $model model (about 3.3 GB)..."
+            $ErrorActionPreference = "Continue"   # ollama writes its progress bar to stderr
+            & $ollama pull $model | Out-Host
+            $ErrorActionPreference = "Stop"
+            if (-not (Test-LocalModel $model)) { throw "The $model model couldn't be downloaded. Check your internet connection and run this installer again." }
+        }
+        Write-Ok "Free local AI ready ($model)"
     }
 
     function Stop-WriteAssist {
@@ -212,18 +266,42 @@ public static class WriteAssistLinkAppId {
     }
     Write-Ok "WebView2 runtime present"
 
-    # 2. Claude Code -----------------------------------------------------------
-    Write-Step "Checking Claude Code"
+    # 2. The AI --------------------------------------------------------------
+    # Asked only on a first install: an update keeps whichever AI is set up.
+    $localModel = "gemma3:4b"
     $claude = Find-Claude
-    if (-not $claude) {
-        Write-Note "Installing Claude Code..."
-        # Anthropic's official installer, in its own process so it can't end this one.
-        powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://claude.ai/install.ps1 | iex" | Out-Host
-        Update-SessionPath
-        $claude = Find-Claude
-        if (-not $claude) { throw "Claude Code couldn't be installed. See https://code.claude.com/docs/en/setup and run this installer again." }
+    $hasLocal = (Find-Ollama) -and (Test-LocalModel $localModel)
+    if ($claude) { $choice = "1" }
+    elseif ($hasLocal) { $choice = "2" }
+    else {
+        Write-Step "Choosing the AI"
+        Write-Host "    Write Assist needs an AI to work with. Choose one:"
+        Write-Host ""
+        Write-Host "      1  Claude: the best results. Needs a paid Claude plan (Pro or Max)."
+        Write-Host "      2  A free AI that runs on this computer: no account or subscription,"
+        Write-Host "         works offline, and your text never leaves your PC. Good for"
+        Write-Host "         everyday fixes; Claude is better with subtle wording."
+        Write-Host "         One-time download of about 5.3 GB (the free Ollama app and the"
+        Write-Host "         Gemma model), using about 6.7 GB of disk space."
+        Write-Host ""
+        do { $choice = "$(Read-Host '    Type 1 or 2 and press Enter')".Trim() } while ($choice -notin "1", "2")
     }
-    Write-Ok "Claude Code: $claude"
+
+    if ($choice -eq "1") {
+        Write-Step "Checking Claude Code"
+        if (-not $claude) {
+            Write-Note "Installing Claude Code..."
+            # Anthropic's official installer, in its own process so it can't end this one.
+            powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://claude.ai/install.ps1 | iex" | Out-Host
+            Update-SessionPath
+            $claude = Find-Claude
+            if (-not $claude) { throw "Claude Code couldn't be installed. See https://code.claude.com/docs/en/setup and run this installer again." }
+        }
+        Write-Ok "Claude Code: $claude"
+    } else {
+        Write-Step "Setting up the free local AI"
+        Install-LocalAI $localModel
+    }
 
     # 3. App files -----------------------------------------------------------
     Stop-WriteAssist
@@ -277,7 +355,8 @@ public static class WriteAssistLinkAppId {
     Start-Process -FilePath $pythonw -ArgumentList "`"$listener`"" -WorkingDirectory $appDir
     Write-Ok "Global hotkey running (default Win+Ctrl+W, change it in Write Assist > Settings)"
 
-    # 5. Claude sign-in --------------------------------------------------------
+    # 5. Claude sign-in (only when using Claude) ---------------------------------
+    if ($claude) {
     Write-Step "Checking your Claude sign-in"
     $status = $null
     try { $status = (& $claude auth status 2>$null | Out-String) | ConvertFrom-Json } catch {}
@@ -290,10 +369,11 @@ public static class WriteAssistLinkAppId {
         Write-Ok "Signed in to Claude"
         if ($status.subscriptionType -eq "free") {
             Write-Note "This Claude account is on the free plan, which doesn't include Claude Code."
-            Write-Note "Write Assist needs a Pro or Max plan (or a Team/Enterprise seat)."
+            Write-Note "Use a Pro or Max plan, or the free local AI: in Write Assist, choose AI > Local (free)."
         }
     } else {
         Write-Note "Not signed in yet. Open a terminal, run: claude auth login"
+    }
     }
 
     # 6. Done -----------------------------------------------------------------

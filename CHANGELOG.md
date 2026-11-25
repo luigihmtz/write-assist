@@ -1,5 +1,19 @@
 # Changelog
 
+## v02.05.00 - 2026-11-24
+
+- Free local AI: *Local (free)* in the AI list runs Google's Gemma model on
+  your own computer through the free Ollama app. No account or subscription,
+  works offline, and your text never leaves your PC. The first time you pick
+  it, Write Assist tells you the download size (about 5.3 GB) and asks before
+  downloading anything.
+- The installer asks which AI to use when neither is set up: Claude (paid
+  plan) or the free local AI. Write Assist no longer requires a Claude plan.
+- The default AI is the cheapest one that's set up, and the automatic
+  fallback also tries the cheapest one first.
+- More reliable translations and reviews: Write Assist detects whether a text
+  is English or Spanish and tells the AI.
+
 ## v02.04.02 - 2026-11-24
 
 - *fix and polish wording* is now the default Mode (everyone switches to it

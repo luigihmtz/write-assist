@@ -1,12 +1,13 @@
 // app.js
 // Behavior of the Write Assist window: picks Review or Create from the
 // filled fields, runs it through Python (window.pywebview.api), shows the
-// result with highlighted edits, the on-demand thesaurus and translator,
+// result with highlighted edits, the on-demand thesaurus and translator, the
+// free local AI's first-use download,
 // speech-to-text recording, settings, interface language, and updates.
 //
 // Author:  Luis Martinez
 // Email:   16788942+luigihmtz@users.noreply.github.com
-// Version: v01.05.03
+// Version: v01.06.00
 // Date:    2026-11-24
 //
 // Usage: loaded by ui/index.html after i18n.js (t(), applyLanguage()). Every
@@ -63,10 +64,12 @@ async function init() {
   // models_rev 2: Claude's default became haiku; forget models saved before that.
   app.models = state.models_rev === 2 ? (state.models || {}) : {};
   for (const p of info.providers) app.providers[p.name] = p;
-  const usable = info.providers.filter((p) => p.installed);
-  for (const p of (usable.length ? usable : info.providers)) els.provider.add(new Option(p.name, p.name));
-  const wanted = state.provider || info.default_provider;
+  const usable = info.providers.filter((p) => p.installed || p.type === "ollama");
+  for (const p of (usable.length ? usable : info.providers)) els.provider.add(new Option(providerLabel(p.name), p.name));
+  // provider_rev 2: the default became the cheapest AI that's set up; forget the AI saved before that.
+  const wanted = (state.provider_rev === 2 && state.provider) || info.default_provider;
   if ([...els.provider.options].some((o) => o.value === wanted)) els.provider.value = wanted;
+  app.lastProvider = els.provider.value;
 
   // mode_rev 2: the default became "polish"; forget the mode saved before that.
   els.mode.value = state.mode_rev === 2 ? (state.mode || "polish") : "polish";
@@ -98,6 +101,12 @@ function setUiLanguage(setting) {
   const other = els.model.querySelector(`option[value="${OTHER_MODEL}"]`);
   if (other) other.textContent = t("model.other");
   if (app.updateTag) els.updateBtn.textContent = t("update.button", { tag: app.updateTag });
+  for (const option of els.provider.options) option.textContent = providerLabel(option.value);
+}
+
+// Shown name of an AI: the local one is labeled "Local (free)" / "Local (gratis)".
+function providerLabel(name) {
+  return app.providers[name]?.type === "ollama" ? t("ai.local") : name;
 }
 
 function showProviderModels() {
@@ -105,6 +114,7 @@ function showProviderModels() {
   if (!p) return;
   fillModels(p, app.models[p.name] || p.default_model || p.models[0] || "");
   if (p.installed) setStatus(t("status.empty"));
+  else if (p.type === "ollama") setStatus(t("local.notSetUp"));
   else setStatus(t("status.notInstalled", { provider: p.name }), true);
 }
 
@@ -131,12 +141,72 @@ function onModelChange() {
   saveState();
 }
 
+// ---------------------------------------------------------------------------
+// Free local AI: downloaded on first use, after a warning with its size
+// ---------------------------------------------------------------------------
+const gb = (mb) => (mb / 1000).toFixed(1);
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// True when the chosen AI can answer; for the local AI, offers the download first.
+async function ensureProviderReady() {
+  const p = app.providers[els.provider.value];
+  if (!p || p.type !== "ollama") return true;
+  const model = els.model.value === OTHER_MODEL ? "" : els.model.value;
+  const info = await api().local_info(model);
+  if (!info.ok) { setStatus(info.error, true); return false; }
+  if (info.ready) return true;
+  const vars = { download: gb(info.download_mb), disk: gb(info.disk_mb), model: info.model };
+  const ok = await confirmBox(t("local.setupTitle"),
+    t(info.ollama_installed ? "local.modelText" : "local.setupText", vars), t("local.download"));
+  if (!ok) { setStatus(t("local.notSetUp")); return false; }
+  return runLocalSetup(info.model);
+}
+
+async function runLocalSetup(model) {
+  const start = await api().start_local_setup(model);
+  if (!start.ok) { setStatus(start.error, true); return false; }
+  app.busy = true;
+  els.runBtn.disabled = true;
+  try {
+    for (;;) {
+      await sleep(700);
+      const s = await api().local_progress();
+      if (!s.ok) { setStatus(s.error, true); return false; }
+      if (s.stage === "installing") setStatus(t("local.installing"));
+      else if (s.total_mb) {
+        setStatus(t("local.downloading", { percent: Math.floor((100 * s.done_mb) / s.total_mb), done: gb(s.done_mb), total: gb(s.total_mb) }));
+      }
+      if (s.running) continue;
+      if (s.error) { setStatus(s.error, true); return false; }
+      const p = app.providers[els.provider.value];
+      if (p && model === p.default_model) p.installed = true;
+      setStatus(t("local.ready"));
+      return true;
+    }
+  } finally {
+    app.busy = false;
+    els.runBtn.disabled = false;
+  }
+}
+
+async function onProviderChange() {
+  showProviderModels();
+  const p = app.providers[els.provider.value];
+  if (p && p.type === "ollama" && !p.installed && !(await ensureProviderReady())) {
+    els.provider.value = app.lastProvider;   // declined or failed: back to the previous AI
+    showProviderModels();
+    return;
+  }
+  app.lastProvider = els.provider.value;
+  saveState();
+}
+
 function saveState() {
   app.models[els.provider.value] = els.model.value.trim();
   api().save_state({
     mode: els.mode.value, tone: els.tone.value, provider: els.provider.value,
     text_language: els.textLanguage.value, translate_target: els.trTarget.value,
-    mode_rev: 2, models: app.models, models_rev: 2, auto_copy: els.autoCopy.checked,
+    mode_rev: 2, provider_rev: 2, models: app.models, models_rev: 2, auto_copy: els.autoCopy.checked,
   });
 }
 
@@ -162,13 +232,14 @@ async function run() {
   if (app.busy) return;
   const task = detectTask();
   if (!task) { setStatus(t("status.empty")); return; }
+  if (!(await ensureProviderReady())) return;
   const provider = els.provider.value;
   const draft = els.draft.value;
   app.busy = true;
   els.runBtn.disabled = true;
   const started = Date.now();
   const key = task === "review" ? "status.reviewing" : "status.writing";
-  const timer = setInterval(() => setStatus(t(key, { provider, seconds: Math.round((Date.now() - started) / 1000) })), 250);
+  const timer = setInterval(() => setStatus(t(key, { provider: providerLabel(provider), seconds: Math.round((Date.now() - started) / 1000) })), 250);
   try {
     const res = await api().run({
       provider, model: els.model.value, prompt: els.prompt.value, draft,
@@ -207,7 +278,7 @@ function renderResultTitle() {
 }
 
 function showResult(res) {
-  app.resultTitle = { key: res.task === "review" ? "result.corrected" : "result.written", provider: res.provider };
+  app.resultTitle = { key: res.task === "review" ? "result.corrected" : "result.written", provider: providerLabel(res.provider) };
   renderResultTitle();
   els.result.innerHTML = res.task === "review" ? spansToHtml(res.text, res.spans || []) : escapeHtml(res.text);
 
@@ -233,8 +304,8 @@ function showResult(res) {
   const parts = [];
   if (res.fallback_from) parts.push(fallbackNote(res));
   parts.push(res.task === "review"
-    ? t(res.changes.length === 1 ? "status.reviewedOne" : "status.reviewed", { provider: res.provider, count: res.changes.length })
-    : t("status.written", { provider: res.provider }));
+    ? t(res.changes.length === 1 ? "status.reviewedOne" : "status.reviewed", { provider: providerLabel(res.provider), count: res.changes.length })
+    : t("status.written", { provider: providerLabel(res.provider) }));
   parts.push(`${res.elapsed.toFixed(1)}s`);
   if (els.autoCopy.checked) { copyResult(true); parts.push(t("status.copiedSuffix")); }
   setStatus(parts.join(" · "));
@@ -244,7 +315,7 @@ function showResult(res) {
 function fallbackNote(res) {
   if (!res.fallback_from) return "";
   const why = res.limit_note ? ` (${res.limit_note})` : "";
-  return t("status.fallback", { from: res.fallback_from, why, provider: res.provider });
+  return t("status.fallback", { from: providerLabel(res.fallback_from), why, provider: providerLabel(res.provider) });
 }
 
 function resultText() {
@@ -405,7 +476,8 @@ async function lookup(word, fromBack = false) {
   els.thBack.hidden = !th.history.length;
   hideChipMenu();
   const seq = ++th.seq;
-  els.thBody.innerHTML = `<p class="muted">${escapeHtml(t("th.looking", { word, provider: els.provider.value }))}</p>`;
+  if (!(await ensureProviderReady())) { closeThesaurus(); return; }
+  els.thBody.innerHTML = `<p class="muted">${escapeHtml(t("th.looking", { word, provider: providerLabel(els.provider.value) }))}</p>`;
 
   const res = await api().thesaurus({
     word, context: th.target ? th.target.context : "", provider: els.provider.value, model: els.model.value,
@@ -498,9 +570,10 @@ function openTranslate() {
 async function translateNow() {
   const text = els.trSource.value.trim();
   if (!text) { els.trSource.focus(); return; }
+  if (!(await ensureProviderReady())) { closeTranslate(); return; }
   const seq = ++tr.seq;
   els.trOut.hidden = false;
-  els.trMeta.textContent = t("tr.working", { provider: els.provider.value });
+  els.trMeta.textContent = t("tr.working", { provider: providerLabel(els.provider.value) });
   els.trText.textContent = "";
   els.trAltBlock.hidden = true;
   els.trNote.hidden = true;
@@ -814,7 +887,7 @@ function wire() {
   els.result.addEventListener("focus", () => { app.lastField = "result"; });
   els.result.addEventListener("mouseup", () => { app.lastField = "result"; });
 
-  els.provider.addEventListener("change", () => { showProviderModels(); saveState(); });
+  els.provider.addEventListener("change", onProviderChange);
   for (const el of [els.mode, els.tone, els.textLanguage, els.autoCopy]) el.addEventListener("change", saveState);
   els.model.addEventListener("change", onModelChange);
 

@@ -3,14 +3,15 @@
 # reviewed (grammar, spelling, typos, punctuation), a Prompt to have a text
 # written, or both. Also a context-aware thesaurus and translator (on demand), offline
 # speech-to-text, and an English or Spanish interface. It runs an AI's local CLI headless, so it uses your existing
-# subscription and needs no API key: Claude (Claude Code) or GitHub Copilot.
+# subscription and needs no API key: Claude (Claude Code) or GitHub Copilot,
+# or a free AI model that runs on this computer (Ollama), set up on first use.
 # If the chosen AI hits a usage limit, the request goes to the other one.
 # This file is the desktop window (pywebview on Microsoft WebView2, page in
 # ui/) and the bridge the page calls; the logic is in waCore.py / waSpeech.py.
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v02.04.03
+# Version: v02.05.00
 # Date:    2026-11-24
 #
 # Usage: installed by install.ps1 (Start Menu shortcut + global hotkey, default
@@ -142,6 +143,7 @@ class Bridge:
         self._translate_cache = {}
         self._transcriber = speech.Transcriber()
         self._speech_install_lock = threading.Lock()
+        self._local_setup = {"running": False}   # progress of the local AI download
 
     # ---- startup ---------------------------------------------------------- #
     @safely
@@ -150,9 +152,10 @@ class Bridge:
         for name, p in self._settings["providers"].items():
             providers.append({
                 "name": name,
+                "type": p.get("type", "claude"),
                 "models": p.get("models") or [],
                 "default_model": p.get("default_model", ""),
-                "installed": bool(core.find_cli(p.get("type", "claude"), p.get("path", ""))),
+                "installed": core.provider_ready(p),
             })
         user = core.load_user_settings()
         return {
@@ -160,7 +163,7 @@ class Bridge:
             "version": self._version,
             "is_dev": core.IS_DEV,
             "providers": providers,
-            "default_provider": self._settings.get("default_provider", "Claude"),
+            "default_provider": self._default_provider(),
             "presets": self._settings.get("prompt_presets", []),
             "font_size": self._settings.get("font_size", 11),
             "auto_copy_default": self._settings.get("auto_copy", False),
@@ -176,13 +179,25 @@ class Bridge:
         self._state.update(state or {})
         core.save_json(core.STATE_FILE, self._state)
 
+    def _default_provider(self):
+        """The AI chosen in settings if it's set up, else the cheapest one that is
+        (providers are listed cheapest first), else the first one."""
+        providers = self._settings["providers"]
+        wanted = self._settings.get("default_provider", "")
+        if wanted in providers and core.provider_ready(providers[wanted]):
+            return wanted
+        for name, p in providers.items():
+            if core.provider_ready(p):
+                return name
+        return next(iter(providers), "")
+
     # ---- Automatic fallback ----------------------------------------------- #
     def _backup_for(self, provider_name):
-        """Another installed AI to use when provider_name hits a usage limit, or None."""
+        """The cheapest other AI that's set up, for when provider_name hits a usage limit."""
         if not self._settings.get("auto_fallback", True):
             return None
         for name, p in self._settings["providers"].items():
-            if name != provider_name and core.find_cli(p.get("type", "claude"), p.get("path", "")):
+            if name != provider_name and core.provider_ready(p):
                 return name, p
         return None
 
@@ -249,6 +264,62 @@ class Bridge:
         if "fallback_from" not in extra:
             self._translate_cache[key] = result
         return {**result, **extra}
+
+    # ---- Local AI (free, on this computer) --------------------------------- #
+    def _local_provider(self):
+        for name, p in self._settings["providers"].items():
+            if p.get("type") == "ollama":
+                return name, p
+        raise RuntimeError("The local AI isn't configured in settings.json.")
+
+    @safely
+    def local_info(self, model=""):
+        """What setting up the local AI would download, for the warning shown first."""
+        name, p = self._local_provider()
+        model = model or p.get("default_model", "")
+        ollama = bool(core.find_cli("ollama", p.get("path", "")))
+        present = core.local_model_present(model)
+        model_mb = 0 if present else core.LOCAL_MODEL_MB.get(model, 4000)
+        download_mb = model_mb + (0 if ollama else core.OLLAMA_DOWNLOAD_MB)
+        disk_mb = model_mb + (0 if ollama else core.OLLAMA_DISK_MB)
+        return {"provider": name, "model": model, "ready": ollama and present, "ollama_installed": ollama,
+                "download_mb": download_mb, "disk_mb": disk_mb}
+
+    @safely
+    def start_local_setup(self, model=""):
+        """Installs Ollama if needed and downloads the model, in the background;
+        the page follows it with local_progress()."""
+        if self._local_setup.get("running"):
+            return {}
+        name, p = self._local_provider()
+        model = model or p.get("default_model", "")
+        self._local_setup = {"running": True, "stage": "starting", "done_mb": 0, "total_mb": 0,
+                             "model": model, "error": "", "finished": False}
+
+        def work():
+            state = self._local_setup
+            try:
+                cli = core.find_cli("ollama", p.get("path", ""))
+                if not cli:
+                    state["stage"] = "installing"
+                    core.install_ollama()
+                    cli = core.find_cli("ollama", p.get("path", ""))
+                state["stage"] = "downloading"
+
+                def progress(done_mb, total_mb):
+                    state["done_mb"], state["total_mb"] = done_mb, total_mb
+                core.pull_local_model(cli, model, progress)
+                state["finished"] = True
+            except Exception as exc:
+                state["error"] = str(exc) or exc.__class__.__name__
+            finally:
+                state["running"] = False
+        threading.Thread(target=work, daemon=True).start()
+        return {}
+
+    @safely
+    def local_progress(self):
+        return dict(self._local_setup)
 
     # ---- Speech ----------------------------------------------------------- #
     def _speech_model(self):
