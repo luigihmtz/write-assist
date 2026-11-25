@@ -8,7 +8,7 @@ need and get it written. It also has a context-aware thesaurus and offline
 dictation, a translator, and an English or Spanish interface. It uses your existing Claude subscription through Claude Code, so
 there are no API keys and nothing extra to pay.
 
-![Write Assist icon](assets/writeAssist.ico)
+![Write Assist reviewing a client email: the corrected text with the edits highlighted, and each change listed with its reason](assets/screenshot.png)
 
 ## Install
 
@@ -190,6 +190,7 @@ haz clic en **Desinstalar**.
 | `uninstall.ps1` | Removes the app, shortcuts and settings. |
 | `release.ps1` | Publishes a new version (maintainer only). |
 | `assets/writeAssist.ico` | Icon. |
+| `assets/screenshot.png` | The screenshot in this README. |
 | `LICENSE` | MIT license. |
 
 Per-user files, kept across updates, in `%APPDATA%\WriteAssist\`:

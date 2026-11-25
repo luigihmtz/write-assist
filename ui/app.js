@@ -6,7 +6,7 @@
 //
 // Author:  Luis Martinez
 // Email:   16788942+luigihmtz@users.noreply.github.com
-// Version: v01.05.01
+// Version: v01.05.02
 // Date:    2026-11-24
 //
 // Usage: loaded by ui/index.html after i18n.js (t(), applyLanguage()). Every
@@ -232,7 +232,7 @@ function showResult(res) {
   const parts = [];
   if (res.fallback_from) parts.push(fallbackNote(res));
   parts.push(res.task === "review"
-    ? t("status.reviewed", { provider: res.provider, count: res.changes.length })
+    ? t(res.changes.length === 1 ? "status.reviewedOne" : "status.reviewed", { provider: res.provider, count: res.changes.length })
     : t("status.written", { provider: res.provider }));
   parts.push(`${res.elapsed.toFixed(1)}s`);
   if (els.autoCopy.checked) { copyResult(true); parts.push(t("status.copiedSuffix")); }

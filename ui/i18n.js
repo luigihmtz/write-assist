@@ -5,7 +5,7 @@
 //
 // Author:  Luis Martinez
 // Email:   16788942+luigihmtz@users.noreply.github.com
-// Version: v01.02.01
+// Version: v01.02.02
 // Date:    2026-11-24
 //
 // Usage: loaded by ui/index.html before app.js. In index.html:
@@ -83,7 +83,8 @@ const STRINGS = {
     "status.notInstalled": "{provider} isn't installed. Run the Write Assist installer again.",
     "status.reviewing": "Reviewing with {provider}... {seconds}s",
     "status.writing": "Writing with {provider}... {seconds}s",
-    "status.reviewed": "Reviewed with {provider} · {count} change(s)",
+    "status.reviewed": "Reviewed with {provider} · {count} changes",
+    "status.reviewedOne": "Reviewed with {provider} · 1 change",
     "status.written": "Written with {provider}",
     "status.copiedSuffix": "copied",
     "status.fallback": "{from} hit a usage limit{why}, used {provider}",
@@ -239,7 +240,8 @@ const STRINGS = {
     "status.notInstalled": "{provider} no está instalado. Vuelve a ejecutar el instalador de Write Assist.",
     "status.reviewing": "Revisando con {provider}... {seconds}s",
     "status.writing": "Escribiendo con {provider}... {seconds}s",
-    "status.reviewed": "Revisado con {provider} · {count} cambio(s)",
+    "status.reviewed": "Revisado con {provider} · {count} cambios",
+    "status.reviewedOne": "Revisado con {provider} · 1 cambio",
     "status.written": "Escrito con {provider}",
     "status.copiedSuffix": "copiado",
     "status.fallback": "{from} llegó a su límite de uso{why}, se usó {provider}",
