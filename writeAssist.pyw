@@ -545,17 +545,21 @@ def windows_ui_language():
     return buffer.value or "en-US"
 
 
-def configure_webview_languages():
-    """The built-in spellchecker (the "Spelling only" underlines) checks words
-    against the window's languages, which are only Windows' display language;
-    Spanish text then looks misspelled even when Windows has a Spanish
-    dictionary. So the window asks for Spanish (Mexico) and English (US).
-    WebView2 ignores --accept-lang when the list starts with en-US, so Spanish
-    goes first; --lang keeps the menus, and the page's Intl locale that picks
-    the interface language, in Windows' own language. Must run before start."""
-    arguments = f"--lang={windows_ui_language()} --accept-lang=es-MX,en-US"
-    existing = os.environ.get("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "")
-    os.environ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = f"{existing} {arguments}".strip()
+# The window's browser data (WebView2 user data folder). Private mode keeps
+# nothing between runs and pywebview deletes the folder when the window closes;
+# it's a fixed folder only so its settings can be written before it opens.
+WEBVIEW_DIR = Path(os.environ.get("LOCALAPPDATA") or Path.home()) / "WriteAssist-WebView"
+
+
+def prepare_webview_profile():
+    """The built-in spellchecker ("Spelling only" underlines) uses only Windows'
+    display language by default, so correct Spanish words looked misspelled.
+    Its languages are a browser setting, written here before the window opens:
+    English (US), Spanish (Mexico) and Windows' own language. Windows supplies
+    the dictionaries; a language it has none for is skipped."""
+    languages = list(dict.fromkeys([windows_ui_language(), "en-US", "es-MX"]))
+    core.save_json(WEBVIEW_DIR / "EBWebView" / "Default" / "Preferences",
+                   {"spellcheck": {"dictionaries": languages, "use_spelling_service": False}})
 
 
 def main():
@@ -605,8 +609,8 @@ def main():
     window.events.closing += on_closing
     if server is not None:
         listen_for_wakeups(server, bridge)
-    configure_webview_languages()
-    webview.start(gui="edgechromium", http_server=True, private_mode=True)
+    prepare_webview_profile()
+    webview.start(gui="edgechromium", http_server=True, private_mode=True, storage_path=str(WEBVIEW_DIR))
 
 
 if __name__ == "__main__":

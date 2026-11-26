@@ -384,9 +384,7 @@ const STRINGS = {
 
 let uiLang = "en";
 
-// "" means follow Windows. The Intl locale is Windows' display language;
-// navigator.language isn't, because the window lists Spanish first for the
-// spellchecker (see configure_webview_languages in writeAssist.pyw).
+// "" means follow Windows: the Intl locale is Windows' display language.
 function resolveLanguage(setting) {
   const system = Intl.DateTimeFormat().resolvedOptions().locale || navigator.language || "en";
   const wanted = setting || system.slice(0, 2).toLowerCase();

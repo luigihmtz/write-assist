@@ -7,7 +7,7 @@
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v01.01.00
+# Version: v01.01.01
 # Date:    2026-11-25
 #
 # Usage:   Settings > Apps > Write Assist > Uninstall, or run
@@ -29,6 +29,7 @@ Remove-Item (Join-Path ([Environment]::GetFolderPath("Startup")) "Write Assist H
 Remove-Item "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\WriteAssist" -Recurse
 Remove-Item (Join-Path $env:LOCALAPPDATA "WriteAssist") -Recurse -Force
 Remove-Item (Join-Path $env:LOCALAPPDATA "WriteAssist-LanguageTool") -Recurse -Force
+Remove-Item (Join-Path $env:LOCALAPPDATA "WriteAssist-WebView") -Recurse -Force   # window data, normally already gone
 Remove-Item (Join-Path $env:APPDATA "WriteAssist") -Recurse -Force
 
 Write-Host "Write Assist was removed. If you pinned it to the taskbar, unpin the leftover icon."
