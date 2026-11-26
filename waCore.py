@@ -8,7 +8,7 @@
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v01.05.03
+# Version: v01.05.04
 # Date:    2026-11-25
 #
 # Usage: imported by writeAssist.pyw. Per-user files live in
@@ -511,24 +511,36 @@ Escape quotes and line breaks inside strings as JSON requires.
 """.strip()
 
 
-# Frequent short words that tell English and Spanish apart; small local models
-# need the language spelled out, and naming it is cheap for every AI.
-_EN_WORDS = set("the and is are you to of in that it for with this we have be will was not on at your my".split())
-_ES_WORDS = set("el la los las que de y en es un una para por con no se lo te me mi su pero como más está "
-                "hay muy ya del al".split())
+# Frequent short words and letters that tell English, Spanish and French apart;
+# small local models need the language spelled out, and naming it is cheap for
+# every AI. Words shared by Spanish and French (de, la, que, un...) count for
+# neither, so French isn't taken for Spanish.
+_EN_WORDS = set("the and is are you to of in that it for with this we have be will was not on at your my "
+                "i could would should they them can do does please".split())
+_ES_WORDS = set("el los las y es una para por con lo te me mi su pero como más está hay muy ya del al "
+                "porque puedes tu yo usted este esta eso también cuando donde pues "
+                "que de la en un se no".split())
+_FR_WORDS = set("le les et est une pour par avec ce cette vous nous je il elle sont être dans pas sur au aux "
+                "votre vos notre nos leur leurs mais très pendant sans aussi donc quand où "
+                "du des qui que de la en un se ne".split())
+_SHARED_ES_FR = _ES_WORDS & _FR_WORDS
+_ES_ONLY, _FR_ONLY = _ES_WORDS - _SHARED_ES_FR, _FR_WORDS - _SHARED_ES_FR
 
 
 def detect_language(text):
-    """'English', 'Spanish', or '' when unsure (other languages, too little text)."""
-    words = re.findall(r"[a-záéíóúüñ]+", text.lower())
-    en = sum(w in _EN_WORDS for w in words)
-    es = sum(w in _ES_WORDS for w in words) + 2 * len(re.findall(r"[ñ¿¡áéíóú]", text.lower()))
-    if en + es < 2:
-        return ""
-    if es >= 2 * en:
-        return "Spanish"
-    if en >= 2 * es:
-        return "English"
+    """'English', 'Spanish', 'French', or '' when unsure (other languages, too little text)."""
+    lower = text.lower()
+    words = re.findall(r"[a-zàâçéèêëîïôûùüÿñœæáíóú']+", lower)
+    scores = {
+        "English": sum(w in _EN_WORDS for w in words),
+        "Spanish": sum(w in _ES_ONLY for w in words) + 2 * len(re.findall(r"[ñ¿¡áíóú]", lower)),
+        "French": sum(w in _FR_ONLY for w in words) + 2 * len(re.findall(r"[àâçèêëîïôûùœ]", lower))
+                  + sum(w.startswith(("l'", "d'", "qu'", "n'", "c'", "j'", "s'")) for w in words),
+    }
+    best = max(scores, key=scores.get)
+    rest = max(v for k, v in scores.items() if k != best)
+    if scores[best] >= 2 and scores[best] >= 2 * rest:
+        return best
     return ""
 
 
@@ -704,8 +716,8 @@ def run_translate(provider_name, provider, model, text, target, context, timeout
         source = detect_language(text) or detect_language(context)
         if source == "English":
             target_rule = "The text is in English. Translate it into Spanish."
-        elif source == "Spanish":
-            target_rule = "The text is in Spanish. Translate it into English."
+        elif source:
+            target_rule = f"The text is in {source}. Translate it into English."
         else:
             target_rule = "If the text is in English, translate it into Spanish. Otherwise translate it into English."
     else:

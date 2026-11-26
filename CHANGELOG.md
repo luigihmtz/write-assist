@@ -6,6 +6,9 @@
   default the same as Windows), and dictation can be set to French.
 - *Underline: spelling* also checks French when Windows has its French
   dictionary (French Windows, or French added in Windows' language settings).
+- French texts are recognized as French (they were sometimes taken for
+  Spanish), so reviews keep them in French and *English ⇄ Spanish*
+  translates them into English.
 - Reviews no longer list the same fix twice (once on its own and once inside
   a longer snippet).
 

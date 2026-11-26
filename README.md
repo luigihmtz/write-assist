@@ -81,7 +81,7 @@ Press **Ctrl+Enter**, then **Copy** the result.
 | **Dictate** | Speak into Prompt or Draft; click again to stop (Esc cancels). Transcribed on your computer with faster-whisper: free, offline, private. The first time, it offers a one-time download (speech engine about 250 MB, plus the model: 465 MB for *small*). |
 | **Settings** | *About you*, the global hotkey, the microphone for dictation (by default the Windows one), the speech model and language, and the interface language (English, Spanish or French; by default the same as Windows). |
 
-![The Translate panel, with the French interface: the selected key message stays highlighted in the result while its French translation shows next to it](assets/screenshot-translate-fr.png)
+![The French interface: a French draft with live spelling and grammar underlines, the reviewed text with its changes explained in French, and the key message highlighted in the draft with its English translation next to it](assets/screenshot-fr.png)
 
 **Review** shows the corrected text with the edits highlighted, and below it
 each change (old → new) with a short reason, plus an optional note (e.g. "this
@@ -243,7 +243,7 @@ haz clic en **Desinstalar**.
 | `uninstall.ps1` | Removes the app, shortcuts and settings. |
 | `release.ps1` | Publishes a new version (maintainer only). |
 | `assets/writeAssist.ico` | Icon. |
-| `assets/screenshot.png`, `assets/screenshot-translate-fr.png` | The screenshots in this README. |
+| `assets/screenshot.png`, `assets/screenshot-fr.png` | The screenshots in this README. |
 | `LICENSE` | MIT license. |
 
 Per-user files, kept across updates, in `%APPDATA%\WriteAssist\`:
