@@ -7,7 +7,7 @@ buttons, settings dialog. Rendered by writeAssist.pyw in a WebView2 window.
 
 Author:  Luis Martinez
 Email:   16788942+luigihmtz@users.noreply.github.com
-Version: v01.06.00
+Version: v01.06.01
 Date:    2026-11-25
 
 Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
@@ -73,7 +73,7 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
           </select>
           <button class="tool mic" data-target="prompt" data-i18n-title="dictate.prompt"></button>
         </div>
-        <textarea id="prompt" spellcheck="true" data-i18n-placeholder="prompt.placeholder"></textarea>
+        <textarea id="prompt" spellcheck="false" data-i18n-placeholder="prompt.placeholder"></textarea>
       </section>
 
       <section class="card draft-card">
@@ -85,7 +85,7 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
           <button class="tool" id="pasteBtn" data-i18n="paste" data-i18n-title="paste.title">Paste &amp; review</button>
           <button class="tool" id="clearBtn" data-i18n="clear">Clear</button>
         </div>
-        <textarea id="draft" spellcheck="true" data-i18n-placeholder="draft.placeholder"></textarea>
+        <textarea id="draft" spellcheck="false" data-i18n-placeholder="draft.placeholder"></textarea>
       </section>
     </div>
 

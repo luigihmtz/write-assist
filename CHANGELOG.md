@@ -1,5 +1,11 @@
 # Changelog
 
+## v02.08.01 - 2026-11-25
+
+- With *Live grammar check* off, Prompt and Draft no longer show the
+  browser's own red spelling squiggles: the setting now decides whether any
+  lines appear there.
+
 ## v02.08.00 - 2026-11-25
 
 - Live grammar check (Settings): mistakes in Prompt and Draft are underlined

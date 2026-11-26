@@ -7,7 +7,7 @@
 //
 // Author:  Luis Martinez
 // Email:   16788942+luigihmtz@users.noreply.github.com
-// Version: v01.08.00
+// Version: v01.08.01
 // Date:    2026-11-25
 //
 // Usage: loaded by ui/index.html after i18n.js (t(), applyLanguage()). Every
@@ -754,7 +754,8 @@ function setLiveGrammar(on) {
   hideLtPop();
   for (const field of LT_FIELDS) {
     const area = els[field];
-    area.spellcheck = !on;   // LanguageTool underlines spelling too: no double red lines
+    // Prompt and Draft never use the browser's own spellcheck (spellcheck="false"
+    // in index.html): the Live grammar setting alone decides whether lines show.
     if (on) {
       if (!lt.mirrors[field]) {
         const mirror = document.createElement("div");
