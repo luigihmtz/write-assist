@@ -6,7 +6,7 @@
  *
  * Author:  Luis Martinez
  * Email:   16788942+luigihmtz@users.noreply.github.com
- * Version: v01.06.00
+ * Version: v01.07.00
  * Date:    2026-11-25
  *
  * Usage: linked from ui/index.html. --fs is set from settings.json font_size.
@@ -197,6 +197,18 @@ textarea, .result, .changes {
   white-space: pre-wrap;
   word-wrap: break-word;
 }
+.result ul, .result ol { margin: 2px 0; padding-left: 1.6em; white-space: normal; }
+.result li { white-space: pre-wrap; }
+.result a { color: var(--accent); }
+
+/* Formatting bar of the Result (Teams-like compose controls) */
+.format-bar { display: flex; align-items: center; gap: 2px; padding: 4px 8px; border-bottom: 1px solid var(--border); }
+.fmt { min-width: 28px; height: 26px; padding: 0 6px; border: 1px solid transparent; background: transparent;
+  border-radius: 6px; font-size: 0.95em; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
+.fmt:hover { background: var(--accent-soft); }
+.fmt.active { background: var(--accent-soft); border-color: var(--border); }
+.fmt svg { width: 16px; height: 16px; fill: currentColor; }
+.fmt-sep { width: 1px; height: 18px; background: var(--border); margin: 0 4px; }
 
 .result:empty::before {
   content: attr(data-placeholder);  /* set from i18n.js */
@@ -411,6 +423,8 @@ textarea.hl-on, textarea.lt-on { position: relative; z-index: 1; }
   html, body { background: #fff !important; color: #111 !important; }
   #printArea { display: block; font-size: 11pt; line-height: 1.5; color: #111; }
   #printArea .print-text { white-space: pre-wrap; word-wrap: break-word; }
+  #printArea ul, #printArea ol { margin: 2pt 0; padding-left: 18pt; white-space: normal; }
+  #printArea a { color: #0563c1; }
   #printArea .print-details { margin-top: 24pt; padding-top: 8pt; border-top: 1px solid #bbb; color: #666; font-size: 8.5pt; }
   #printArea .print-details p { margin: 0 0 2pt; }
 }

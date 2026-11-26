@@ -5,7 +5,7 @@
 //
 // Author:  Luis Martinez
 // Email:   16788942+luigihmtz@users.noreply.github.com
-// Version: v01.10.00
+// Version: v01.11.00
 // Date:    2026-11-25
 //
 // Usage: loaded by ui/index.html before app.js. In index.html:
@@ -200,6 +200,16 @@ const STRINGS = {
     "ok": "OK",
 
     // updates
+    "fmt.bold": "Bold (Ctrl+B)",
+    "fmt.italic": "Italic (Ctrl+I)",
+    "fmt.underline": "Underline (Ctrl+U)",
+    "fmt.strike": "Strikethrough",
+    "fmt.bullets": "Bulleted list",
+    "fmt.numbers": "Numbered list",
+    "fmt.link": "Link (Ctrl+K)",
+    "fmt.clear": "Clear formatting",
+    "fmt.linkPrompt": "Link address (leave it empty to remove the link):",
+    "fmt.copied": "Copied with formatting.",
     "history": "History",
     "history.title": "Versions of your text, saved at each Review or Create, or by hand (Ctrl+S)",
     "history.save": "Save current draft",
@@ -439,6 +449,16 @@ const STRINGS = {
     "notNow": "Ahora no",
     "ok": "Aceptar",
 
+    "fmt.bold": "Negrita (Ctrl+B)",
+    "fmt.italic": "Cursiva (Ctrl+I)",
+    "fmt.underline": "Subrayado (Ctrl+U)",
+    "fmt.strike": "Tachado",
+    "fmt.bullets": "Lista con viñetas",
+    "fmt.numbers": "Lista numerada",
+    "fmt.link": "Vínculo (Ctrl+K)",
+    "fmt.clear": "Borrar formato",
+    "fmt.linkPrompt": "Dirección del vínculo (déjala vacía para quitar el vínculo):",
+    "fmt.copied": "Copiado con formato.",
     "history": "Historial",
     "history.title": "Versiones de tu texto, guardadas en cada Revisar o Crear, o a mano (Ctrl+S)",
     "history.save": "Guardar borrador actual",
@@ -678,6 +698,16 @@ const STRINGS = {
     "notNow": "Plus tard",
     "ok": "OK",
 
+    "fmt.bold": "Gras (Ctrl+B)",
+    "fmt.italic": "Italique (Ctrl+I)",
+    "fmt.underline": "Souligné (Ctrl+U)",
+    "fmt.strike": "Barré",
+    "fmt.bullets": "Liste à puces",
+    "fmt.numbers": "Liste numérotée",
+    "fmt.link": "Lien (Ctrl+K)",
+    "fmt.clear": "Effacer la mise en forme",
+    "fmt.linkPrompt": "Adresse du lien (laissez vide pour supprimer le lien) :",
+    "fmt.copied": "Copié avec la mise en forme.",
     "history": "Historique",
     "history.title": "Versions de votre texte, enregistrées à chaque Révision ou Création, ou à la main (Ctrl+S)",
     "history.save": "Enregistrer le brouillon",

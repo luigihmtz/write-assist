@@ -15,7 +15,7 @@
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v02.09.00
+# Version: v02.10.00
 # Date:    2026-11-25
 #
 # Usage: installed by install.ps1 (Start Menu shortcut + global hotkey, default
@@ -114,12 +114,42 @@ def set_mac_dock_icon():
         NSApplication.sharedApplication().setApplicationIconImage_(image)
 
 
-def clipboard_set_text(window, text):
+def cf_html(fragment):
+    """Windows' "HTML Format" clipboard data: a header with byte offsets, then
+    the fragment between StartFragment/EndFragment markers (UTF-8)."""
+    header = "Version:0.9\r\nStartHTML:{:010d}\r\nEndHTML:{:010d}\r\nStartFragment:{:010d}\r\nEndFragment:{:010d}\r\n"
+    before = "<html><body>\r\n<!--StartFragment-->"
+    after = "<!--EndFragment-->\r\n</body></html>"
+    start_html = len(header.format(0, 0, 0, 0).encode("utf-8"))
+    start_fragment = start_html + len(before.encode("utf-8"))
+    end_fragment = start_fragment + len(fragment.encode("utf-8"))
+    end_html = end_fragment + len(after.encode("utf-8"))
+    return (header.format(start_html, end_html, start_fragment, end_fragment) + before + fragment + after).encode("utf-8")
+
+
+def clipboard_set_text(window, text, html=None):
+    """Plain text, plus the formatted version (html) when there is one: Teams,
+    Outlook and Word paste the formatting, plain-text apps the text."""
     if not platform.IS_WINDOWS:
-        platform.mac_clipboard_set(text)
+        platform.mac_clipboard_set(text, html)
         return
-    from System.Windows.Forms import Clipboard
-    on_ui_thread(window, lambda form: Clipboard.SetText(text) if text else Clipboard.Clear())
+    from System import Array, Byte
+    from System.IO import MemoryStream
+    from System.Windows.Forms import Clipboard, DataFormats, DataObject
+
+    def put(form):
+        if not text:
+            Clipboard.Clear()
+            return
+        if not html:
+            Clipboard.SetText(text)
+            return
+        data = DataObject()
+        data.SetData(DataFormats.UnicodeText, text)
+        # As exact UTF-8 bytes: .NET's own string conversion can garble accents and emojis.
+        data.SetData(DataFormats.Html, MemoryStream(Array[Byte](cf_html(html))))
+        Clipboard.SetDataObject(data, True)
+    on_ui_thread(window, put)
 
 
 # --------------------------------------------------------------------------- #
@@ -354,7 +384,8 @@ class Bridge:
             path.parent.mkdir(parents=True, exist_ok=True)
             self._print_pdf(path)   # the page has filled its print area
         else:
-            export.write(path, fmt, text, export.title_of(text), self._author(), when, request.get("details") or [])
+            export.write(path, fmt, text, export.title_of(text), self._author(), when, request.get("details") or [],
+                         rich=request.get("rich"))
         return {"path": str(path), "folder": str(path.parent)}
 
     def _print_pdf(self, path):
@@ -563,8 +594,8 @@ class Bridge:
         return {"text": clipboard_get_text(self._window)}
 
     @safely
-    def clipboard_set(self, text):
-        clipboard_set_text(self._window, text)
+    def clipboard_set(self, text, html=None):
+        clipboard_set_text(self._window, text, html)
 
     # ---- Settings --------------------------------------------------------- #
     @safely

@@ -8,12 +8,14 @@
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v01.00.00
+# Version: v01.01.00
 # Date:    2026-11-25
 #
 # Usage: imported by writeAssist.pyw. write(path, fmt, text, title, author,
-#        when, details) where details is [[label, value], ...] already in the
-#        interface language; cloud_folders() lists the synced folders.
+#        when, details, rich) where details is [[label, value], ...] already in
+#        the interface language, and rich (optional) is the formatted text as
+#        lines: [{"kind": "p"|"ul"|"ol", "n", "runs": [{"text", "b", "i", "u",
+#        "s", "href"}]}]; cloud_folders() lists the synced folders.
 
 import json
 import os
@@ -43,59 +45,135 @@ def title_of(text):
     return first if len(first) <= 80 else first[:77].rstrip() + "..."
 
 
-def write(path, fmt, text, title, author, when, details):
+def plain_lines(text):
+    """Unformatted text as the same line model the formatted text uses."""
+    return [{"kind": "p", "n": 0, "runs": [{"text": line}] if line else []} for line in (text or "").rstrip().split("\n")]
+
+
+def safe_href(href):
+    return href if re.match(r"(?i)^(https?:|mailto:|tel:)", href or "") else ""
+
+
+def write(path, fmt, text, title, author, when, details, rich=None):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
+    lines = rich or plain_lines(text)
     if fmt == "docx":
-        _write_docx(path, text, title, author, when, details)
+        _write_docx(path, lines, title, author, when, details)
     elif fmt == "md":
         footer = "\n".join(f"- **{escape_md(label)}:** {escape_md(value)}" for label, value in details)
-        path.write_text(f"{text.rstrip()}\n\n---\n\n{footer}\n", encoding="utf-8")
+        path.write_text(f"{_markdown(lines).rstrip()}\n\n---\n\n{footer}\n", encoding="utf-8")
     else:
         footer = "\n".join(f"{label}: {value}" for label, value in details)
-        path.write_text(f"{text.rstrip()}\n\n――――――――――\n{footer}\n", encoding="utf-8-sig")   # BOM: Notepad-safe
+        path.write_text(f"{_plain(lines).rstrip()}\n\n――――――――――\n{footer}\n", encoding="utf-8-sig")   # BOM: Notepad-safe
     return path
 
 
+def _prefix(line):
+    return "• " if line.get("kind") == "ul" else f"{line.get('n', 1)}. " if line.get("kind") == "ol" else ""
+
+
+def _plain(lines):
+    return "\n".join(_prefix(line) + "".join(run.get("text", "") for run in line.get("runs", [])) for line in lines)
+
+
+def _markdown(lines):
+    out = []
+    for index, line in enumerate(lines):
+        parts = []
+        for run in line.get("runs", []):
+            piece = escape_md(run.get("text", ""))
+            if not piece.strip():
+                parts.append(piece)
+                continue
+            lead, core, trail = re.match(r"^(\s*)(.*?)(\s*)$", piece, re.S).groups()   # markers hug the words
+            if run.get("b"):
+                core = f"**{core}**"
+            if run.get("i"):
+                core = f"*{core}*"
+            if run.get("s"):
+                core = f"~~{core}~~"
+            if run.get("u"):
+                core = f"<u>{core}</u>"   # Markdown has no underline; most viewers show this
+            if safe_href(run.get("href")):
+                core = f"[{core}]({run['href']})"
+            parts.append(lead + core + trail)
+        content = "".join(parts)
+        kind = line.get("kind", "p")
+        prefix = "- " if kind == "ul" else f"{line.get('n', 1)}. " if kind == "ol" else ""
+        following = lines[index + 1] if index + 1 < len(lines) else None
+        # A plain line followed by another plain line: a hard line break ("  ").
+        hard_break = kind == "p" and content and following and following.get("kind", "p") == "p" and following.get("runs")
+        out.append(prefix + content + ("  " if hard_break else ""))
+    return "\n".join(out)
+
+
 def escape_md(value):
-    return re.sub(r"([*_`\\[\]])", r"\\\1", str(value)).replace("\n", " ")
+    return re.sub(r"([*_`~\\[\]])", r"\\\1", str(value)).replace("\n", " ")
 
 
 # ---------------------------------------------------------------------------
 # Word (.docx): a .docx is a zip of a few XML files; no library needed.
 # ---------------------------------------------------------------------------
-def _run(text, gray=False, size=None, bold=False):
+def _run(text, gray=False, size=None, bold=False, italic=False, underline=False, strike=False, link=False):
+    # Word wants run properties in schema order: b, i, strike, color, sz, u.
     props = ""
     if bold:
         props += "<w:b/>"
-    if gray:
-        props += '<w:color w:val="767676"/>'
+    if italic:
+        props += "<w:i/>"
+    if strike:
+        props += "<w:strike/>"
+    if link or gray:
+        props += f'<w:color w:val="{"0563C1" if link else "767676"}"/>'
     if size:
         props += f'<w:sz w:val="{size}"/><w:szCs w:val="{size}"/>'
+    if underline or link:
+        props += '<w:u w:val="single"/>'
     props = f"<w:rPr>{props}</w:rPr>" if props else ""
-    parts = str(text).split("\t")
+    parts = str(text).split("	")
     body = '<w:tab/>'.join(f'<w:t xml:space="preserve">{escape(part)}</w:t>' for part in parts)
     return f"<w:r>{props}{body}</w:r>"
 
 
-def _paragraph(runs="", spacing_after=None, border_top=False):
+def _paragraph(runs="", spacing_after=None, border_top=False, indent=False):
+    # Paragraph properties in schema order: pBdr, tabs, spacing, ind.
     props = ""
     if border_top:
         props += '<w:pBdr><w:top w:val="single" w:sz="4" w:space="6" w:color="BFBFBF"/></w:pBdr>'
+    if indent:   # list item: the bullet or number hangs in the margin
+        props += '<w:tabs><w:tab w:val="left" w:pos="720"/></w:tabs>'
     if spacing_after is not None:
         props += f'<w:spacing w:after="{spacing_after}"/>'
+    if indent:
+        props += '<w:ind w:left="720" w:hanging="360"/>'
     props = f"<w:pPr>{props}</w:pPr>" if props else ""
     return f"<w:p>{props}{runs}</w:p>"
 
 
-def _write_docx(path, text, title, author, when, details):
-    body = [_paragraph(_run(line) if line else "") for line in text.rstrip().split("\n")]
+def _write_docx(path, lines, title, author, when, details):
+    links = []   # external hyperlinks, numbered as relationships rId100, rId101...
+    body = []
+    for line in lines:
+        runs = ""
+        kind = line.get("kind", "p")
+        if kind in ("ul", "ol"):
+            runs += _run(("•" if kind == "ul" else f"{line.get('n', 1)}.") + "\t")
+        for run in line.get("runs", []):
+            piece = _run(run.get("text", ""), bold=run.get("b"), italic=run.get("i"), underline=run.get("u"),
+                         strike=run.get("s"), link=bool(safe_href(run.get("href"))))
+            if safe_href(run.get("href")):
+                links.append(run["href"])
+                piece = f'<w:hyperlink r:id="rId{99 + len(links)}">{piece}</w:hyperlink>'
+            runs += piece
+        body.append(_paragraph(runs, indent=kind in ("ul", "ol")))
     body.append(_paragraph(spacing_after=0))
     for index, (label, value) in enumerate(details):
         runs = _run(f"{label}: ", gray=True, size=17, bold=True) + _run(value, gray=True, size=17)
         body.append(_paragraph(runs, spacing_after=40, border_top=index == 0))
     document = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-                '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+                '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" '
+                'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
                 f'<w:body>{"".join(body)}<w:sectPr><w:pgSz w:w="12240" w:h="15840"/>'
                 '<w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/>'
                 '</w:sectPr></w:body></w:document>')
@@ -128,7 +206,13 @@ def _write_docx(path, text, title, author, when, details):
             '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>'
             '<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>'
             "</Relationships>")
+    document_rels = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                     '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+                     + "".join(f'<Relationship Id="rId{100 + index}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" '
+                               f'Target="{escape(href, {chr(34): "&quot;"})}" TargetMode="External"/>' for index, href in enumerate(links))
+                     + "</Relationships>")
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as package:
+        package.writestr("word/_rels/document.xml.rels", document_rels)
         package.writestr("[Content_Types].xml", content_types)
         package.writestr("_rels/.rels", rels)
         package.writestr("docProps/core.xml", core)

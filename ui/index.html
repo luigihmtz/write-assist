@@ -7,7 +7,7 @@ buttons, settings dialog. Rendered by writeAssist.pyw in a WebView2 window.
 
 Author:  Luis Martinez
 Email:   16788942+luigihmtz@users.noreply.github.com
-Version: v01.11.00
+Version: v01.12.00
 Date:    2026-11-25
 
 Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
@@ -106,7 +106,19 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
           <button class="tool" id="exportBtn" data-i18n="export" data-i18n-title="export.title">Export</button>
           <button class="tool primary-soft" id="copyBtn" data-i18n="copy" data-i18n-title="copy.title">Copy</button>
         </div>
-        <div id="result" class="result" contenteditable="plaintext-only" spellcheck="false" data-i18n-placeholder="result.placeholder"></div>
+        <div class="format-bar" id="formatBar">
+          <button class="fmt" data-cmd="bold" data-i18n-title="fmt.bold"><b>B</b></button>
+          <button class="fmt" data-cmd="italic" data-i18n-title="fmt.italic"><i>I</i></button>
+          <button class="fmt" data-cmd="underline" data-i18n-title="fmt.underline"><u>U</u></button>
+          <button class="fmt" data-cmd="strikeThrough" data-i18n-title="fmt.strike"><s>S</s></button>
+          <span class="fmt-sep"></span>
+          <button class="fmt" data-cmd="insertUnorderedList" data-i18n-title="fmt.bullets"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5a1.5 1.5 0 1 0 0 .01ZM8 5.5h12v2H8Zm-4 6a1.5 1.5 0 1 0 0 .01ZM8 11h12v2H8Zm-4 6.5a1.5 1.5 0 1 0 0 .01ZM8 16.5h12v2H8Z"/></svg></button>
+          <button class="fmt" data-cmd="insertOrderedList" data-i18n-title="fmt.numbers"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h2v4H4V6H3Zm0 7.5c0-.8.7-1.5 1.5-1.5S6 11.7 6 12.4c0 .5-.3.9-.7 1.3L4.5 14.5H6V16H3v-1.2l1.6-1.6c.2-.2.3-.4.3-.6 0-.2-.2-.3-.4-.3s-.4.2-.4.4H3Zm5-7h12v2H8Zm0 5.5h12v2H8Zm0 5.5h12v2H8Z"/></svg></button>
+          <span class="fmt-sep"></span>
+          <button class="fmt" data-cmd="link" data-i18n-title="fmt.link"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.6 13.4a1 1 0 0 1 0-1.4l3.4-3.4a1 1 0 1 1 1.4 1.4L12 13.4a1 1 0 0 1-1.4 0Zm-2.1 4.2a3.5 3.5 0 0 1-2.5-6l2-2a1 1 0 1 1 1.4 1.4l-2 2a1.5 1.5 0 0 0 2.1 2.1l2-2a1 1 0 0 1 1.4 1.4l-2 2a3.5 3.5 0 0 1-2.4 1.1Zm6.6-3.2a1 1 0 0 1-.7-1.7l2-2a1.5 1.5 0 0 0-2.1-2.1l-2 2a1 1 0 0 1-1.4-1.4l2-2a3.5 3.5 0 0 1 5 5l-2 2a1 1 0 0 1-.8.2Z"/></svg></button>
+          <button class="fmt" data-cmd="clear" data-i18n-title="fmt.clear"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h12v2.5h-2V7h-3.1l-1.3 6.3L10 11.8 10.9 7H8v.5H6Zm-1.7 1.3 1.4-1.4 14 14-1.4 1.4-5.6-5.6-1.1 5.3H9.4l1.3-6.5Z"/></svg></button>
+        </div>
+        <div id="result" class="result" contenteditable="true" spellcheck="false" data-i18n-placeholder="result.placeholder"></div>
       </section>
 
       <section class="card changes-card">

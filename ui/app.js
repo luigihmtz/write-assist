@@ -3,12 +3,13 @@
 // filled fields, runs it through Python (window.pywebview.api), shows the
 // result with highlighted edits, the on-demand thesaurus and translator, the
 // free local AI's first-use download, live grammar underlines (LanguageTool),
-// version history, exports (Word, PDF, text, Markdown),
+// version history, exports (Word, PDF, text, Markdown), the Result's
+// formatting bar (bold, italic, underline, strikethrough, lists, links),
 // speech-to-text recording, settings, interface language, and updates.
 //
 // Author:  Luis Martinez
 // Email:   16788942+luigihmtz@users.noreply.github.com
-// Version: v01.12.00
+// Version: v01.13.00
 // Date:    2026-11-25
 //
 // Usage: loaded by ui/index.html after i18n.js (t(), applyLanguage()). Every
@@ -272,17 +273,31 @@ function escapeHtml(text) {
   return String(text).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 }
 
+// The Result shows each line as its own block (<div>), which is what the
+// editing commands (lists, Enter) treat as a paragraph. Edited spans get a
+// <mark>; one that crosses a line break is closed and reopened around it.
 // Python gives spans as code-point offsets; JS strings index UTF-16 units.
-function spansToHtml(text, spans) {
+function linesHtml(text, spans = []) {
   const points = Array.from(text);
+  const marked = new Array(points.length).fill(false);
+  for (const [start, end] of spans) for (let k = start; k < end && k < points.length; k++) marked[k] = true;
   let html = "";
-  let pos = 0;
-  for (const [start, end] of spans) {
-    html += escapeHtml(points.slice(pos, start).join(""));
-    html += `<mark>${escapeHtml(points.slice(start, end).join(""))}</mark>`;
-    pos = end;
-  }
-  return html + escapeHtml(points.slice(pos).join(""));
+  let line = "";
+  let inMark = false;
+  const endLine = () => {
+    if (inMark) line += "</mark>";
+    html += `<div>${line || "<br>"}</div>`;
+    line = "";
+    inMark = false;
+  };
+  points.forEach((ch, k) => {
+    if (ch === "\n") { endLine(); return; }
+    if (marked[k] && !inMark) { line += "<mark>"; inMark = true; }
+    if (!marked[k] && inMark) { line += "</mark>"; inMark = false; }
+    line += escapeHtml(ch);
+  });
+  endLine();
+  return html;
 }
 
 function renderResultTitle() {
@@ -293,7 +308,7 @@ function renderResultTitle() {
 function showResult(res) {
   app.resultTitle = { key: res.task === "review" ? "result.corrected" : "result.written", provider: providerLabel(res.provider) };
   renderResultTitle();
-  els.result.innerHTML = res.task === "review" ? spansToHtml(res.text, res.spans || []) : escapeHtml(res.text);
+  els.result.innerHTML = linesHtml(res.text, res.task === "review" ? res.spans || [] : []);
 
   els.changes.innerHTML = "";
   if (res.task === "review") {
@@ -331,17 +346,192 @@ function fallbackNote(res) {
   return t("status.fallback", { from: providerLabel(res.fallback_from), why, provider: providerLabel(res.provider) });
 }
 
-function resultText() {
-  return els.result.innerText.replace(/\n$/, "");
+// ---------------------------------------------------------------------------
+// Rich Result: formatting read as lines of styled runs, the one model behind
+// the plain-text copy, the HTML copy (Teams, Outlook, Word) and the exports.
+//   line: {kind: "p" | "ul" | "ol", n: item number, runs: [{text, b, i, u, s, href}]}
+// ---------------------------------------------------------------------------
+const BLOCK_TAGS = new Set(["DIV", "P", "LI", "UL", "OL", "H1", "H2", "H3", "BLOCKQUOTE"]);
+
+function richModel(root) {
+  const lines = [];
+  let line = null;
+  let pending = false;   // a block ended: the next content starts a new line
+  const start = (kind = "p", n = 0) => { line = { kind, n, runs: [], touched: false }; lines.push(line); };
+  const ensure = () => { if (pending) { if (line.touched) start(); pending = false; } };
+  start();
+
+  function styleOf(el, style) {
+    const s = { ...style };
+    const tag = el.tagName;
+    const css = el.style || {};
+    if (tag === "B" || tag === "STRONG" || css.fontWeight === "bold" || Number(css.fontWeight) >= 600) s.b = true;
+    if (tag === "I" || tag === "EM" || css.fontStyle === "italic") s.i = true;
+    if (tag === "U" || (css.textDecoration || "").includes("underline")) s.u = true;
+    if (tag === "S" || tag === "STRIKE" || tag === "DEL" || (css.textDecoration || "").includes("line-through")) s.s = true;
+    if (tag === "A" && el.getAttribute("href")) s.href = el.getAttribute("href");
+    return s;
+  }
+
+  function walk(node, style) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      node.textContent.split("\n").forEach((part, index) => {
+        ensure();
+        if (index > 0) { start(); }
+        if (part) { line.runs.push({ text: part, ...style }); }
+        line.touched = true;
+      });
+      return;
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+    const tag = node.tagName;
+    if (tag === "BR") {
+      ensure();
+      // A <br> that is the last thing in its block only keeps an empty line open.
+      const lastInBlock = !node.nextSibling && node.parentNode !== root && BLOCK_TAGS.has(node.parentNode.tagName);
+      line.touched = true;
+      if (!lastInBlock) start();
+      return;
+    }
+    if (tag === "UL" || tag === "OL") {
+      let n = 0;
+      for (const item of node.children) {
+        if (item.tagName !== "LI") continue;
+        n += 1;
+        if (line.touched || line.runs.length) start(tag.toLowerCase(), n);
+        else { line.kind = tag.toLowerCase(); line.n = n; }
+        pending = false;
+        for (const child of item.childNodes) walk(child, style);
+        line.touched = true;
+        pending = true;
+      }
+      return;
+    }
+    const block = BLOCK_TAGS.has(tag);
+    if (block) { ensure(); if (line.touched) start(); }
+    const s = styleOf(node, style);
+    for (const child of node.childNodes) walk(child, s);
+    if (block) { line.touched = true; pending = true; }
+  }
+
+  for (const child of root.childNodes) walk(child, {});
+  while (lines.length > 1 && !lines[lines.length - 1].runs.length && lines[lines.length - 1].kind === "p") lines.pop();
+  return lines.map(({ kind, n, runs }) => ({ kind, n, runs }));
 }
 
-async function copyText(text, quiet = false) {
+function richToPlain(lines) {
+  return lines.map((l) => (l.kind === "ul" ? "• " : l.kind === "ol" ? `${l.n}. ` : "") + l.runs.map((r) => r.text).join("")).join("\n");
+}
+
+function safeHref(href) {
+  return /^(https?:|mailto:|tel:)/i.test(href || "") ? href : "";
+}
+
+function runToHtml(run) {
+  let html = escapeHtml(run.text);
+  if (run.b) html = `<b>${html}</b>`;
+  if (run.i) html = `<i>${html}</i>`;
+  if (run.u) html = `<u>${html}</u>`;
+  if (run.s) html = `<s>${html}</s>`;
+  if (safeHref(run.href)) html = `<a href="${escapeHtml(run.href)}">${html}</a>`;
+  return html;
+}
+
+// HTML for the clipboard and the PDF: lists as real lists, other lines with <br>.
+function richToHtml(lines) {
+  let html = "";
+  let list = null;
+  lines.forEach((l, index) => {
+    const content = l.runs.map(runToHtml).join("");
+    if (l.kind === "ul" || l.kind === "ol") {
+      if (list !== l.kind) { if (list) html += `</${list}>`; html += `<${l.kind}>`; list = l.kind; }
+      html += `<li>${content || "<br>"}</li>`;
+      return;
+    }
+    if (list) { html += `</${list}>`; list = null; }
+    // A line break before the next plain line; an empty line keeps its own (a blank line before a list).
+    const next = lines[index + 1];
+    html += content + (next && (next.kind === "p" || !content) ? "<br>" : "");
+  });
+  if (list) html += `</${list}>`;
+  return html;
+}
+
+function resultRich() { return richModel(els.result); }
+function resultText() { return richToPlain(resultRich()); }
+
+async function copyText(text, quiet = false, html = "") {
   if (!text) return;
-  const res = await api().clipboard_set(text);
-  if (!quiet) setStatus(res.ok ? t("status.copied") : res.error, !res.ok);
+  const res = await api().clipboard_set(text, html || null);
+  if (!quiet) setStatus(res.ok ? t(html ? "fmt.copied" : "status.copied") : res.error, !res.ok);
 }
 
-function copyResult(quiet = false) { return copyText(resultText(), quiet); }
+function copyResult(quiet = false) {
+  const lines = resultRich();
+  const formatted = lines.some((l) => l.kind !== "p" || l.runs.some((r) => r.b || r.i || r.u || r.s || r.href));
+  return copyText(richToPlain(lines), quiet, formatted ? richToHtml(lines) : "");
+}
+
+// ---------------------------------------------------------------------------
+// Formatting bar
+// ---------------------------------------------------------------------------
+function selectionInResult() {
+  const sel = window.getSelection();
+  return sel.rangeCount > 0 && els.result.contains(sel.anchorNode);
+}
+
+function formatCommand(cmd) {
+  if (!selectionInResult()) {   // put the caret at the end of the Result first
+    els.result.focus();
+    const range = document.createRange();
+    range.selectNodeContents(els.result);
+    range.collapse(false);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+  if (cmd === "link") { editLink(); return; }
+  if (cmd === "clear") {
+    document.execCommand("removeFormat");
+    document.execCommand("unlink");
+  } else {
+    document.execCommand(cmd);
+  }
+  updateFormatState();
+}
+
+function editLink() {
+  const sel = window.getSelection();
+  const anchor = sel.anchorNode && (sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement).closest("a");
+  const saved = sel.rangeCount ? sel.getRangeAt(0).cloneRange() : null;
+  const answer = window.prompt(t("fmt.linkPrompt"), anchor ? anchor.getAttribute("href") : "https://");
+  if (answer === null) return;
+  sel.removeAllRanges();
+  if (saved) sel.addRange(saved);
+  let url = answer.trim();
+  if (!url || url === "https://") {
+    if (anchor) { const r = document.createRange(); r.selectNodeContents(anchor); sel.removeAllRanges(); sel.addRange(r); }
+    document.execCommand("unlink");
+    return;
+  }
+  if (!/^[a-z][\w+.-]*:/i.test(url)) url = (url.includes("@") && !url.includes("/") ? "mailto:" : "https://") + url;
+  if (anchor) { anchor.setAttribute("href", url); return; }
+  if (sel.isCollapsed) document.execCommand("insertHTML", false, `<a href="${escapeHtml(url)}">${escapeHtml(url)}</a>`);
+  else document.execCommand("createLink", false, url);
+  updateFormatState();
+}
+
+function updateFormatState() {
+  const inside = selectionInResult();
+  document.querySelectorAll("#formatBar .fmt").forEach((button) => {
+    const cmd = button.dataset.cmd;
+    let active = false;
+    if (inside && ["bold", "italic", "underline", "strikeThrough", "insertUnorderedList", "insertOrderedList"].includes(cmd)) {
+      try { active = document.queryCommandState(cmd); } catch { active = false; }
+    }
+    button.classList.toggle("active", active);
+  });
+}
 
 async function pasteAndReview() {
   const res = await api().clipboard_get();
@@ -1093,7 +1283,8 @@ function currentSource() {
     return { text: els.draft.value, when: new Date().toISOString(), prompt: els.prompt.value.trim(),
       language: els.textLanguage.value === "auto" ? "" : els.textLanguage.value };
   }
-  return { text: resultText(), ...(app.lastRun || {}), when: app.lastRun?.when || new Date().toISOString() };
+  const rich = resultRich();
+  return { text: richToPlain(rich), rich, ...(app.lastRun || {}), when: app.lastRun?.when || new Date().toISOString() };
 }
 
 async function openExport(source = null) {
@@ -1140,10 +1331,11 @@ async function doExport(target) {
   const format = $("expFormat").value;
   const details = $("expDetails").checked ? exportDetails(src) : [];
   if (format === "pdf") {   // the window prints only this area to the PDF
-    $("printArea").innerHTML = `<div class="print-text">${escapeHtml(src.text)}</div>` + (details.length
+    const body = src.rich ? richToHtml(src.rich) : escapeHtml(src.text);
+    $("printArea").innerHTML = `<div class="print-text">${body}</div>` + (details.length
       ? `<div class="print-details">${details.map(([label, value]) => `<p><b>${escapeHtml(label)}:</b> ${escapeHtml(value)}</p>`).join("")}</div>` : "");
   }
-  const res = await api().export_file({ text: src.text, format, target, details, when: src.when });
+  const res = await api().export_file({ text: src.text, rich: src.rich || null, format, target, details, when: src.when });
   $("printArea").innerHTML = "";
   if (!res.ok) { showExportError(res.error); return; }
   if (res.cancelled) return;
@@ -1473,6 +1665,23 @@ function wire() {
   for (const el of [els.prompt, els.draft]) el.addEventListener("input", updateTask);
   for (const field of ["prompt", "draft"]) els[field].addEventListener("focus", () => { app.lastField = field; });
   els.result.addEventListener("focus", () => { app.lastField = "result"; });
+  document.querySelectorAll("#formatBar .fmt").forEach((button) => {
+    button.addEventListener("mousedown", (e) => e.preventDefault());   // keep the selection in the Result
+    button.addEventListener("click", () => formatCommand(button.dataset.cmd));
+  });
+  document.execCommand("defaultParagraphSeparator", false, "div");   // Enter makes a new line block
+  els.result.addEventListener("keydown", (e) => {
+    const mod = onMac ? e.metaKey : e.ctrlKey;
+    if (mod && !e.shiftKey && e.key.toLowerCase() === "k") {
+      e.preventDefault();
+      formatCommand("link");
+    }
+  });
+  els.result.addEventListener("paste", (e) => {   // no stray formatting from elsewhere
+    e.preventDefault();
+    document.execCommand("insertText", false, e.clipboardData.getData("text/plain"));
+  });
+  document.addEventListener("selectionchange", updateFormatState);
   els.result.addEventListener("mouseup", () => { app.lastField = "result"; });
 
   els.provider.addEventListener("change", onProviderChange);

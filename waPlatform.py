@@ -6,7 +6,7 @@
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v01.00.00
+# Version: v01.01.00
 # Date:    2026-11-25
 #
 # Usage: imported by writeAssist.pyw, waCore.py, waGrammar.py and waSpeech.py.
@@ -82,7 +82,17 @@ def mac_clipboard_get():
     return subprocess.run(["pbpaste"], capture_output=True, env=_UTF8).stdout.decode("utf-8", "replace")
 
 
-def mac_clipboard_set(text):
+def mac_clipboard_set(text, html=None):
+    if html:   # both versions on the pasteboard, like Windows' HTML Format
+        try:
+            from AppKit import NSPasteboard, NSPasteboardTypeHTML, NSPasteboardTypeString
+            board = NSPasteboard.generalPasteboard()
+            board.clearContents()
+            board.setString_forType_(html, NSPasteboardTypeHTML)
+            board.setString_forType_(text or "", NSPasteboardTypeString)
+            return
+        except Exception:
+            pass   # fall back to plain text
     subprocess.run(["pbcopy"], input=(text or "").encode("utf-8"), env=_UTF8, check=True)
 
 

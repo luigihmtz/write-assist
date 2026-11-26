@@ -1,5 +1,14 @@
 # Changelog
 
+## v02.11.00 - 2026-11-25
+
+- Formatting bar on the result, like Teams' compose box: bold, italic,
+  underline, strikethrough, bulleted and numbered lists, links (Ctrl+K) and
+  clear formatting.
+- Copy keeps the formatting for Teams, Outlook, Word and Gmail, and plain-text
+  apps still get clean text. Word, PDF and Markdown exports keep it too, with
+  clickable links.
+
 ## v02.10.00 - 2026-11-25
 
 - Version history: every Review or Create saves the text and the result, and
