@@ -7,8 +7,8 @@ buttons, settings dialog. Rendered by writeAssist.pyw in a WebView2 window.
 
 Author:  Luis Martinez
 Email:   16788942+luigihmtz@users.noreply.github.com
-Version: v01.12.00
-Date:    2026-11-25
+Version: v01.13.00
+Date:    2026-11-26
 
 Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
        window.pywebview.api (see app.js). Visible text comes from i18n.js
@@ -62,10 +62,12 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
     </label>
     <span class="spacer"></span>
     <span class="toolbar-actions">
+    <button id="openSessionBtn" class="ghost" data-i18n="session.open" data-i18n-title="session.openTitle">Open session</button>
+    <button id="saveSessionBtn" class="ghost" data-i18n="session.save" data-i18n-title="session.saveTitle">Save session</button>
     <button id="translateBtn" class="ghost" data-i18n="translate" data-i18n-title="translate.title">Translate</button>
     <button id="thesaurusBtn" class="ghost" data-i18n="thesaurus" data-i18n-title="thesaurus.title">Thesaurus</button>
-    <button id="historyBtn" class="ghost" data-i18n="history" data-i18n-title="history.title">History</button>
     <button id="settingsBtn" class="ghost" data-i18n="settings" data-i18n-title="settings.title">Settings</button>
+    <button id="aboutBtn" class="ghost" data-i18n="about" data-i18n-title="about.title">About</button>
     </span>
   </header>
 
@@ -83,6 +85,7 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
         </div>
         <textarea id="prompt" spellcheck="false" data-i18n-placeholder="prompt.placeholder"></textarea>
       </section>
+      <div class="splitter splitter-h" data-split="left" data-i18n-title="layout.split"></div>
 
       <section class="card draft-card">
         <div class="card-head">
@@ -97,11 +100,14 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
       </section>
     </div>
 
+    <div class="splitter splitter-v" data-split="cols" data-i18n-title="layout.split"></div>
+
     <div class="column">
       <section class="card result-card">
         <div class="card-head">
           <h2 id="resultTitle" data-i18n="result">Result</h2>
           <span class="spacer"></span>
+          <button class="tool" id="historyToggle" data-i18n="history" data-i18n-title="history.title">History</button>
           <button class="tool" id="useDraftBtn" data-i18n="useDraft" data-i18n-title="useDraft.title">Use as draft</button>
           <button class="tool" id="exportBtn" data-i18n="export" data-i18n-title="export.title">Export</button>
           <button class="tool primary-soft" id="copyBtn" data-i18n="copy" data-i18n-title="copy.title">Copy</button>
@@ -118,8 +124,21 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
           <button class="fmt" data-cmd="link" data-i18n-title="fmt.link"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.6 13.4a1 1 0 0 1 0-1.4l3.4-3.4a1 1 0 1 1 1.4 1.4L12 13.4a1 1 0 0 1-1.4 0Zm-2.1 4.2a3.5 3.5 0 0 1-2.5-6l2-2a1 1 0 1 1 1.4 1.4l-2 2a1.5 1.5 0 0 0 2.1 2.1l2-2a1 1 0 0 1 1.4 1.4l-2 2a3.5 3.5 0 0 1-2.4 1.1Zm6.6-3.2a1 1 0 0 1-.7-1.7l2-2a1.5 1.5 0 0 0-2.1-2.1l-2 2a1 1 0 0 1-1.4-1.4l2-2a3.5 3.5 0 0 1 5 5l-2 2a1 1 0 0 1-.8.2Z"/></svg></button>
           <button class="fmt" data-cmd="clear" data-i18n-title="fmt.clear"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h12v2.5h-2V7h-3.1l-1.3 6.3L10 11.8 10.9 7H8v.5H6Zm-1.7 1.3 1.4-1.4 14 14-1.4 1.4-5.6-5.6-1.1 5.3H9.4l1.3-6.5Z"/></svg></button>
         </div>
-        <div id="result" class="result" contenteditable="true" spellcheck="false" data-i18n-placeholder="result.placeholder"></div>
+        <div class="result-body">
+          <div id="result" class="result" contenteditable="true" spellcheck="false" data-i18n-placeholder="result.placeholder"></div>
+          <aside id="histColumn" class="hist-column" hidden>
+            <div class="hist-save">
+              <input id="histLabel" data-i18n-placeholder="history.labelPlaceholder" spellcheck="true" autocomplete="off">
+              <div class="hist-save-buttons">
+                <button class="tool primary-soft" id="histSave" data-i18n="history.save" data-i18n-title="history.saveTitle">Save current draft</button>
+                <button class="tool" id="histClear" data-i18n="history.clear" data-i18n-title="history.clearTitle">Clear</button>
+              </div>
+            </div>
+            <div id="histList" class="hist-list"></div>
+          </aside>
+        </div>
       </section>
+      <div class="splitter splitter-h" data-split="right" data-i18n-title="layout.split"></div>
 
       <section class="card changes-card">
         <div class="card-head"><h2 data-i18n="changes">Changes and notes</h2></div>
@@ -196,19 +215,37 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
     <div class="lt-actions"><button class="ghost small" id="ltIgnore" data-i18n="lt.ignore">Ignore</button></div>
   </div>
 
-  <div id="historyPanel" class="popover" hidden>
-    <div class="popover-head">
-      <strong data-i18n="history">History</strong>
-      <span class="spacer"></span>
-      <button class="ghost small detach" data-i18n-title="panel.detach" aria-label="Detach">⧉</button>
-      <button class="ghost small" id="histClose" data-i18n-title="th.close">✕</button>
-    </div>
-    <div class="hist-save">
-      <input id="histLabel" data-i18n-placeholder="history.labelPlaceholder" spellcheck="true" autocomplete="off">
-      <button class="tool primary-soft" id="histSave" data-i18n="history.save" data-i18n-title="history.saveTitle">Save current draft</button>
-    </div>
-    <div id="histList" class="popover-body hist-list"></div>
-  </div>
+  <dialog id="quitDialog">
+    <form method="dialog" class="dialog narrow">
+      <h2 data-i18n="quit.title">Save this session?</h2>
+      <p data-i18n="quit.text"></p>
+      <div class="dialog-buttons">
+        <button type="button" id="quitCancel" class="ghost" data-i18n="cancel">Cancel</button>
+        <button type="button" id="quitDiscard" class="ghost" data-i18n="quit.discard">Don't save</button>
+        <button type="button" id="quitSave" class="primary" data-i18n="quit.save">Save...</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="aboutDialog">
+    <form method="dialog" class="dialog narrow about">
+      <h2>Write Assist</h2>
+      <p id="aboutVersion" class="muted"></p>
+      <p data-i18n="about.text"></p>
+      <p id="aboutAuthor"></p>
+      <p data-i18n="about.license"></p>
+      <p class="about-links">
+        <button type="button" class="link-button" id="aboutProject" data-i18n="about.project">Project page</button>
+        <span class="muted">·</span>
+        <button type="button" class="link-button" id="aboutCredits" data-i18n="about.credits">Credits and licenses</button>
+      </p>
+      <p id="aboutUpdate" class="muted" hidden></p>
+      <div class="dialog-buttons">
+        <button type="button" id="aboutCheck" class="ghost" data-i18n="about.check">Check for updates</button>
+        <button type="button" id="aboutClose" class="primary" data-i18n="about.close">Close</button>
+      </div>
+    </form>
+  </dialog>
 
   <dialog id="exportDialog">
     <form method="dialog" class="dialog narrow">
@@ -298,6 +335,11 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
         </label>
         <button type="button" class="ghost small" id="historyClear" data-i18n="settings.clearHistory">Clear history</button>
       </div>
+      <label class="check-block">
+        <input type="checkbox" id="askSave">
+        <span><strong data-i18n="settings.askSave">Ask to save the session when closing</strong>
+          <span class="muted" data-i18n="settings.askSaveHint"></span></span>
+      </label>
       <p id="versionText" class="muted small"></p>
       <p id="settingsError" class="error" hidden></p>
       <div class="dialog-buttons">

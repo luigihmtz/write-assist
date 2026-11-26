@@ -3,14 +3,15 @@
 // filled fields, runs it through Python (window.pywebview.api), shows the
 // result with highlighted edits, the on-demand thesaurus and translator, the
 // free local AI's first-use download, live grammar underlines (LanguageTool),
-// version history, exports (Word, PDF, text, Markdown), the Result's
-// formatting bar (bold, italic, underline, strikethrough, lists, links),
-// speech-to-text recording, settings, interface language, and updates.
+// version history (a column inside the Result panel), sessions (.wasession
+// files), exports (Word, PDF, text, Markdown), the Result's formatting bar
+// (bold, italic, underline, strikethrough, lists, links), resizable panels,
+// speech-to-text recording, settings, About, interface language, and updates.
 //
 // Author:  Luis Martinez
 // Email:   16788942+luigihmtz@users.noreply.github.com
-// Version: v01.13.00
-// Date:    2026-11-25
+// Version: v01.14.00
+// Date:    2026-11-26
 //
 // Usage: loaded by ui/index.html after i18n.js (t(), applyLanguage()). Every
 //        api.* call returns a Promise of {ok: true, ...} or {ok: false, error}.
@@ -19,7 +20,7 @@ const $ = (id) => document.getElementById(id);
 const api = () => window.pywebview.api;
 
 const els = {
-  history: $("historyPanel"), histList: $("histList"), histLabel: $("histLabel"),
+  histColumn: $("histColumn"), histList: $("histList"), histLabel: $("histLabel"),
   mode: $("mode"), tone: $("tone"), textLanguage: $("textLanguage"),
   provider: $("provider"), model: $("model"),
   prompt: $("prompt"), draft: $("draft"), preset: $("preset"),
@@ -40,7 +41,8 @@ const app = {
   updateTag: null,
   uiLanguage: "",       // "" follows Windows
   microphone: "",       // name of the dictation microphone; "" is the Windows default
-  resultTitle: null,    // {key, provider} of the shown result
+  resultTitle: null,    // {key, provider} or {key, date, src} of the shown result
+  lastChanges: null,    // {task, changes, notes} shown under the result
 };
 
 // ---------------------------------------------------------------------------
@@ -85,6 +87,8 @@ async function init() {
   els.textLanguage.value = state.text_language || "auto";
   els.trTarget.value = state.translate_target || "auto";
   els.autoCopy.checked = state.auto_copy ?? info.auto_copy_default;
+  Object.assign(layout, state.layout || {});
+  applyLayout();
   for (const preset of info.presets) els.preset.add(new Option(preset, preset));
 
   showProviderModels();
@@ -92,6 +96,9 @@ async function init() {
   els.draft.focus();
 
   if (info.needs_profile) openSettings(true);
+  const start = await api().startup_session();   // Write Assist opened with a .wasession file
+  if (!start.ok) setStatus(start.error, true);
+  else if (start.session) applySession(start);
   if (!info.is_dev) {
     setTimeout(checkForUpdate, 3000);
     setInterval(checkForUpdate, 6 * 3600 * 1000);
@@ -259,7 +266,8 @@ async function run() {
     app.lastRun = { task, provider: res.provider, model: els.model.value, prompt: els.prompt.value.trim(),
       language: els.textLanguage.value === "auto" ? "" : els.textLanguage.value, when: new Date().toISOString() };
     showResult(res);
-    if (!els.history.hidden) refreshHistory();
+    hist.selectedId = null;
+    if (hist.on) refreshHistory();
   } finally {
     clearInterval(timer);
     app.busy = false;
@@ -302,32 +310,40 @@ function linesHtml(text, spans = []) {
 
 function renderResultTitle() {
   const r = app.resultTitle;
-  els.resultTitle.textContent = r ? t(r.key, { provider: r.provider }) : t("result");
+  els.resultTitle.textContent = r ? t(r.key, r) + (r.src ? ` · ${t(`history.src.${r.src}`)}` : "") : t("result");
+  els.resultTitle.title = els.resultTitle.textContent;   // the full title when it is cut short
 }
 
-function showResult(res) {
-  app.resultTitle = { key: res.task === "review" ? "result.corrected" : "result.written", provider: providerLabel(res.provider) };
-  renderResultTitle();
-  els.result.innerHTML = linesHtml(res.text, res.task === "review" ? res.spans || [] : []);
-
+// The Changes panel: a review's fixes and the AI's notes.
+function renderChanges(info) {
+  app.lastChanges = info;
   els.changes.innerHTML = "";
-  if (res.task === "review") {
-    if (!res.changes.length) {
+  if (!info) return;
+  const changes = info.changes || [];
+  if (info.task === "review") {
+    if (!changes.length) {
       els.changes.innerHTML = `<p class="ok">${escapeHtml(t("changes.none"))}</p>`;
     }
-    for (const c of res.changes) {
+    for (const c of changes) {
       const p = document.createElement("p");
       p.innerHTML = `<span class="old">${escapeHtml(c.original)}</span> → ` +
         `<span class="new">${escapeHtml(c.fixed)}</span> <span class="why">${escapeHtml(c.reason || "")}</span>`;
       els.changes.append(p);
     }
   }
-  if (res.notes) {
+  if (info.notes) {
     const p = document.createElement("p");
     p.className = "note";
-    p.textContent = t("changes.note", { text: res.notes });
+    p.textContent = t("changes.note", { text: info.notes });
     els.changes.append(p);
   }
+}
+
+function showResult(res) {
+  app.resultTitle = { key: res.task === "review" ? "result.corrected" : "result.written", provider: providerLabel(res.provider) };
+  renderResultTitle();
+  els.result.innerHTML = linesHtml(res.text, res.task === "review" ? res.spans || [] : []);
+  renderChanges({ task: res.task, changes: res.changes || [], notes: res.notes || "" });
 
   const parts = [];
   if (res.fallback_from) parts.push(fallbackNote(res));
@@ -337,6 +353,7 @@ function showResult(res) {
   parts.push(`${res.elapsed.toFixed(1)}s`);
   if (els.autoCopy.checked) { copyResult(true); parts.push(t("status.copiedSuffix")); }
   setStatus(parts.join(" · "));
+  checkUnsaved();
 }
 
 // "Claude hit a usage limit (...), used GitHub Copilot" when the backup AI answered.
@@ -457,6 +474,24 @@ function richToHtml(lines) {
   return html;
 }
 
+// The Result's editor HTML from the rich model: one <div> per line, lists as lists.
+function richToEditorHtml(lines) {
+  let html = "";
+  let list = null;
+  for (const l of lines || []) {
+    const content = (l.runs || []).map(runToHtml).join("") || "<br>";
+    if (l.kind === "ul" || l.kind === "ol") {
+      if (list !== l.kind) { if (list) html += `</${list}>`; html += `<${l.kind}>`; list = l.kind; }
+      html += `<li>${content}</li>`;
+      continue;
+    }
+    if (list) { html += `</${list}>`; list = null; }
+    html += `<div>${content}</div>`;
+  }
+  if (list) html += `</${list}>`;
+  return html;
+}
+
 function resultRich() { return richModel(els.result); }
 function resultText() { return richToPlain(resultRich()); }
 
@@ -555,14 +590,17 @@ function clearAll() {
   els.prompt.value = "";
   els.draft.value = "";
   els.result.innerHTML = "";
-  els.changes.innerHTML = "";
+  renderChanges(null);
   app.resultTitle = null;
   app.lastRun = null;
   renderResultTitle();
   setStatus("");
   updateTask();
   els.draft.focus();
-  api().history_new_group().then(() => { if (!els.history.hidden) refreshHistory(); });
+  hist.selectedId = null;
+  session.name = "";
+  checkUnsaved();
+  api().history_new_group().then(() => { if (hist.on) refreshHistory(); });
 }
 
 // ---------------------------------------------------------------------------
@@ -681,7 +719,6 @@ function startDrag(panel, e) {
 function closePanels() {
   closeThesaurus();
   closeTranslate();
-  closeHistory();
 }
 
 // ---------------------------------------------------------------------------
@@ -772,7 +809,6 @@ function openThesaurus() {
     return;
   }
   if (!els.translate.classList.contains("floating")) closeTranslate();
-  if (!els.history.classList.contains("floating")) closeHistory();
   th.target = target;
   th.history = [];
   th.current = "";
@@ -882,7 +918,6 @@ function closeTranslate() {
 function openTranslate() {
   const target = selectedTarget();
   if (!els.thesaurus.classList.contains("floating")) closeThesaurus();
-  if (!els.history.classList.contains("floating")) closeHistory();
   tr.target = target;
   tr.source = target ? target.word : "";
   els.trSource.value = tr.source;
@@ -1140,10 +1175,13 @@ async function enableLiveGrammar() {
 }
 
 // ---------------------------------------------------------------------------
-// Version history: every Review/Create saves the draft and the result (in
-// Python); the user can save the draft by hand. Restore, compare, export.
+// Version history, in a column inside the Result panel (History button).
+// Every Review/Create saves the draft and the result (in Python); the user
+// can save the draft by hand. Clicking a version shows it in the Result, with
+// its changes and notes (or what changed from the version before). Turning
+// History off keeps the version that's shown.
 // ---------------------------------------------------------------------------
-const hist = { data: null, openId: null, compareId: null, diff: null };
+const hist = { on: false, data: null, selectedId: null, diffSeq: 0 };
 
 function formatWhen(iso) {
   try {
@@ -1151,17 +1189,12 @@ function formatWhen(iso) {
   } catch { return iso; }
 }
 
-function openHistory() {
-  if (!els.thesaurus.classList.contains("floating")) closeThesaurus();
-  if (!els.translate.classList.contains("floating")) closeTranslate();
-  els.history.hidden = false;
-  placePanel(els.history, "draft");
-  refreshHistory();
-}
-
-function closeHistory() {
-  els.history.hidden = true;
-  hist.openId = hist.compareId = null;
+function toggleHistory(on = !hist.on) {
+  hist.on = on;
+  els.histColumn.hidden = !on;
+  $("historyToggle").classList.toggle("active", on);
+  if (on) refreshHistory();
+  else hist.selectedId = null;   // the shown version stays as the Result
 }
 
 async function refreshHistory() {
@@ -1192,35 +1225,64 @@ function renderHistory() {
 
 function historyItem(v) {
   const item = document.createElement("div");
-  item.className = "hist-item" + (v.id === hist.openId ? " open" : "");
-  const ai = v.provider ? ` · ${escapeHtml(providerLabel(v.provider))}${v.model ? ` (${escapeHtml(v.model)})` : ""}` : "";
+  item.className = "hist-item" + (v.id === hist.selectedId ? " selected" : "");
+  const ai = v.provider ? `${escapeHtml(providerLabel(v.provider))}${v.model ? ` (${escapeHtml(v.model)})` : ""}` : "";
   item.innerHTML =
     `<div class="hist-top"><span>${escapeHtml(formatWhen(v.time))}</span>` +
-    `<span class="badge">${escapeHtml(t(`history.src.${v.source}`))}</span>` +
-    (v.label ? `<span class="label">${escapeHtml(v.label)}</span>` : "") + `<span>${ai}</span></div>` +
-    `<div class="hist-preview">${escapeHtml(v.text)}</div>`;
-  if (v.id === hist.openId) {
-    const actions = document.createElement("div");
-    actions.className = "hist-actions";
-    for (const [key, fn] of [["history.restore", () => restoreVersion(v)], ["history.compare", () => compareVersion(v)],
-      ["history.copy", () => copyText(v.text)], ["history.export", () => openExport(versionSource(v))],
-      ["history.delete", () => deleteVersion(v)]]) {
-      const button = document.createElement("button");
-      button.className = "tool";
-      button.textContent = t(key);
-      button.addEventListener("click", (e) => { e.stopPropagation(); fn(); });
-      actions.append(button);
-    }
-    item.append(actions);
-    if (hist.compareId === v.id && hist.diff) item.append(hist.diff);
-  }
-  item.addEventListener("click", () => {
-    if (hist.openId === v.id) return;
-    hist.openId = v.id;
-    hist.compareId = null;
-    renderHistory();
-  });
+    `<span class="badge">${escapeHtml(t(`history.src.${v.source}`))}</span></div>` +
+    (v.label ? `<div class="hist-top"><span class="label">${escapeHtml(v.label)}</span></div>` : "") +
+    `<div class="hist-preview">${escapeHtml(v.text.replace(/\s+/g, " ").trim())}</div>` +
+    (ai ? `<div class="hist-ai">${ai}</div>` : "");
+  const del = document.createElement("button");
+  del.className = "tool hist-del";
+  del.textContent = "✕";
+  del.title = t("history.delete");
+  del.addEventListener("click", (e) => { e.stopPropagation(); deleteVersion(v); });
+  item.append(del);
+  item.addEventListener("click", () => selectVersion(v));
   return item;
+}
+
+// Shows a version in the Result. The Result shown before is saved first
+// (unless it's already one of the versions), so switching never loses work.
+async function selectVersion(v) {
+  if (hist.selectedId === v.id) return;
+  const current = resultText();
+  const known = (hist.data?.versions || []).some((x) => x.text === current);
+  if (current.trim() && !known) await api().history_save(current, t("history.beforeSwitch"), resultRich());
+  hist.selectedId = v.id;
+  showVersion(v);
+  await refreshHistory();
+}
+
+function showVersion(v) {
+  els.result.innerHTML = v.rich?.length ? richToEditorHtml(v.rich)
+    : linesHtml(v.text, v.source === "result" && v.task === "review" ? v.spans || [] : []);
+  app.resultTitle = { key: "history.viewing", date: formatWhen(v.time), src: v.source };
+  renderResultTitle();
+  app.lastRun = { task: v.task, provider: v.provider, model: v.model, prompt: v.prompt, language: v.language, when: v.time };
+  if (v.source === "result" && (v.changes || v.notes)) renderChanges({ task: v.task, changes: v.changes || [], notes: v.notes || "" });
+  else showDiffFromPrevious(v);
+  checkUnsaved();
+}
+
+// For drafts and saved versions (and results saved before changes were kept):
+// what changed from the version before it.
+async function showDiffFromPrevious(v) {
+  const seq = ++hist.diffSeq;
+  renderChanges(null);
+  const versions = hist.data?.versions || [];
+  const previous = versions.slice(versions.findIndex((x) => x.id === v.id) + 1).find((x) => x.group === v.group);
+  if (!previous) { els.changes.innerHTML = `<p class="muted">${escapeHtml(t("history.first"))}</p>`; return; }
+  const res = await api().history_compare(previous.text.trimEnd(), v.text.trimEnd());
+  if (seq !== hist.diffSeq) return;
+  if (!res.ok) { setStatus(res.error, true); return; }
+  const changed = res.parts.some((part) => part.type !== "equal");
+  els.changes.innerHTML = changed
+    ? `<p class="muted">${escapeHtml(t("history.diffPrev"))}</p><div class="hist-diff-text">` + res.parts.map((part) =>
+      part.type === "insert" ? `<ins>${escapeHtml(part.text)}</ins>`
+        : part.type === "delete" ? `<del>${escapeHtml(part.text)}</del>` : escapeHtml(part.text)).join("") + "</div>"
+    : `<p class="muted">${escapeHtml(t("history.samePrev"))}</p>`;
 }
 
 async function saveVersion() {
@@ -1230,41 +1292,199 @@ async function saveVersion() {
   if (!res.ok) { setStatus(res.error, true); return; }
   els.histLabel.value = "";
   setStatus(t("history.saved"));
-  if (!els.history.hidden) refreshHistory();
-}
-
-async function restoreVersion(v) {
-  const current = els.draft.value;
-  if (current.trim() && current !== v.text) await api().history_save(current, t("history.beforeRestore"));   // nothing is lost
-  els.draft.value = v.text;
-  els.draft.dispatchEvent(new Event("input"));
-  updateTask();
-  setStatus(t("history.restored"));
-  refreshHistory();
-}
-
-async function compareVersion(v) {
-  const res = await api().history_compare(v.text, els.draft.value);
-  if (!res.ok) { setStatus(res.error, true); return; }
-  const box = document.createElement("div");
-  box.className = "hist-diff";
-  const changed = res.parts.some((part) => part.type !== "equal");
-  box.innerHTML = changed
-    ? `<p class="muted">${escapeHtml(t("history.compareLegend"))}</p>` + res.parts.map((part) =>
-      part.type === "insert" ? `<ins>${escapeHtml(part.text)}</ins>`
-        : part.type === "delete" ? `<del>${escapeHtml(part.text)}</del>` : escapeHtml(part.text)).join("")
-    : `<span class="muted">${escapeHtml(t("history.same"))}</span>`;
-  hist.compareId = v.id;
-  hist.diff = box;
-  renderHistory();
+  if (hist.on) refreshHistory();
 }
 
 async function deleteVersion(v) {
   const res = await api().history_delete(v.id);
   if (!res.ok) { setStatus(res.error, true); return; }
-  hist.openId = null;
+  if (hist.selectedId === v.id) hist.selectedId = null;   // the text stays in the Result
   setStatus(t("history.deleted"));
   refreshHistory();
+}
+
+async function clearHistory() {
+  const ok = await confirmBox(t("settings.clearConfirmTitle"), t("settings.clearConfirm"), t("settings.clearYes"));
+  if (!ok) return;
+  const res = await api().history_clear();
+  if (!res.ok) { setStatus(res.error, true); return; }
+  hist.selectedId = null;
+  setStatus(t("settings.historyCleared"));
+  if (hist.on) refreshHistory();
+}
+
+// ---------------------------------------------------------------------------
+// Sessions: a .wasession file holds the prompt, draft, result (with its
+// formatting, changes and notes), the options, and this text's versions.
+// Closing, opening another session or updating asks to save unsaved work.
+// ---------------------------------------------------------------------------
+const session = { savedSig: "", name: "", unsaved: null, asking: null };
+
+const sessionSig = () => [els.prompt.value, els.draft.value, els.result.innerHTML].join("\u0001");
+const hasWork = () => Boolean(els.prompt.value.trim() || els.draft.value.trim() || els.result.textContent.trim());
+
+// Tells Python whether closing should ask (only when the answer changes).
+function checkUnsaved() {
+  const unsaved = hasWork() && sessionSig() !== session.savedSig;
+  if (unsaved === session.unsaved || !window.pywebview?.api) return unsaved;
+  session.unsaved = unsaved;
+  api().set_unsaved(unsaved);
+  return unsaved;
+}
+
+async function saveSession() {
+  const rich = resultRich();
+  const res = await api().session_save({
+    prompt: els.prompt.value, draft: els.draft.value, result_text: richToPlain(rich),
+    result: { rich, title: app.resultTitle, changes: app.lastChanges },
+    options: { mode: els.mode.value, tone: els.tone.value, language: els.textLanguage.value,
+      provider: els.provider.value, model: els.model.value },
+    last_run: app.lastRun || null,
+  });
+  if (!res.ok) { setStatus(res.error, true); return false; }
+  if (res.cancelled) return false;
+  session.savedSig = sessionSig();
+  session.name = res.path.split(/[\\/]/).pop();
+  checkUnsaved();
+  setStatus(t("session.saved", { name: session.name }), false, () => api().open_folder(res.folder));
+  return true;
+}
+
+async function openSession() {
+  if (!(await resolveUnsaved())) return;
+  const res = await api().session_open();
+  if (!res.ok) { setStatus(res.error, true); return; }
+  if (!res.cancelled) applySession(res);
+}
+
+function setSelect(select, value) {
+  if (value && [...select.options].some((o) => o.value === value)) select.value = value;
+}
+
+// Puts a session's texts and options back ({session, name} from Python).
+function applySession(data) {
+  const s = data?.session;
+  if (!s) return;
+  closePanels();
+  els.prompt.value = s.prompt || "";
+  els.draft.value = s.draft || "";
+  const r = s.result || {};
+  els.result.innerHTML = r.rich?.length ? richToEditorHtml(r.rich) : linesHtml(s.result_text || "");
+  app.resultTitle = r.title || null;
+  renderResultTitle();
+  renderChanges(r.changes || null);
+  const o = s.options || {};
+  setSelect(els.mode, o.mode);
+  setSelect(els.tone, o.tone);
+  setSelect(els.textLanguage, o.language);
+  if (o.provider && app.providers[o.provider] && [...els.provider.options].some((x) => x.value === o.provider)) {
+    els.provider.value = o.provider;
+    app.lastProvider = o.provider;
+    if (o.model) app.models[o.provider] = o.model;
+    showProviderModels();
+  }
+  app.lastRun = s.last_run || null;
+  hist.selectedId = null;
+  if (hist.on) refreshHistory();
+  updateTask();
+  LT_FIELDS.forEach((f) => scheduleGrammarCheck(f, 0));
+  session.savedSig = sessionSig();
+  session.name = data.name || "";
+  checkUnsaved();
+  setStatus(t("session.opened", { name: session.name }));
+}
+
+// Unsaved work: Save / Don't save / Cancel. True when it's fine to go on.
+function resolveUnsaved() {
+  if (!checkUnsaved()) return Promise.resolve(true);
+  if (session.asking) return session.asking;
+  session.asking = new Promise((resolve) => {
+    const dialog = $("quitDialog");
+    const done = async (choice) => {
+      dialog.close();
+      resolve(choice === "save" ? await saveSession() : choice === "discard");
+      session.asking = null;
+    };
+    $("quitSave").onclick = () => done("save");
+    $("quitDiscard").onclick = () => done("discard");
+    $("quitCancel").onclick = () => done("cancel");
+    dialog.oncancel = (e) => { e.preventDefault(); done("cancel"); };
+    dialog.showModal();
+  });
+  return session.asking;
+}
+
+// Python cancelled a close because of unsaved work.
+async function confirmQuit() {
+  if (await resolveUnsaved()) api().quit();
+}
+
+// ---------------------------------------------------------------------------
+// Resizable panels: drag the dividers, double-click to reset
+// ---------------------------------------------------------------------------
+const LAYOUT_DEFAULT = { cols: 0.5, left: 0.26, right: 0.64 };
+const layout = { ...LAYOUT_DEFAULT };
+
+function applyLayout() {
+  const clamp = (x) => Math.min(0.85, Math.max(0.15, Number(x) || 0.5));
+  for (const key of Object.keys(LAYOUT_DEFAULT)) layout[key] = clamp(layout[key]);
+  document.querySelector(".grid").style.gridTemplateColumns = `minmax(0, ${layout.cols}fr) 12px minmax(0, ${1 - layout.cols}fr)`;
+  document.querySelector(".prompt-card").style.flexBasis = `${layout.left * 100}%`;
+  document.querySelector(".result-card").style.flexBasis = `${layout.right * 100}%`;
+}
+
+function layoutChanged(save) {
+  applyLayout();
+  window.dispatchEvent(new Event("resize"));   // underlines, highlights and panels follow
+  if (save) api().save_state({ layout: { ...layout } });
+}
+
+function startSplit(splitter, e) {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  const key = splitter.dataset.split;
+  const box = splitter.parentElement.getBoundingClientRect();
+  splitter.setPointerCapture(e.pointerId);
+  splitter.classList.add("dragging");
+  const move = (ev) => {
+    layout[key] = key === "cols" ? (ev.clientX - box.left) / box.width : (ev.clientY - box.top) / box.height;
+    layoutChanged(false);
+  };
+  const up = () => {
+    splitter.classList.remove("dragging");
+    splitter.removeEventListener("pointermove", move);
+    splitter.removeEventListener("pointerup", up);
+    layoutChanged(true);
+  };
+  splitter.addEventListener("pointermove", move);
+  splitter.addEventListener("pointerup", up);
+}
+
+// ---------------------------------------------------------------------------
+// About
+// ---------------------------------------------------------------------------
+const PROJECT_URL = "https://github.com/luigihmtz/write-assist";
+
+function openAbout() {
+  $("aboutVersion").textContent = t("settings.version", { version: app.info?.version || "" }) + (app.info?.is_dev ? t("settings.devCopy") : "");
+  $("aboutAuthor").textContent = t("about.author", { name: "Luis Martinez" });
+  $("aboutUpdate").hidden = true;
+  $("aboutDialog").showModal();
+  $("aboutClose").focus();
+}
+
+async function aboutCheckUpdate() {
+  const note = $("aboutUpdate");
+  note.hidden = false;
+  if (app.info?.is_dev) { note.textContent = t("about.dev"); return; }
+  note.textContent = t("about.checking");
+  const res = await api().check_update();
+  if (!res.ok) { note.textContent = res.error; return; }
+  if (!res.tag) { note.textContent = t("about.upToDate"); return; }
+  app.updateTag = res.tag;
+  els.updateBtn.textContent = t("update.button", { tag: res.tag });
+  els.updateBtn.hidden = false;
+  note.textContent = t("about.available", { tag: res.tag });
 }
 
 // ---------------------------------------------------------------------------
@@ -1272,11 +1492,6 @@ async function deleteVersion(v) {
 // with a "details" side-text at the end
 // ---------------------------------------------------------------------------
 const exp = { source: null, targets: null };
-
-function versionSource(v) {
-  return { text: v.text, when: v.time, task: v.task, prompt: v.prompt, language: v.language,
-    provider: v.provider, model: v.model, isVersion: true };
-}
 
 function currentSource() {
   if ($("expWhat").value === "draft") {
@@ -1519,6 +1734,7 @@ async function openSettings(firstRun = false) {
   $("uiLanguage").value = res.ui_language || "";
   fillMicrophones(res.microphone || "");
   $("historyOn").checked = res.history !== false;
+  $("askSave").checked = res.ask_save !== false;
   $("authorName").value = res.author_name || "";
   $("authorName").placeholder = res.author_default || "";
   $("versionText").textContent = t("settings.version", { version: res.version }) + (res.is_dev ? t("settings.devCopy") : "");
@@ -1553,6 +1769,7 @@ async function closeSettings(save) {
     speech_model: $("speechModel").value, speech_language: $("speechLanguage").value,
     ui_language: uiLanguage, microphone: $("microphone").value,
     history: $("historyOn").checked, author_name: $("authorName").value.trim(),
+    ask_save_on_close: $("askSave").checked,
   });
   if (!res.ok) { $("settingsError").textContent = res.error; $("settingsError").hidden = false; return; }
   app.microphone = $("microphone").value;
@@ -1580,7 +1797,7 @@ async function checkForUpdate() {
 async function startUpdate() {
   const ok = await confirmBox(t("update.title"),
     t("update.text", { from: app.info.version, to: app.updateTag }), t("update.yes"));
-  if (!ok) return;
+  if (!ok || !(await resolveUnsaved())) return;
   const res = await api().start_update();
   if (!res.ok) setStatus(t("status.updateFailed", { error: res.error }), true);
 }
@@ -1595,6 +1812,20 @@ function wire() {
   $("copyBtn").addEventListener("click", () => copyResult());
   $("useDraftBtn").addEventListener("click", useAsDraft);
   $("settingsBtn").addEventListener("click", () => openSettings(false));
+  $("aboutBtn").addEventListener("click", openAbout);
+  $("aboutClose").addEventListener("click", () => $("aboutDialog").close());
+  $("aboutProject").addEventListener("click", () => api().open_url(PROJECT_URL));
+  $("aboutCredits").addEventListener("click", () => api().open_url(`${PROJECT_URL}#third-party-software`));
+  $("aboutCheck").addEventListener("click", aboutCheckUpdate);
+  $("openSessionBtn").addEventListener("click", openSession);
+  $("saveSessionBtn").addEventListener("click", saveSession);
+  document.querySelectorAll(".splitter").forEach((splitter) => {
+    splitter.addEventListener("pointerdown", (e) => startSplit(splitter, e));
+    splitter.addEventListener("dblclick", () => {
+      layout[splitter.dataset.split] = LAYOUT_DEFAULT[splitter.dataset.split];
+      layoutChanged(true);
+    });
+  });
   $("settingsSave").addEventListener("click", () => closeSettings(true));
   $("settingsCancel").addEventListener("click", () => closeSettings(false));
   $("settingsDialog").addEventListener("cancel", (e) => { e.preventDefault(); closeSettings(false); });
@@ -1606,20 +1837,14 @@ function wire() {
   $("translateBtn").addEventListener("click", openTranslate);
 
   $("thClose").addEventListener("click", closeThesaurus);
-  $("historyBtn").addEventListener("click", () => (els.history.hidden ? openHistory() : closeHistory()));
-  $("histClose").addEventListener("click", closeHistory);
+  $("historyToggle").addEventListener("click", () => toggleHistory());
   $("histSave").addEventListener("click", saveVersion);
+  $("histClear").addEventListener("click", clearHistory);
   els.histLabel.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); saveVersion(); } });
   $("exportBtn").addEventListener("click", () => openExport());
   $("expCancel").addEventListener("click", () => $("exportDialog").close());
   $("expSaveAs").addEventListener("click", () => doExport("dialog"));
-  $("historyClear").addEventListener("click", async () => {
-    const ok = await confirmBox(t("settings.clearConfirmTitle"), t("settings.clearConfirm"), t("settings.clearYes"));
-    if (!ok) return;
-    await api().history_clear();
-    setStatus(t("settings.historyCleared"));
-    if (!els.history.hidden) refreshHistory();
-  });
+  $("historyClear").addEventListener("click", clearHistory);
   els.thBack.addEventListener("click", () => { if (th.history.length) lookup(th.history.pop(), true); });
   els.thSearch.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); lookup(els.thSearch.value); } });
   $("thReplace").addEventListener("click", replaceWithChip);
@@ -1627,7 +1852,7 @@ function wire() {
   els.thBody.addEventListener("scroll", hideChipMenu);
 
   $("trClose").addEventListener("click", closeTranslate);
-  for (const panel of [els.thesaurus, els.translate, els.history]) {
+  for (const panel of [els.thesaurus, els.translate]) {
     panel.querySelector(".detach").addEventListener("click", () => toggleFloating(panel));
     panel.querySelector(".popover-head").addEventListener("pointerdown", (e) => startDrag(panel, e));
   }
@@ -1654,7 +1879,7 @@ function wire() {
   window.addEventListener("resize", () => {
     LT_FIELDS.forEach(renderGrammar);
     syncSourceHighlight();
-    for (const panel of [els.thesaurus, els.translate, els.history]) if (!panel.hidden) keepOnScreen(panel);
+    for (const panel of [els.thesaurus, els.translate]) if (!panel.hidden) keepOnScreen(panel);
   });
   $("trGo").addEventListener("click", translateNow);
   $("trReplace").addEventListener("click", replaceWithTranslation);
@@ -1663,6 +1888,8 @@ function wire() {
   els.trTarget.addEventListener("change", () => { saveState(); if (!els.trOut.hidden) translateNow(); });
 
   for (const el of [els.prompt, els.draft]) el.addEventListener("input", updateTask);
+  for (const el of [els.prompt, els.draft, els.result]) el.addEventListener("input", checkUnsaved);
+  setInterval(checkUnsaved, 1500);   // also catches changes made by code (dictation, Replace...)
   for (const field of ["prompt", "draft"]) els[field].addEventListener("focus", () => { app.lastField = field; });
   els.result.addEventListener("focus", () => { app.lastField = "result"; });
   document.querySelectorAll("#formatBar .fmt").forEach((button) => {
@@ -1713,7 +1940,9 @@ function wire() {
     else if (mod && e.shiftKey && key === "v") { e.preventDefault(); pasteAndReview(); }
     else if (mod && e.shiftKey && key === "c") { e.preventDefault(); copyResult(); }
     else if (mod && e.shiftKey && key === "t") { e.preventDefault(); openTranslate(); }
+    else if (mod && e.shiftKey && key === "s") { e.preventDefault(); saveSession(); }
     else if (mod && !e.shiftKey && key === "s") { e.preventDefault(); saveVersion(); }
+    else if (mod && !e.shiftKey && key === "o") { e.preventDefault(); openSession(); }
     else if (mod && !e.shiftKey && key === "t") {
       e.preventDefault();
       if (document.activeElement === els.thSearch) lookup(els.thSearch.value);
@@ -1723,14 +1952,13 @@ function wire() {
       if (!$("ltPop").hidden) hideLtPop();
       else if (rec.recorder) stopRecording(true);
       else if (!els.thMenu.hidden) hideChipMenu();
-      else if (!els.thesaurus.hidden || !els.translate.hidden || !els.history.hidden) closePanels();
+      else if (!els.thesaurus.hidden || !els.translate.hidden) closePanels();
     }
   });
   document.addEventListener("mousedown", (e) => {
     if (!$("ltPop").hidden && !$("ltPop").contains(e.target)) hideLtPop();
-    if (e.target.closest("#thesaurusBtn, #translateBtn, #historyBtn, dialog")) return;
+    if (e.target.closest("#thesaurusBtn, #translateBtn, dialog")) return;
     const floating = (panel) => panel.classList.contains("floating");
-    if (!els.history.hidden && !floating(els.history) && !els.history.contains(e.target)) closeHistory();
     if (!els.translate.hidden && !floating(els.translate) && !els.translate.contains(e.target)) closeTranslate();
     if (els.thesaurus.hidden) return;
     if (!els.thesaurus.contains(e.target)) { if (floating(els.thesaurus)) hideChipMenu(); else closeThesaurus(); }
@@ -1738,7 +1966,12 @@ function wire() {
   });
 }
 
-window.WA = { focusDraft: () => els.draft.focus() };
+window.WA = {
+  focusDraft: () => els.draft.focus(),
+  applySession,
+  showError: (message) => setStatus(message, true),
+  confirmQuit,
+};
 applyLanguage("");   // static text in the Windows language until settings load
 wire();
 window.addEventListener("pywebviewready", init);

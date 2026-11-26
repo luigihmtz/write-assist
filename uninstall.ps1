@@ -1,14 +1,15 @@
 # uninstall.ps1
 # Removes Write Assist for the current user: stops the app and the hotkey
-# listener, deletes the shortcuts, the Settings > Apps entry, the installed
+# listener, deletes the shortcuts, the .wasession file type, the Settings >
+# Apps entry, the installed
 # files (%LOCALAPPDATA%\WriteAssist), the live grammar checker
 # (%LOCALAPPDATA%\WriteAssist-LanguageTool) and the user's settings
 # (%APPDATA%\WriteAssist). Python, Claude Code and Ollama are left installed.
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v01.01.01
-# Date:    2026-11-25
+# Version: v01.02.00
+# Date:    2026-11-26
 #
 # Usage:   Settings > Apps > Write Assist > Uninstall, or run
 #          powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\WriteAssist\uninstall.ps1"
@@ -27,6 +28,8 @@ Start-Sleep -Milliseconds 500
 Remove-Item (Join-Path ([Environment]::GetFolderPath("Programs")) "Write Assist.lnk")
 Remove-Item (Join-Path ([Environment]::GetFolderPath("Startup")) "Write Assist Hotkey.lnk")
 Remove-Item "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\WriteAssist" -Recurse
+Remove-Item "HKCU:\Software\Classes\.wasession" -Recurse            # session files; the user's .wasession files stay
+Remove-Item "HKCU:\Software\Classes\WriteAssist.Session" -Recurse
 Remove-Item (Join-Path $env:LOCALAPPDATA "WriteAssist") -Recurse -Force
 Remove-Item (Join-Path $env:LOCALAPPDATA "WriteAssist-LanguageTool") -Recurse -Force
 Remove-Item (Join-Path $env:LOCALAPPDATA "WriteAssist-WebView") -Recurse -Force   # window data, normally already gone

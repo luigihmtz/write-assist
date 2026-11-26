@@ -95,12 +95,14 @@ Press **Ctrl+Enter**, then **Copy** the result.
 | **Thesaurus** | Select a word (or put the cursor on it) in Prompt, Draft or the result, then click *Thesaurus* at the top or press **Ctrl+T**: meaning, synonyms and antonyms that fit your sentence. Click a synonym or antonym to **Replace** your word with it or **Search** it in turn (← goes back). You can also type any word in the panel's search box. It asks the AI only when you look something up. |
 | **Underline** | In the top bar: **off**; **spelling** (default: the spellchecker built into Windows, free, nothing to download; it checks English, Spanish and French with Windows' own dictionaries, so on an English-language Windows, French needs *Settings > Time & language > Language & region > Add a language > French*); or **spelling + grammar**, with LanguageTool, a free, open-source checker that runs on your computer (no account, nothing sent anywhere, no AI usage). It underlines spelling (red), grammar (blue) and style (purple); click one for suggestions, or *Ignore*. The first time, it asks before a one-time download of about 300 MB (about 500 MB on disk). With *Language* on Auto, each paragraph is checked in its own language. |
 | **Formatting** | The bar above the result, like Teams': **Bold**, *Italic*, Underline, ~~Strikethrough~~, bulleted and numbered lists, **Link** (select text, then add the address; **Ctrl+K**) and *Clear formatting*. Ctrl+B / Ctrl+I / Ctrl+U work too. **Copy** then puts both versions on the clipboard: Teams, Outlook, Word and Gmail paste the formatting, plain-text apps get the text (lists as "•" and "1."). Exports keep it in Word, PDF and Markdown. Text pasted into the result arrives without formatting. |
-| **History** | Every Review or Create saves the text you sent and the result; **Save current draft** (or **Ctrl+S**) saves the Draft by hand, with an optional label. The History panel lists them newest first, grouped by piece of writing (*Clear* starts a new one). Click a version to **Restore** it to the Draft (the current Draft is saved first, so nothing is lost), **Compare** it with the Draft (added words in green, removed in red), **Copy**, **Export** or **Delete** it. The last 200 versions are kept, on this computer only; turn history off or clear it in *Settings*. |
-| **Export** | From the result (or any version in History): **Word** (.docx), **PDF**, **Text** or **Markdown**. *Add details at the end* appends a small block with the author, date, task, prompt, language, AI and "Made with Write Assist" (Word files also get the author, title and date in their document properties). **Save as...** picks any folder; if OneDrive, Google Drive or Dropbox is installed, **Save to...** puts the file straight into a *Write Assist* folder there, and the sync app takes it to the cloud. The author is your name from *Settings*, or your account name. |
+| **History** | Every Review or Create saves the text you sent and the result (with its changes and notes); **Save current draft** (or **Ctrl+S**) saves the Draft by hand, with an optional label. **History**, at the top of the result, opens a column with the versions, newest first, grouped by piece of writing (the Draft's *Clear* starts a new one). Click a version to show it in the result: a reviewed result comes back with its changes and notes, other versions show what changed from the version before (green added, red removed). The result you had is saved first, so nothing is lost. Turn **History** off to keep working on the version shown. **✕** deletes a version, **Clear** deletes them all. The last 200 versions are kept, on this computer only; turn history off in *Settings*. |
+| **Sessions** | **Save session** (**Ctrl+Shift+S**) saves everything in one `.wasession` file: prompt, draft, result with its formatting, changes and notes, the options, and the versions in History. **Open session** (**Ctrl+O**), or a double-click on the file, brings it all back. Closing Write Assist with unsaved changes asks whether to save them (*Settings* turns that question off). |
+| **Layout** | Drag the dividers between the panels to resize them; double-click a divider to reset it. The sizes are remembered. |
+| **Export** | From the result (or any version shown from History): **Word** (.docx), **PDF**, **Text** or **Markdown**. *Add details at the end* appends a small block with the author, date, task, prompt, language, AI and "Made with Write Assist" (Word files also get the author, title and date in their document properties). **Save as...** picks any folder; if OneDrive, Google Drive or Dropbox is installed, **Save to...** puts the file straight into a *Write Assist* folder there, and the sync app takes it to the cloud. The author is your name from *Settings*, or your account name. |
 | **Panels** | Thesaurus and Translate open next to the text they work on, and that text stays highlighted in yellow. **⧉** detaches a panel: drag it anywhere by its title bar, and it stays open while you keep working. Drag the bottom-right corner to resize it; **⧉** again docks it. |
 | **Translate** | Select text (a word, a sentence, a paragraph) in Prompt, Draft or the result, then click *Translate* at the top or press **Ctrl+Shift+T**. Pick the target language; *English ⇄ Spanish* translates English into Spanish and anything else into English. The panel shows only the translation, with the original highlighted in place. Then **Replace selection**, **Use as draft** or **Copy**. For a single word it also offers other options; click one to swap it in. With nothing selected, the panel offers a box to type or paste text into. It asks the AI only when you translate. |
 | **Dictate** | Speak into Prompt or Draft; click again to stop (Esc cancels). Transcribed on your computer with faster-whisper: free, offline, private. The first time, it offers a one-time download (speech engine about 250 MB, plus the model: 465 MB for *small*). |
-| **Settings** | *About you*, the global hotkey, the microphone for dictation (by default the Windows one), the speech model and language, and the interface language (English, Spanish or French; by default the same as Windows). |
+| **Settings** | *About you*, the global hotkey, the microphone for dictation (by default the Windows one), the speech model and language, the interface language (English, Spanish or French; by default the same as Windows), version history, and whether closing asks to save the session. **About** shows the version, the license and the project page, and checks for updates. |
 
 ![The French interface: a French draft with live spelling and grammar underlines, the reviewed text with its changes explained in French, and the key message highlighted in the draft with its English translation next to it](assets/screenshot-fr.png)
 
@@ -110,7 +112,7 @@ may sound blunt for a client email"). **Create** shows the new text; anything
 essential missing from the prompt is left as a placeholder like `[date]`.
 
 Shortcuts: **Ctrl+Enter** run · **Ctrl+T** thesaurus · **Ctrl+Shift+T** translate · **Ctrl+Shift+V** paste the clipboard as the
-draft and review · **Ctrl+Shift+C** copy the result. *Use as draft* moves the
+draft and review · **Ctrl+Shift+C** copy the result · **Ctrl+S** save the draft as a version · **Ctrl+Shift+S** save the session · **Ctrl+O** open a session. *Use as draft* moves the
 result into Draft, to refine it with a new prompt. The result is editable, and
 emojis are kept as they are.
 
@@ -230,9 +232,18 @@ dictado por voz.
   tienes instalados, **ChatGPT** y **GitHub Copilot**. La primera vez que eliges Local (gratis), la
   app te avisa del tamaño de la descarga antes de bajar nada.
 - **Historial:** cada Revisar o Crear guarda el texto y el resultado; **Ctrl+S**
-  guarda el Borrador a mano. En **Historial** puedes restaurar, comparar,
-  copiar o exportar una versión. Se guardan las últimas 200, solo en tu
+  guarda el Borrador a mano. El botón **Historial**, arriba del resultado,
+  abre una columna con las versiones: haz clic en una para verla en el
+  resultado, con sus cambios y notas. Apaga **Historial** para seguir
+  trabajando con la versión que ves. Se guardan las últimas 200, solo en tu
   computadora.
+- **Sesiones:** **Guardar sesión** (Ctrl+Shift+S) guarda todo en un archivo
+  `.wasession`: instrucciones, borrador, resultado, cambios, notas y
+  versiones. **Abrir sesión** (Ctrl+O), o doble clic en el archivo, lo
+  recupera. Al cerrar con cambios sin guardar, la app pregunta si quieres
+  guardarlos.
+- **Paneles:** arrastra las divisiones entre los paneles para cambiar su
+  tamaño; doble clic para restablecerlo.
 - **Formato:** sobre el resultado hay una barra como la de Teams: negrita,
   cursiva, subrayado, tachado, listas, vínculos y borrar formato. Al copiar,
   Teams, Outlook y Word reciben el texto con formato.
@@ -286,7 +297,7 @@ haz clic en **Desinstalar**.
 
 Per-user files, kept across updates, in `%APPDATA%\WriteAssist\`:
 `user_settings.json` (*About you*, hotkey, and any `settings.json` key to
-override), `state.json` (last-used options, window size) and `history.json`
+override), `state.json` (last-used options, window and panel sizes) and `history.json`
 (version history). Installed copies
 live in `%LOCALAPPDATA%\WriteAssist\`.
 

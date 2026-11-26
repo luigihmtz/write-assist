@@ -1,5 +1,23 @@
 # Changelog
 
+## v02.12.00 - 2026-11-26
+
+- History now lives inside the result panel: the **History** button opens a
+  column with the versions, and clicking one shows it in the result, with its
+  changes and notes (or what changed from the version before). The result you
+  had is saved first. Turning History off keeps the version shown. The
+  column has its own **Clear** button.
+- Sessions: **Save session** (Ctrl+Shift+S) saves the prompt, draft, result
+  (with formatting, changes and notes), options and versions in a
+  `.wasession` file; **Open session** (Ctrl+O) or a double-click on the file
+  brings it back.
+- Closing with unsaved changes asks whether to save the session (it can be
+  turned off in Settings). Opening another session or updating asks too.
+- The panels can be resized by dragging the dividers between them
+  (double-click resets); the sizes are remembered.
+- **About** (next to Settings): version, license, project page, credits, and
+  a check for updates.
+
 ## v02.11.00 - 2026-11-25
 
 - Formatting bar on the result, like Teams' compose box: bold, italic,

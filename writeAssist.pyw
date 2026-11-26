@@ -15,8 +15,8 @@
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v02.10.00
-# Date:    2026-11-25
+# Version: v02.11.00
+# Date:    2026-11-26
 #
 # Usage: installed by install.ps1 (Start Menu shortcut + global hotkey, default
 #        Win+Ctrl+W, via hotkeyListener.pyw), or run `pythonw writeAssist.pyw`.
@@ -27,6 +27,7 @@
 #        global hotkey yet). macOS support is a first pass, not yet tested.
 
 import base64
+import json
 import os
 import socket
 import subprocess
@@ -290,11 +291,13 @@ class Bridge:
             request.get("mode", "polish"), request.get("tone", "keep"),
             core.load_user_settings().get("profile", ""), self._settings.get("timeout_seconds", 120),
             request.get("language", "")))
-        self._remember(task, request, extra, result["text"])
+        self._remember(task, request, extra, result)
         return {"task": task, "elapsed": time.time() - started, **extra, **result}
 
-    def _remember(self, task, request, extra, result_text):
-        """History: the draft that was reviewed (if any) and the result."""
+    def _remember(self, task, request, extra, result):
+        """History: the draft that was reviewed (if any) and the result, with the
+        AI's changes, notes and highlights (they can't be rebuilt later)."""
+        result_text = result["text"]
         if not self._settings.get("history", True):
             return
         provider = extra.get("provider", request.get("provider", ""))
@@ -310,7 +313,8 @@ class Bridge:
             self._history.add(draft, "draft", **details,
                               language=chosen if chosen not in ("", "auto") else core.detect_language(draft))
         self._history.add(result_text, "result", **details,
-                          language=chosen if chosen not in ("", "auto") else core.detect_language(result_text))
+                          language=chosen if chosen not in ("", "auto") else core.detect_language(result_text),
+                          changes=result.get("changes"), notes=result.get("notes"), spans=result.get("spans"))
 
     # ---- Version history -------------------------------------------------- #
     @safely
@@ -318,8 +322,8 @@ class Bridge:
         return {**self._history.list(), "enabled": bool(self._settings.get("history", True))}
 
     @safely
-    def history_save(self, text, label=""):
-        version = self._history.add(text, "saved", label, language=core.detect_language(text))
+    def history_save(self, text, label="", rich=None):
+        version = self._history.add(text, "saved", label, language=core.detect_language(text), rich=rich)
         return {"version": version}
 
     @safely
@@ -337,6 +341,70 @@ class Bridge:
     @safely
     def history_compare(self, old, new):
         return {"parts": history.compare(old, new)}
+
+    # ---- Sessions (.wasession) ---------------------------------------------- #
+    SESSION_FORMAT = "write-assist-session"
+
+    @safely
+    def session_save(self, data):
+        """Saves the page's texts and options plus this text's versions to a
+        .wasession file the user picks."""
+        from datetime import datetime
+        name = export.suggested_name(data.get("draft") or data.get("result_text") or "Write Assist", "wasession")
+        save = getattr(getattr(webview, "FileDialog", None), "SAVE", None) or webview.SAVE_DIALOG
+        chosen = self._window.create_file_dialog(save, save_filename=name,
+                                                 file_types=("Write Assist session (*.wasession)",))
+        if not chosen:
+            return {"cancelled": True}
+        path = Path(chosen[0] if isinstance(chosen, (list, tuple)) else chosen)
+        if path.suffix.lower() != ".wasession":
+            path = path.with_name(path.name + ".wasession")
+        session = {"format": self.SESSION_FORMAT, "format_version": 1, "app_version": self._version,
+                   "saved": datetime.now().astimezone().isoformat(timespec="seconds"),
+                   **data, "history": self._history.current_group()}
+        path.write_text(json.dumps(session, ensure_ascii=False, indent=1), encoding="utf-8")
+        return {"path": str(path), "folder": str(path.parent)}
+
+    @safely
+    def session_open(self):
+        open_dialog = getattr(getattr(webview, "FileDialog", None), "OPEN", None) or webview.OPEN_DIALOG
+        chosen = self._window.create_file_dialog(open_dialog, file_types=("Write Assist session (*.wasession)",))
+        if not chosen:
+            return {"cancelled": True}
+        return self._read_session(chosen[0] if isinstance(chosen, (list, tuple)) else chosen)
+
+    def _read_session(self, path):
+        """Reads a session file and adds its versions to History (as a new text)."""
+        path = Path(path)
+        try:
+            session = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            session = None
+        if not isinstance(session, dict) or session.get("format") != self.SESSION_FORMAT:
+            raise RuntimeError(f"{path.name} isn't a Write Assist session file.")
+        if self._settings.get("history", True):
+            self._history.import_versions(session.get("history"))
+        return {"session": session, "name": path.name}
+
+    @safely
+    def startup_session(self):
+        """A session file Write Assist was opened with (double-click), if any."""
+        path, self._startup_path = getattr(self, "_startup_path", None), None
+        return self._read_session(path) if path else {"session": None}
+
+    def open_session_file(self, path):
+        """A session double-clicked while the window was already open."""
+        try:
+            data = self._read_session(path)
+            self._window.evaluate_js(f"window.WA && WA.applySession({json.dumps(data)})")
+        except Exception as exc:
+            self._window.evaluate_js(f"window.WA && WA.showError({json.dumps(str(exc))})")
+
+    @safely
+    def open_url(self, url):
+        if str(url).startswith(("https://", "http://")):
+            import webbrowser
+            webbrowser.open(url)
 
     # ---- Export ----------------------------------------------------------- #
     def _author(self):
@@ -607,6 +675,7 @@ class Bridge:
                 "microphone": self._settings.get("microphone", ""),
                 "check_mode": self._check_mode(),
                 "history": bool(self._settings.get("history", True)),
+                "ask_save": bool(self._settings.get("ask_save_on_close", True)),
                 "author_name": self._settings.get("author_name", ""), "author_default": export.account_name(),
                 "version": self._version, "is_dev": core.IS_DEV}
 
@@ -615,7 +684,7 @@ class Bridge:
         user = core.load_user_settings()
         user["profile"] = (values.get("profile") or "").strip()
         for key in ("speech_model", "speech_language", "ui_language", "microphone", "check_mode",
-                    "history", "author_name"):
+                    "history", "author_name", "ask_save_on_close"):
             if key in values:
                 user[key] = values[key]
         new_hotkey = (values.get("hotkey") or "").strip()
@@ -648,7 +717,20 @@ class Bridge:
     def start_update(self):
         script = core.download_installer(self._repo)
         platform.launch_installer(script)   # in a visible window (Terminal on macOS), from the temp folder
+        self._close_ok = True                 # the page already asked about unsaved work
         threading.Timer(0.3, self._window.destroy).start()
+
+    # ---- Closing with unsaved work ---------------------------------------- #
+    @safely
+    def set_unsaved(self, unsaved):
+        """The page says whether it has work that isn't in a saved session."""
+        self._unsaved = bool(unsaved)
+
+    @safely
+    def quit(self):
+        """Closes after the page asked (saved or not)."""
+        self._close_ok = True
+        threading.Timer(0.1, self._window.destroy).start()
 
     # ---- Window ----------------------------------------------------------- #
     def bring_to_front(self):
@@ -686,8 +768,9 @@ def claim_instance():
     return server
 
 
-def wake_existing_instance():
-    """Asks the open window to come forward. Returns True if one answered."""
+def wake_existing_instance(session_path=None):
+    """Asks the open window to come forward (and open session_path, if given).
+    Returns True if one answered."""
     try:  # this process was just launched by the user, so it may hand over focus
         import ctypes
         ctypes.windll.user32.AllowSetForegroundWindow(-1)  # ASFW_ANY
@@ -695,7 +778,7 @@ def wake_existing_instance():
         pass
     try:
         with socket.create_connection(("127.0.0.1", INSTANCE_PORT), timeout=2) as conn:
-            conn.sendall(b"show")
+            conn.sendall(f"open {session_path}".encode("utf-8") if session_path else b"show")
         return True
     except OSError:
         return False
@@ -709,8 +792,16 @@ def listen_for_wakeups(server, bridge):
             except OSError:
                 return
             with conn:
-                if conn.recv(16).startswith(b"show"):
+                message = conn.recv(4096)
+                if message.startswith(b"show"):
                     threading.Thread(target=bridge.bring_to_front, daemon=True).start()
+                elif message.startswith(b"open "):
+                    path = message[5:].decode("utf-8", "replace")
+
+                    def open_it(path=path):
+                        bridge.bring_to_front()
+                        bridge.open_session_file(path)
+                    threading.Thread(target=open_it, daemon=True).start()
     threading.Thread(target=serve, daemon=True).start()
 
 
@@ -734,8 +825,12 @@ def prepare_webview_profile():
 
 
 def main():
+    import sys
+    # Opened with a .wasession file (double-click): an open window gets it,
+    # otherwise this window opens it once the page is ready.
+    session_path = next((arg for arg in sys.argv[1:] if arg.lower().endswith(".wasession")), None)
     server = claim_instance()
-    if server is None and wake_existing_instance():
+    if server is None and wake_existing_instance(session_path):
         return
     try:
         import ctypes
@@ -744,6 +839,7 @@ def main():
         pass
 
     bridge = Bridge()
+    bridge._startup_path = session_path
     size = bridge._state.get("window") or {}
     window = webview.create_window(
         core.APP_NAME, str(UI_FILE), js_api=bridge,
@@ -771,6 +867,12 @@ def main():
                 pass
 
     def on_closing():
+        # Unsaved work: cancel this close and let the page ask (Save / Don't
+        # save / Cancel); it calls quit() when the user has chosen.
+        if getattr(bridge, "_unsaved", False) and not getattr(bridge, "_close_ok", False) \
+                and bridge._settings.get("ask_save_on_close", True):
+            threading.Thread(target=lambda: window.evaluate_js("window.WA && WA.confirmQuit()"), daemon=True).start()
+            return False
         try:
             bridge._state["window"] = {"width": window.width, "height": window.height}
             core.save_json(core.STATE_FILE, bridge._state)

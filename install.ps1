@@ -3,16 +3,16 @@
 # to configure: makes sure Python (plus the pywebview package) and the WebView2
 # runtime are installed, sets up an AI (Claude Code, or a free AI that runs on
 # this computer through Ollama, the user's choice), downloads the latest release,
-# creates the Start Menu shortcut and the global-hotkey listener, registers it
-# in Settings > Apps, and helps sign in to Claude. The optional speech engine
+# creates the Start Menu shortcut and the global-hotkey listener, opens
+# .wasession files (sessions) with a double-click, registers it in Settings > Apps, and helps sign in to Claude. The optional speech engine
 # is installed later by the app, the first time the microphone is used.
 # Run from a clone of the repo (has .git), it sets up that folder in place
 # instead of downloading (development copy).
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v01.02.00
-# Date:    2026-11-24
+# Version: v01.03.00
+# Date:    2026-11-26
 #
 # Usage:   Install or update (PowerShell):
 #            irm https://raw.githubusercontent.com/luigihmtz/write-assist/main/install.ps1 | iex
@@ -337,6 +337,17 @@ public static class WriteAssistLinkAppId {
     Set-ShortcutAppId $appLink $appId
     New-Shortcut $hotkeyLink $pythonw "`"$listener`"" $appDir $icon "Global hotkey for Write Assist"
     Write-Ok "Start Menu shortcut: Write Assist"
+
+    # Session files (.wasession) open in Write Assist with a double-click.
+    $classes = "HKCU:\Software\Classes"
+    New-Item -Path "$classes\.wasession" -Force | Out-Null
+    Set-Item -Path "$classes\.wasession" -Value "WriteAssist.Session"
+    New-Item -Path "$classes\WriteAssist.Session\DefaultIcon" -Force | Out-Null
+    Set-Item -Path "$classes\WriteAssist.Session" -Value "Write Assist session"
+    Set-Item -Path "$classes\WriteAssist.Session\DefaultIcon" -Value "$icon,0"
+    New-Item -Path "$classes\WriteAssist.Session\shell\open\command" -Force | Out-Null
+    Set-Item -Path "$classes\WriteAssist.Session\shell\open\command" -Value "`"$pythonw`" `"$appScript`" `"%1`""
+    Write-Ok "Session files (.wasession) open in Write Assist"
 
     if (-not $devDir) {
         $version = (Get-Content (Join-Path $appDir "release.json") -Raw | ConvertFrom-Json).version

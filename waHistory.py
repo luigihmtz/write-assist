@@ -6,11 +6,13 @@
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v01.00.00
-# Date:    2026-11-25
+# Version: v01.01.00
+# Date:    2026-11-26
 #
 # Usage: imported by writeAssist.pyw. History(path).add(...), .list(), .get(id),
-#        .delete(id), .clear(), .new_group(); compare(a, b) for the diff view.
+#        .delete(id), .clear(), .new_group(), .import_versions(versions) (from a
+#        session file); compare(a, b) for the diff view. Result versions also
+#        keep the AI's changes, notes and highlight spans.
 
 import difflib
 import json
@@ -85,6 +87,27 @@ class History:
     def clear(self):
         with self._lock:
             self._save({"group": uuid.uuid4().hex[:8], "versions": []})
+
+    def current_group(self):
+        """The versions of the piece of writing being worked on (since the last Clear)."""
+        data = self._load()
+        return [v for v in data["versions"] if v["group"] == data["group"]]
+
+    def import_versions(self, versions):
+        """Adds a session's versions as a new current group (newest first), with
+        new ids so they never clash with the ones already here."""
+        with self._lock:
+            data = self._load()
+            data["group"] = uuid.uuid4().hex[:8]
+            imported = []
+            for version in versions or []:
+                if not isinstance(version, dict) or not str(version.get("text", "")).strip():
+                    continue
+                imported.append({**version, "id": uuid.uuid4().hex[:12], "group": data["group"]})
+            imported.sort(key=lambda v: v.get("time", ""), reverse=True)
+            data["versions"] = (imported + data["versions"])[:MAX_VERSIONS]
+            self._save(data)
+            return data["group"]
 
     def new_group(self):
         with self._lock:

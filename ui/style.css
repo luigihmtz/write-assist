@@ -6,8 +6,8 @@
  *
  * Author:  Luis Martinez
  * Email:   16788942+luigihmtz@users.noreply.github.com
- * Version: v01.07.00
- * Date:    2026-11-25
+ * Version: v01.08.00
+ * Date:    2026-11-26
  *
  * Usage: linked from ui/index.html. --fs is set from settings.json font_size.
  */
@@ -125,15 +125,15 @@ select, input:not([type="checkbox"]) {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) 12px minmax(0, 1fr);   /* the middle track is the divider */
+  gap: 0;
   padding: 6px 14px;
 }
 
 .column {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 0;
   min-height: 0;
 }
 
@@ -150,8 +150,8 @@ select, input:not([type="checkbox"]) {
 
 .prompt-card { flex: 0 0 26%; }
 .draft-card { flex: 1; }
-.result-card { flex: 1 1 64%; }
-.changes-card { flex: 1 1 36%; }
+.result-card { flex: 0 0 64%; }
+.changes-card { flex: 1 1 0; }
 
 .card-head {
   display: flex;
@@ -399,8 +399,39 @@ textarea.hl-on, textarea.lt-on { position: relative; z-index: 1; }
 .status.link { cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 
 /* ---- history panel ---------------------------------------------------- */
-.hist-save { display: flex; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--border); }
-.hist-save input { flex: 1; min-width: 0; }
+/* Dividers between the panels: drag to resize, double-click to reset. */
+.splitter { flex: none; position: relative; }
+.splitter-v { cursor: col-resize; }
+.splitter-h { height: 12px; cursor: row-resize; }
+.splitter::after { content: ""; position: absolute; border-radius: 2px; background: transparent; transition: background 0.15s; }
+.splitter-v::after { top: 30%; bottom: 30%; left: 5px; width: 2px; }
+.splitter-h::after { left: 30%; right: 30%; top: 5px; height: 2px; }
+.splitter:hover::after, .splitter.dragging::after { background: var(--accent); }
+
+/* History view inside the Result panel */
+.result-body { flex: 1; min-height: 0; display: flex; }
+.result-body > .result { flex: 1; min-width: 0; }
+.hist-column { width: 250px; flex: none; display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--border); }
+#historyToggle.active { background: var(--accent-soft); border-color: var(--accent); }
+.card-head > #resultTitle { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hist-save { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+.hist-save input { min-width: 0; }
+.hist-save-buttons { display: flex; gap: 6px; }
+.hist-save-buttons #histSave { flex: 1; }
+.hist-list { flex: 1; overflow: auto; padding: 4px 8px 8px; }
+.hist-item { position: relative; }
+.hist-item.selected { border-color: var(--accent); background: var(--accent-soft); }
+.hist-del { position: absolute; top: 4px; right: 4px; display: none; padding: 0 5px; font-size: 0.8em; }
+.hist-item:hover .hist-del { display: block; }
+.hist-ai { font-size: 0.8em; color: var(--muted); margin-top: 2px; }
+.changes ins { color: var(--new); text-decoration: none; background: rgba(30, 123, 52, 0.12); }
+.changes del { color: var(--old); margin-right: 3px; }
+.hist-diff-text { white-space: pre-wrap; }
+
+/* About */
+.about h2 { font-size: 1.3em; }
+.about-links { display: flex; gap: 8px; align-items: center; }
+.link-button { border: none; background: none; padding: 0; color: var(--accent); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 .hist-group { margin: 10px 0 4px; font-size: 0.8em; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
 .hist-item { padding: 6px 8px; border-radius: 8px; cursor: pointer; border: 1px solid transparent; }
 .hist-item:hover { background: var(--accent-soft); }
