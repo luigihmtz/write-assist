@@ -5,7 +5,7 @@
 //
 // Author:  Luis Martinez
 // Email:   16788942+luigihmtz@users.noreply.github.com
-// Version: v01.13.00
+// Version: v01.14.00
 // Date:    2026-11-26
 //
 // Usage: loaded by ui/index.html before app.js. In index.html:
@@ -84,6 +84,14 @@ const STRINGS = {
     // footer
     "run.review": "Review",
     "run.create": "Create",
+    "run.refine": "Refine",
+    "run.refineTitle": "Apply the Prompt's changes to the result, e.g. \"shorter and friendlier\" (the Draft stays as it is)",
+    "status.refining": "Refining with {provider}... {seconds}s",
+    "status.refined": "Refined with {provider}",
+    "status.refineNeedsPrompt": "Write in the Prompt what to change in the result, then Refine.",
+    "result.refined": "Refined ({provider})",
+    "changes.refined": "What changed (green: added, red: removed):",
+    "history.src.edited": "Edited",
     "autoCopy": "Copy result automatically",
     "update.button": "Update to {tag}",
 
@@ -380,6 +388,14 @@ const STRINGS = {
 
     "run.review": "Revisar",
     "run.create": "Crear",
+    "run.refine": "Ajustar",
+    "run.refineTitle": "Aplica al resultado los cambios de las instrucciones, p. ej. \"más corto y amable\" (el Borrador no cambia)",
+    "status.refining": "Ajustando con {provider}... {seconds}s",
+    "status.refined": "Ajustado con {provider}",
+    "status.refineNeedsPrompt": "Escribe en las instrucciones qué cambiar del resultado y luego Ajustar.",
+    "result.refined": "Ajustado ({provider})",
+    "changes.refined": "Qué cambió (verde: agregado, rojo: quitado):",
+    "history.src.edited": "Editado",
     "autoCopy": "Copiar el resultado automáticamente",
     "update.button": "Actualizar a {tag}",
 
@@ -670,6 +686,14 @@ const STRINGS = {
 
     "run.review": "Réviser",
     "run.create": "Créer",
+    "run.refine": "Affiner",
+    "run.refineTitle": "Applique au résultat les modifications de la consigne, p. ex. \"plus court et plus chaleureux\" (le brouillon ne change pas)",
+    "status.refining": "Affinage avec {provider}... {seconds}s",
+    "status.refined": "Affiné avec {provider}",
+    "status.refineNeedsPrompt": "Écrivez dans la consigne ce qu'il faut changer dans le résultat, puis Affiner.",
+    "result.refined": "Affiné ({provider})",
+    "changes.refined": "Ce qui a changé (vert : ajouté, rouge : supprimé) :",
+    "history.src.edited": "Modifié",
     "autoCopy": "Copier le résultat automatiquement",
     "update.button": "Mettre à jour vers {tag}",
 

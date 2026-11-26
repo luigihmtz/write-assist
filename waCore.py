@@ -8,7 +8,7 @@
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v01.08.00
+# Version: v01.09.00
 # Date:    2026-11-26
 #
 # Usage: imported by writeAssist.pyw. Per-user files live in
@@ -600,8 +600,11 @@ def detect_task(prompt, draft):
     return None
 
 
-def build_text_message(task, prompt, draft, mode, tone, language="", explain_in=""):
+def build_text_message(task, prompt, draft, mode, tone, language="", explain_in="", previous_prompt=""):
+    """draft is the text to proofread (review) or to revise (refine)."""
     parts = [f"<task>{task}</task>"]
+    if task == "refine" and previous_prompt.strip():
+        parts.append(f"<previous_prompt>\n{previous_prompt.strip()}\n</previous_prompt>")
     if prompt.strip():
         parts.append(f"<prompt>\n{prompt.strip()}\n</prompt>")
     if task == "review":
@@ -609,13 +612,15 @@ def build_text_message(task, prompt, draft, mode, tone, language="", explain_in=
     parts.append(f"<tone>{tone}</tone>")
     if language and language != "auto":
         parts.append(f"<language>{language}</language>")
-    elif task == "review" and detect_language(draft):
+    elif task in ("review", "refine") and detect_language(draft):
         parts.append(f"<language>{detect_language(draft)}</language>")
     if explain_in:   # reasons and notes in the interface language (spelled out: small models skip a bare tag)
         parts.append(f"<explain_in>{explain_in}. Write every reason and the notes in {explain_in}; "
                      f"the text keeps its own language.</explain_in>")
     if task == "review":
         parts.append(f"<draft>\n{draft}\n</draft>")
+    elif task == "refine":
+        parts.append(f"<text>\n{draft}\n</text>")
     return "\n".join(parts)
 
 
@@ -641,13 +646,15 @@ def drop_repeated_changes(changes):
 
 
 def run_text_task(provider_name, provider, model, task, prompt, draft, mode, tone, profile, timeout,
-                  language="", explain_in=""):
-    """Review or Create. Returns {text, changes, notes, spans}."""
-    message = build_text_message(task, prompt, draft, mode, tone, language, explain_in)
+                  language="", explain_in="", previous_prompt=""):
+    """Review, Create or Refine (draft = the text to revise). Returns {text, changes, notes, spans}."""
+    message = build_text_message(task, prompt, draft, mode, tone, language, explain_in, previous_prompt)
     result = ask(provider_name, provider, model, message, load_system_prompt(profile),
                  TEXT_SCHEMA, TEXT_JSON_HINT, timeout)
     if not isinstance(result.get("text"), str):
         raise RuntimeError("The reply had no text.")
+    # Spaces some models leave at line ends would show up as changes.
+    result["text"] = "\n".join(line.rstrip() for line in result["text"].split("\n"))
     changes = [c for c in (result.get("changes") or [])
                if isinstance(c, dict) and c.get("original") != c.get("fixed")]  # drop no-op entries
     changes = drop_repeated_changes(changes)
@@ -655,7 +662,7 @@ def run_text_task(provider_name, provider, model, task, prompt, draft, mode, ton
     for item in changes:
         item["reason"] = str(item.get("reason") or "").replace('\\"', '"')
     notes = str(result.get("notes") or "").replace('\\"', '"')
-    spans = changed_spans(draft, result["text"]) if task == "review" else []
+    spans = changed_spans(draft, result["text"]) if task in ("review", "refine") else []
     return {"text": result["text"], "changes": changes if task == "review" else [],
             "notes": notes, "spans": spans}
 

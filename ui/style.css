@@ -6,7 +6,7 @@
  *
  * Author:  Luis Martinez
  * Email:   16788942+luigihmtz@users.noreply.github.com
- * Version: v01.08.00
+ * Version: v01.09.00
  * Date:    2026-11-26
  *
  * Usage: linked from ui/index.html. --fs is set from settings.json font_size.
@@ -255,7 +255,7 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
   padding: 6px 16px;
 }
 
-.primary kbd {
+.primary kbd, #refineBtn kbd {
   font: inherit;
   font-weight: 400;
   font-size: 0.8em;

@@ -15,7 +15,7 @@
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v02.12.00
+# Version: v02.13.00
 # Date:    2026-11-26
 #
 # Usage: installed by install.ps1 (Start Menu shortcut + global hotkey, default
@@ -290,16 +290,27 @@ class Bridge:
     # ---- Review / Create -------------------------------------------------- #
     @safely
     def run(self, request):
-        task = core.detect_task(request.get("prompt", ""), request.get("draft", ""))
-        if not task:
-            raise RuntimeError("Paste a draft to review, or write a prompt to create.")
+        """Review, Create, or Refine (request["refine"]: the prompt's changes
+        applied to the current result, request["result"]; the Draft is untouched)."""
+        refine = bool(request.get("refine"))
+        if refine:
+            task, source = "refine", request.get("result", "")
+            if not source.strip() or not request.get("prompt", "").strip():
+                raise RuntimeError("Write in the Prompt what to change in the result.")
+        else:
+            task, source = core.detect_task(request.get("prompt", ""), request.get("draft", "")), request.get("draft", "")
+            if not task:
+                raise RuntimeError("Paste a draft to review, or write a prompt to create.")
         started = time.time()
         result, extra = self._ask_with_fallback(request, lambda name, provider, model: core.run_text_task(
-            name, provider, model, task, request.get("prompt", ""), request.get("draft", ""),
+            name, provider, model, task, request.get("prompt", ""), source,
             request.get("mode", "polish"), request.get("tone", "keep"),
             core.load_user_settings().get("profile", ""), self._settings.get("timeout_seconds", 120),
-            request.get("language", ""), EXPLAIN_LANGUAGES.get(request.get("ui_language", ""), "")))
+            request.get("language", ""), EXPLAIN_LANGUAGES.get(request.get("ui_language", ""), ""),
+            request.get("previous_prompt", "")))
         self._remember(task, request, extra, result)
+        if refine:   # what changed, for the Changes panel (computed here, not by the AI)
+            result["diff"] = history.compare(source.rstrip(), result["text"].rstrip())
         return {"task": task, "elapsed": time.time() - started, **extra, **result}
 
     def _remember(self, task, request, extra, result):
@@ -320,6 +331,11 @@ class Bridge:
         if task == "review":
             self._history.add(draft, "draft", **details,
                               language=chosen if chosen not in ("", "auto") else core.detect_language(draft))
+        elif task == "refine":
+            # The result as it was before refining; skipped when it's the latest
+            # version already (only hand edits make it new).
+            edited = request.get("result", "")
+            self._history.add(edited, "edited", language=core.detect_language(edited))
         self._history.add(result_text, "result", **details,
                           language=chosen if chosen not in ("", "auto") else core.detect_language(result_text),
                           changes=result.get("changes"), notes=result.get("notes"), spans=result.get("spans"))

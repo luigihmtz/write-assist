@@ -10,7 +10,7 @@
 //
 // Author:  Luis Martinez
 // Email:   16788942+luigihmtz@users.noreply.github.com
-// Version: v01.15.00
+// Version: v01.16.00
 // Date:    2026-11-26
 //
 // Usage: loaded by ui/index.html after i18n.js (t(), applyLanguage()). Every
@@ -25,7 +25,7 @@ const els = {
   provider: $("provider"), model: $("model"),
   prompt: $("prompt"), draft: $("draft"), preset: $("preset"),
   result: $("result"), resultTitle: $("resultTitle"), changes: $("changes"),
-  runBtn: $("runBtn"), autoCopy: $("autoCopy"), updateBtn: $("updateBtn"), status: $("status"),
+  runBtn: $("runBtn"), refineBtn: $("refineBtn"), autoCopy: $("autoCopy"), updateBtn: $("updateBtn"), status: $("status"),
   thesaurus: $("thesaurus"), thSearch: $("thSearch"), thBack: $("thBack"), thBody: $("thBody"), thMenu: $("thMenu"),
   translate: $("translatePanel"), trTarget: $("trTarget"), trSource: $("trSource"), trOut: $("trOut"),
   trMeta: $("trMeta"), trText: $("trText"), trAltBlock: $("trAltBlock"), trAlts: $("trAlts"), trNote: $("trNote"),
@@ -243,38 +243,52 @@ function updateTask() {
   app.task = task;
   const label = task === "create" ? t("run.create") : t("run.review");
   els.runBtn.innerHTML = `${escapeHtml(label)} <kbd class="kbd-run">${RUN_KEYS()}</kbd>`;
+  els.refineBtn.innerHTML = `${escapeHtml(t("run.refine"))} <kbd class="kbd-run">${onMac ? "⇧⌘↩" : "Ctrl+Shift+Enter"}</kbd>`;
   els.mode.disabled = task === "create";
 }
 
-async function run() {
+// Refine: the Prompt's changes applied to the current result (Draft untouched).
+const canRefine = () => Boolean(els.result.textContent.trim());
+
+function updateRefine() {
+  els.refineBtn.hidden = !canRefine();
+}
+
+async function run(refine = false) {
   if (app.busy) return;
-  const task = detectTask();
+  const task = refine ? "refine" : detectTask();
   if (!task) { setStatus(t("status.empty")); return; }
+  if (refine && !canRefine()) return;
+  if (refine && !els.prompt.value.trim()) { setStatus(t("status.refineNeedsPrompt")); els.prompt.focus(); return; }
   if (!(await ensureProviderReady())) return;
   const provider = els.provider.value;
   const draft = els.draft.value;
   app.busy = true;
-  els.runBtn.disabled = true;
+  els.runBtn.disabled = els.refineBtn.disabled = true;
   const started = Date.now();
-  const key = task === "review" ? "status.reviewing" : "status.writing";
+  const key = { review: "status.reviewing", create: "status.writing", refine: "status.refining" }[task];
+  // The instruction that started this text: background for Refine.
+  const previousPrompt = app.lastRun ? (app.lastRun.basePrompt ?? app.lastRun.prompt ?? "") : "";
   const timer = setInterval(() => setStatus(t(key, { provider: providerLabel(provider), seconds: Math.round((Date.now() - started) / 1000) })), 250);
   try {
     const res = await api().run({
       provider, model: els.model.value, prompt: els.prompt.value, draft,
       mode: els.mode.value, tone: els.tone.value, language: els.textLanguage.value,
       ui_language: uiLang,   // changes and notes are explained in the interface language
+      ...(refine ? { refine: true, result: resultText(), previous_prompt: previousPrompt } : {}),
     });
     clearInterval(timer);
     if (!res.ok) { setStatus(res.error, true); return; }
     app.lastRun = { task, provider: res.provider, model: els.model.value, prompt: els.prompt.value.trim(),
-      language: els.textLanguage.value === "auto" ? "" : els.textLanguage.value, when: new Date().toISOString() };
+      language: els.textLanguage.value === "auto" ? "" : els.textLanguage.value, when: new Date().toISOString(),
+      ...(refine ? { basePrompt: previousPrompt } : {}) };
     showResult(res);
     hist.selectedId = null;
     if (hist.on) refreshHistory();
   } finally {
     clearInterval(timer);
     app.busy = false;
-    els.runBtn.disabled = false;
+    els.runBtn.disabled = els.refineBtn.disabled = false;
   }
 }
 
@@ -318,10 +332,19 @@ function renderResultTitle() {
 }
 
 // The Changes panel: a review's fixes and the AI's notes.
+// Word differences (from history_compare or a Refine) as green insertions and red deletions.
+function diffHtml(parts, legendKey) {
+  if (!parts.some((part) => part.type !== "equal")) return `<p class="muted">${escapeHtml(t("history.samePrev"))}</p>`;
+  return `<p class="muted">${escapeHtml(t(legendKey))}</p><div class="hist-diff-text">` + parts.map((part) =>
+    part.type === "insert" ? `<ins>${escapeHtml(part.text)}</ins>`
+      : part.type === "delete" ? `<del>${escapeHtml(part.text)}</del>` : escapeHtml(part.text)).join("") + "</div>";
+}
+
 function renderChanges(info) {
   app.lastChanges = info;
   els.changes.innerHTML = "";
   if (!info) return;
+  if (info.task === "refine" && info.diff) els.changes.innerHTML = diffHtml(info.diff, "changes.refined");
   const changes = info.changes || [];
   if (info.task === "review") {
     if (!changes.length) {
@@ -343,16 +366,18 @@ function renderChanges(info) {
 }
 
 function showResult(res) {
-  app.resultTitle = { key: res.task === "review" ? "result.corrected" : "result.written", provider: providerLabel(res.provider) };
+  const titles = { review: "result.corrected", create: "result.written", refine: "result.refined" };
+  app.resultTitle = { key: titles[res.task], provider: providerLabel(res.provider) };
   renderResultTitle();
-  els.result.innerHTML = linesHtml(res.text, res.task === "review" ? res.spans || [] : []);
-  renderChanges({ task: res.task, changes: res.changes || [], notes: res.notes || "" });
+  els.result.innerHTML = linesHtml(res.text, res.task !== "create" ? res.spans || [] : []);
+  renderChanges({ task: res.task, changes: res.changes || [], notes: res.notes || "", ...(res.diff ? { diff: res.diff } : {}) });
+  updateRefine();
 
   const parts = [];
   if (res.fallback_from) parts.push(fallbackNote(res));
   parts.push(res.task === "review"
     ? t(res.changes.length === 1 ? "status.reviewedOne" : "status.reviewed", { provider: providerLabel(res.provider), count: res.changes.length })
-    : t("status.written", { provider: providerLabel(res.provider) }));
+    : t(res.task === "refine" ? "status.refined" : "status.written", { provider: providerLabel(res.provider) }));
   parts.push(`${res.elapsed.toFixed(1)}s`);
   if (els.autoCopy.checked) { copyResult(true); parts.push(t("status.copiedSuffix")); }
   setStatus(parts.join(" · "));
@@ -602,6 +627,7 @@ function clearAll() {
   els.draft.focus();
   hist.selectedId = null;
   session.name = "";
+  updateRefine();
   checkUnsaved();
   api().history_new_group().then(() => { if (hist.on) refreshHistory(); });
 }
@@ -1262,12 +1288,14 @@ async function selectVersion(v) {
 
 function showVersion(v) {
   els.result.innerHTML = v.rich?.length ? richToEditorHtml(v.rich)
-    : linesHtml(v.text, v.source === "result" && v.task === "review" ? v.spans || [] : []);
+    : linesHtml(v.text, v.source === "result" && ["review", "refine"].includes(v.task) ? v.spans || [] : []);
   app.resultTitle = { key: "history.viewing", date: formatWhen(v.time), src: v.source };
   renderResultTitle();
   app.lastRun = { task: v.task, provider: v.provider, model: v.model, prompt: v.prompt, language: v.language, when: v.time };
-  if (v.source === "result" && (v.changes || v.notes)) renderChanges({ task: v.task, changes: v.changes || [], notes: v.notes || "" });
-  else showDiffFromPrevious(v);
+  if (v.source === "result" && v.task !== "refine" && (v.changes || v.notes)) {
+    renderChanges({ task: v.task, changes: v.changes || [], notes: v.notes || "" });
+  } else showDiffFromPrevious(v);
+  updateRefine();
   checkUnsaved();
 }
 
@@ -1282,12 +1310,8 @@ async function showDiffFromPrevious(v) {
   const res = await api().history_compare(previous.text.trimEnd(), v.text.trimEnd());
   if (seq !== hist.diffSeq) return;
   if (!res.ok) { setStatus(res.error, true); return; }
-  const changed = res.parts.some((part) => part.type !== "equal");
-  els.changes.innerHTML = changed
-    ? `<p class="muted">${escapeHtml(t("history.diffPrev"))}</p><div class="hist-diff-text">` + res.parts.map((part) =>
-      part.type === "insert" ? `<ins>${escapeHtml(part.text)}</ins>`
-        : part.type === "delete" ? `<del>${escapeHtml(part.text)}</del>` : escapeHtml(part.text)).join("") + "</div>"
-    : `<p class="muted">${escapeHtml(t("history.samePrev"))}</p>`;
+  els.changes.innerHTML = diffHtml(res.parts, "history.diffPrev");
+  if (v.notes) els.changes.insertAdjacentHTML("beforeend", `<p class="note">${escapeHtml(t("changes.note", { text: v.notes }))}</p>`);
 }
 
 async function saveVersion() {
@@ -1422,6 +1446,7 @@ function applySession(data, restored = false) {
   app.resultTitle = r.title || null;
   renderResultTitle();
   renderChanges(r.changes || null);
+  updateRefine();
   const o = s.options || {};
   setSelect(els.mode, o.mode);
   setSelect(els.tone, o.tone);
@@ -1871,7 +1896,9 @@ async function startUpdate() {
 // Wiring
 // ---------------------------------------------------------------------------
 function wire() {
-  els.runBtn.addEventListener("click", run);
+  els.runBtn.addEventListener("click", () => run());
+  els.refineBtn.addEventListener("click", () => run(true));
+  els.result.addEventListener("input", updateRefine);
   $("pasteBtn").addEventListener("click", pasteAndReview);
   $("clearBtn").addEventListener("click", clearAll);
   $("copyBtn").addEventListener("click", () => copyResult());
@@ -1998,7 +2025,8 @@ function wire() {
   document.addEventListener("keydown", (e) => {
     const key = e.key.toLowerCase();
     const mod = onMac ? e.metaKey : e.ctrlKey;   // ⌘ on macOS, Ctrl on Windows
-    if (mod && e.key === "Enter") {
+    if (mod && e.shiftKey && e.key === "Enter") { e.preventDefault(); run(true); }
+    else if (mod && e.key === "Enter") {
       e.preventDefault();
       if (els.translate.contains(document.activeElement)) translateNow();
       else run();

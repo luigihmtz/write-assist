@@ -7,7 +7,7 @@ buttons, settings dialog. Rendered by writeAssist.pyw in a WebView2 window.
 
 Author:  Luis Martinez
 Email:   16788942+luigihmtz@users.noreply.github.com
-Version: v01.14.00
+Version: v01.15.00
 Date:    2026-11-26
 
 Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
@@ -149,6 +149,7 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
 
   <footer class="statusbar">
     <button id="runBtn" class="primary">Review <kbd class="kbd-run">Ctrl+Enter</kbd></button>
+    <button id="refineBtn" class="ghost" data-i18n-title="run.refineTitle" hidden></button>
     <label class="check"><input type="checkbox" id="autoCopy"> <span data-i18n="autoCopy">Copy result automatically</span></label>
     <button id="updateBtn" class="update" hidden></button>
     <span id="status" class="status"></span>

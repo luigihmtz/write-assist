@@ -1,5 +1,17 @@
 # Changelog
 
+## v02.14.00 - 2026-11-26
+
+- **Refine** (Ctrl+Shift+Enter), next to Review/Create once there's a result:
+  write what to change in the Prompt ("shorter and friendlier", "add that lunch
+  is included") and the result is revised in place, keeping everything else.
+  It works after Create and after Review, includes any edits you made to the
+  result by hand, and leaves the Draft as it is. Changes and notes show what
+  changed; each step is saved in History, so you can go back.
+- Cheap by design: only the current result and the new instruction are sent
+  (plus the first prompt, as background), not the whole conversation, so it
+  costs about the same as a Review and works with the free local AI too.
+
 ## v02.13.00 - 2026-11-26
 
 - Your work is kept when you close Write Assist, like in VS Code: prompt,
