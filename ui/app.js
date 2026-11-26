@@ -1473,6 +1473,17 @@ function openAbout() {
   $("aboutClose").focus();
 }
 
+// The setup report (version, settings, AIs, recent errors) for a bug report.
+async function copyDiagnostics() {
+  const note = $("aboutUpdate");
+  note.hidden = false;
+  note.textContent = t("about.diagWorking");
+  const res = await api().diagnostics();
+  if (!res.ok) { note.textContent = res.error; return; }
+  await copyText(res.text, true);
+  note.textContent = t("about.diagCopied");
+}
+
 async function aboutCheckUpdate() {
   const note = $("aboutUpdate");
   note.hidden = false;
@@ -1817,6 +1828,7 @@ function wire() {
   $("aboutProject").addEventListener("click", () => api().open_url(PROJECT_URL));
   $("aboutCredits").addEventListener("click", () => api().open_url(`${PROJECT_URL}#third-party-software`));
   $("aboutCheck").addEventListener("click", aboutCheckUpdate);
+  $("aboutDiag").addEventListener("click", copyDiagnostics);
   $("openSessionBtn").addEventListener("click", openSession);
   $("saveSessionBtn").addEventListener("click", saveSession);
   document.querySelectorAll(".splitter").forEach((splitter) => {

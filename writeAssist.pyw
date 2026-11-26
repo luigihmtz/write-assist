@@ -41,6 +41,7 @@ import waCore as core
 import waGrammar as grammar
 import waExport as export
 import waHistory as history
+import waDiagnostics as diagnostics
 import waPlatform as platform
 import waSpeech as speech
 
@@ -184,6 +185,7 @@ def safely(fn):
         try:
             return {"ok": True, **(fn(*args, **kwargs) or {})}
         except Exception as exc:
+            diagnostics.record_error(fn.__name__, exc, args[1:])   # for About > Copy diagnostics
             return {"ok": False, "error": str(exc) or exc.__class__.__name__}
     wrapper.__name__ = fn.__name__
     return wrapper
@@ -399,6 +401,11 @@ class Bridge:
             self._window.evaluate_js(f"window.WA && WA.applySession({json.dumps(data)})")
         except Exception as exc:
             self._window.evaluate_js(f"window.WA && WA.showError({json.dumps(str(exc))})")
+
+    @safely
+    def diagnostics(self):
+        """The setup report for a bug report (waDiagnostics.py)."""
+        return {"text": diagnostics.report()}
 
     @safely
     def open_url(self, url):

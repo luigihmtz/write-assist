@@ -17,6 +17,12 @@
   (double-click resets); the sizes are remembered.
 - **About** (next to Settings): version, license, project page, credits, and
   a check for updates.
+- **Copy diagnostics** (in About): a report of the setup (version, settings,
+  installed AIs and models, recent errors) to paste when asking for help.
+  Your *About you* text is left out. Also runs on its own:
+  `python "%LOCALAPPDATA%\WriteAssist\waDiagnostics.py"`.
+- Fixed "Couldn't read the reply as JSON (Invalid control character)" on
+  texts with several paragraphs, when the AI put real line breaks in its reply.
 
 ## v02.11.00 - 2026-11-25
 

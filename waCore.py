@@ -8,8 +8,8 @@
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v01.06.00
-# Date:    2026-11-25
+# Version: v01.06.01
+# Date:    2026-11-26
 #
 # Usage: imported by writeAssist.pyw. Per-user files live in
 #        %APPDATA%\WriteAssist (user_settings.json, state.json); product
@@ -221,7 +221,9 @@ def parse_json_reply(text):
     if start == -1 or end <= start:
         raise RuntimeError(f"The reply wasn't the expected JSON:\n{text[:800]}")
     try:
-        return json.loads(text[start:end + 1])
+        # strict=False: some models put real line breaks inside the text
+        # instead of \n (texts with paragraphs failed with "Invalid control character").
+        return json.loads(text[start:end + 1], strict=False)
     except ValueError as exc:
         raise RuntimeError(f"Couldn't read the reply as JSON ({exc}):\n{text[:800]}")
 

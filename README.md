@@ -280,6 +280,7 @@ haz clic en **Desinstalar**.
 | `waSpeech.py` | Offline dictation with faster-whisper, installed on first use. |
 | `waGrammar.py` | Live grammar check with a self-hosted LanguageTool server, installed on first use. |
 | `waHistory.py` | Version history: saving, grouping and comparing versions. |
+| `waDiagnostics.py` | The setup report for bug reports (About > *Copy diagnostics*, or run it with Python when the app won't open). |
 | `waExport.py` | Exports to Word, text and Markdown (PDF is printed by the window), and finds synced cloud folders. |
 | `waPlatform.py` | What differs between Windows and macOS: folders, clipboard, system language, how updates start. |
 | `ui/` | The window's page: `index.html`, `style.css`, `app.js`, and `i18n.js` with the English, Spanish and French interface text. |
