@@ -3,11 +3,12 @@
 // filled fields, runs it through Python (window.pywebview.api), shows the
 // result with highlighted edits, the on-demand thesaurus and translator, the
 // free local AI's first-use download, live grammar underlines (LanguageTool),
+// version history, exports (Word, PDF, text, Markdown),
 // speech-to-text recording, settings, interface language, and updates.
 //
 // Author:  Luis Martinez
 // Email:   16788942+luigihmtz@users.noreply.github.com
-// Version: v01.11.00
+// Version: v01.12.00
 // Date:    2026-11-25
 //
 // Usage: loaded by ui/index.html after i18n.js (t(), applyLanguage()). Every
@@ -17,6 +18,7 @@ const $ = (id) => document.getElementById(id);
 const api = () => window.pywebview.api;
 
 const els = {
+  history: $("historyPanel"), histList: $("histList"), histLabel: $("histLabel"),
   mode: $("mode"), tone: $("tone"), textLanguage: $("textLanguage"),
   provider: $("provider"), model: $("model"),
   prompt: $("prompt"), draft: $("draft"), preset: $("preset"),
@@ -43,10 +45,12 @@ const app = {
 // ---------------------------------------------------------------------------
 // Status
 // ---------------------------------------------------------------------------
-function setStatus(text, isError = false) {
+function setStatus(text, isError = false, onClick = null) {
   els.status.textContent = text;
   els.status.title = text;
   els.status.classList.toggle("error", isError);
+  els.status.classList.toggle("link", Boolean(onClick));
+  els.status.onclick = onClick;
 }
 
 // ---------------------------------------------------------------------------
@@ -251,7 +255,10 @@ async function run() {
     });
     clearInterval(timer);
     if (!res.ok) { setStatus(res.error, true); return; }
+    app.lastRun = { task, provider: res.provider, model: els.model.value, prompt: els.prompt.value.trim(),
+      language: els.textLanguage.value === "auto" ? "" : els.textLanguage.value, when: new Date().toISOString() };
     showResult(res);
+    if (!els.history.hidden) refreshHistory();
   } finally {
     clearInterval(timer);
     app.busy = false;
@@ -360,10 +367,12 @@ function clearAll() {
   els.result.innerHTML = "";
   els.changes.innerHTML = "";
   app.resultTitle = null;
+  app.lastRun = null;
   renderResultTitle();
   setStatus("");
   updateTask();
   els.draft.focus();
+  api().history_new_group().then(() => { if (!els.history.hidden) refreshHistory(); });
 }
 
 // ---------------------------------------------------------------------------
@@ -482,6 +491,7 @@ function startDrag(panel, e) {
 function closePanels() {
   closeThesaurus();
   closeTranslate();
+  closeHistory();
 }
 
 // ---------------------------------------------------------------------------
@@ -572,6 +582,7 @@ function openThesaurus() {
     return;
   }
   if (!els.translate.classList.contains("floating")) closeTranslate();
+  if (!els.history.classList.contains("floating")) closeHistory();
   th.target = target;
   th.history = [];
   th.current = "";
@@ -681,6 +692,7 @@ function closeTranslate() {
 function openTranslate() {
   const target = selectedTarget();
   if (!els.thesaurus.classList.contains("floating")) closeThesaurus();
+  if (!els.history.classList.contains("floating")) closeHistory();
   tr.target = target;
   tr.source = target ? target.word : "";
   els.trSource.value = tr.source;
@@ -938,6 +950,214 @@ async function enableLiveGrammar() {
 }
 
 // ---------------------------------------------------------------------------
+// Version history: every Review/Create saves the draft and the result (in
+// Python); the user can save the draft by hand. Restore, compare, export.
+// ---------------------------------------------------------------------------
+const hist = { data: null, openId: null, compareId: null, diff: null };
+
+function formatWhen(iso) {
+  try {
+    return new Date(iso).toLocaleString(uiLang, { dateStyle: "medium", timeStyle: "short" });
+  } catch { return iso; }
+}
+
+function openHistory() {
+  if (!els.thesaurus.classList.contains("floating")) closeThesaurus();
+  if (!els.translate.classList.contains("floating")) closeTranslate();
+  els.history.hidden = false;
+  placePanel(els.history, "draft");
+  refreshHistory();
+}
+
+function closeHistory() {
+  els.history.hidden = true;
+  hist.openId = hist.compareId = null;
+}
+
+async function refreshHistory() {
+  const res = await api().history_list();
+  if (!res.ok) { els.histList.innerHTML = `<p class="error">${escapeHtml(res.error)}</p>`; return; }
+  hist.data = res;
+  renderHistory();
+}
+
+function renderHistory() {
+  const { versions = [], group, enabled } = hist.data || {};
+  els.histList.innerHTML = "";
+  if (!enabled) els.histList.insertAdjacentHTML("beforeend", `<p class="muted">${escapeHtml(t("history.off"))}</p>`);
+  if (!versions.length) {
+    if (enabled) els.histList.insertAdjacentHTML("beforeend", `<p class="muted">${escapeHtml(t("history.empty"))}</p>`);
+    return;
+  }
+  let lastGroup = null;
+  for (const v of versions) {
+    if (v.group !== lastGroup) {
+      lastGroup = v.group;
+      const title = v.group === group ? t("history.current") : t("history.earlier", { date: formatWhen(v.time) });
+      els.histList.insertAdjacentHTML("beforeend", `<h3 class="hist-group">${escapeHtml(title)}</h3>`);
+    }
+    els.histList.append(historyItem(v));
+  }
+}
+
+function historyItem(v) {
+  const item = document.createElement("div");
+  item.className = "hist-item" + (v.id === hist.openId ? " open" : "");
+  const ai = v.provider ? ` · ${escapeHtml(providerLabel(v.provider))}${v.model ? ` (${escapeHtml(v.model)})` : ""}` : "";
+  item.innerHTML =
+    `<div class="hist-top"><span>${escapeHtml(formatWhen(v.time))}</span>` +
+    `<span class="badge">${escapeHtml(t(`history.src.${v.source}`))}</span>` +
+    (v.label ? `<span class="label">${escapeHtml(v.label)}</span>` : "") + `<span>${ai}</span></div>` +
+    `<div class="hist-preview">${escapeHtml(v.text)}</div>`;
+  if (v.id === hist.openId) {
+    const actions = document.createElement("div");
+    actions.className = "hist-actions";
+    for (const [key, fn] of [["history.restore", () => restoreVersion(v)], ["history.compare", () => compareVersion(v)],
+      ["history.copy", () => copyText(v.text)], ["history.export", () => openExport(versionSource(v))],
+      ["history.delete", () => deleteVersion(v)]]) {
+      const button = document.createElement("button");
+      button.className = "tool";
+      button.textContent = t(key);
+      button.addEventListener("click", (e) => { e.stopPropagation(); fn(); });
+      actions.append(button);
+    }
+    item.append(actions);
+    if (hist.compareId === v.id && hist.diff) item.append(hist.diff);
+  }
+  item.addEventListener("click", () => {
+    if (hist.openId === v.id) return;
+    hist.openId = v.id;
+    hist.compareId = null;
+    renderHistory();
+  });
+  return item;
+}
+
+async function saveVersion() {
+  const text = els.draft.value;
+  if (!text.trim()) { setStatus(t("history.nothingToSave")); return; }
+  const res = await api().history_save(text, els.histLabel.value.trim());
+  if (!res.ok) { setStatus(res.error, true); return; }
+  els.histLabel.value = "";
+  setStatus(t("history.saved"));
+  if (!els.history.hidden) refreshHistory();
+}
+
+async function restoreVersion(v) {
+  const current = els.draft.value;
+  if (current.trim() && current !== v.text) await api().history_save(current, t("history.beforeRestore"));   // nothing is lost
+  els.draft.value = v.text;
+  els.draft.dispatchEvent(new Event("input"));
+  updateTask();
+  setStatus(t("history.restored"));
+  refreshHistory();
+}
+
+async function compareVersion(v) {
+  const res = await api().history_compare(v.text, els.draft.value);
+  if (!res.ok) { setStatus(res.error, true); return; }
+  const box = document.createElement("div");
+  box.className = "hist-diff";
+  const changed = res.parts.some((part) => part.type !== "equal");
+  box.innerHTML = changed
+    ? `<p class="muted">${escapeHtml(t("history.compareLegend"))}</p>` + res.parts.map((part) =>
+      part.type === "insert" ? `<ins>${escapeHtml(part.text)}</ins>`
+        : part.type === "delete" ? `<del>${escapeHtml(part.text)}</del>` : escapeHtml(part.text)).join("")
+    : `<span class="muted">${escapeHtml(t("history.same"))}</span>`;
+  hist.compareId = v.id;
+  hist.diff = box;
+  renderHistory();
+}
+
+async function deleteVersion(v) {
+  const res = await api().history_delete(v.id);
+  if (!res.ok) { setStatus(res.error, true); return; }
+  hist.openId = null;
+  setStatus(t("history.deleted"));
+  refreshHistory();
+}
+
+// ---------------------------------------------------------------------------
+// Export: Word, PDF, text or Markdown, to a file or a synced cloud folder,
+// with a "details" side-text at the end
+// ---------------------------------------------------------------------------
+const exp = { source: null, targets: null };
+
+function versionSource(v) {
+  return { text: v.text, when: v.time, task: v.task, prompt: v.prompt, language: v.language,
+    provider: v.provider, model: v.model, isVersion: true };
+}
+
+function currentSource() {
+  if ($("expWhat").value === "draft") {
+    return { text: els.draft.value, when: new Date().toISOString(), prompt: els.prompt.value.trim(),
+      language: els.textLanguage.value === "auto" ? "" : els.textLanguage.value };
+  }
+  return { text: resultText(), ...(app.lastRun || {}), when: app.lastRun?.when || new Date().toISOString() };
+}
+
+async function openExport(source = null) {
+  exp.source = source;
+  $("expWhatBlock").hidden = Boolean(source);
+  $("expVersion").hidden = !source;
+  if (source) $("expVersion").textContent = t("export.version", { date: formatWhen(source.when) });
+  else $("expWhat").value = resultText().trim() ? "result" : "draft";
+  $("expError").hidden = true;
+  const res = await api().export_targets();
+  exp.targets = res.ok ? res : { clouds: [], pdf: false, author: "" };
+  $("expFormat").querySelector('option[value="pdf"]').hidden = !exp.targets.pdf;
+  if (!exp.targets.pdf && $("expFormat").value === "pdf") $("expFormat").value = "docx";
+  const clouds = $("expClouds");
+  clouds.innerHTML = "";
+  for (const cloud of exp.targets.clouds) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "tool";
+    button.textContent = t("export.to", { name: cloud.name });
+    button.title = t("export.toTitle", { path: cloud.path });
+    button.addEventListener("click", () => doExport(cloud.key));
+    clouds.append(button);
+  }
+  $("expCloudBlock").hidden = !exp.targets.clouds.length;
+  $("exportDialog").showModal();
+}
+
+function exportDetails(src) {
+  const rows = [];
+  if (exp.targets.author) rows.push([t("export.author"), exp.targets.author]);
+  rows.push([t("export.date"), formatWhen(src.when)]);
+  if (src.task) rows.push([t("export.task"), t(src.task === "create" ? "run.create" : "run.review")]);
+  if (src.prompt) rows.push([t("export.prompt"), src.prompt]);
+  if (src.language) rows.push([t("export.language"), src.language]);
+  if (src.provider) rows.push([t("export.ai"), providerLabel(src.provider) + (src.model ? ` (${src.model})` : "")]);
+  rows.push([t("export.madeWith"), `Write Assist ${app.info?.version || ""} · github.com/luigihmtz/write-assist`]);
+  return rows;
+}
+
+async function doExport(target) {
+  const src = exp.source || currentSource();
+  if (!src.text || !src.text.trim()) { showExportError(t("export.empty")); return; }
+  const format = $("expFormat").value;
+  const details = $("expDetails").checked ? exportDetails(src) : [];
+  if (format === "pdf") {   // the window prints only this area to the PDF
+    $("printArea").innerHTML = `<div class="print-text">${escapeHtml(src.text)}</div>` + (details.length
+      ? `<div class="print-details">${details.map(([label, value]) => `<p><b>${escapeHtml(label)}:</b> ${escapeHtml(value)}</p>`).join("")}</div>` : "");
+  }
+  const res = await api().export_file({ text: src.text, format, target, details, when: src.when });
+  $("printArea").innerHTML = "";
+  if (!res.ok) { showExportError(res.error); return; }
+  if (res.cancelled) return;
+  $("exportDialog").close();
+  const name = res.path.split(/[\\/]/).pop();
+  setStatus(t("export.saved", { name }), false, () => api().open_folder(res.folder));
+}
+
+function showExportError(message) {
+  $("expError").textContent = message;
+  $("expError").hidden = false;
+}
+
+// ---------------------------------------------------------------------------
 // Speech-to-text (offline, faster-whisper in Python)
 // ---------------------------------------------------------------------------
 const MIC_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-2.08A7 7 0 0 0 19 12h-2Z"/></svg>';
@@ -1106,6 +1326,9 @@ async function openSettings(firstRun = false) {
   $("speechLanguage").value = res.speech_language;
   $("uiLanguage").value = res.ui_language || "";
   fillMicrophones(res.microphone || "");
+  $("historyOn").checked = res.history !== false;
+  $("authorName").value = res.author_name || "";
+  $("authorName").placeholder = res.author_default || "";
   $("versionText").textContent = t("settings.version", { version: res.version }) + (res.is_dev ? t("settings.devCopy") : "");
   $("settingsError").hidden = true;
   const dialog = $("settingsDialog");
@@ -1137,6 +1360,7 @@ async function closeSettings(save) {
     profile: $("profile").value, hotkey: $("hotkey").value,
     speech_model: $("speechModel").value, speech_language: $("speechLanguage").value,
     ui_language: uiLanguage, microphone: $("microphone").value,
+    history: $("historyOn").checked, author_name: $("authorName").value.trim(),
   });
   if (!res.ok) { $("settingsError").textContent = res.error; $("settingsError").hidden = false; return; }
   app.microphone = $("microphone").value;
@@ -1190,6 +1414,20 @@ function wire() {
   $("translateBtn").addEventListener("click", openTranslate);
 
   $("thClose").addEventListener("click", closeThesaurus);
+  $("historyBtn").addEventListener("click", () => (els.history.hidden ? openHistory() : closeHistory()));
+  $("histClose").addEventListener("click", closeHistory);
+  $("histSave").addEventListener("click", saveVersion);
+  els.histLabel.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); saveVersion(); } });
+  $("exportBtn").addEventListener("click", () => openExport());
+  $("expCancel").addEventListener("click", () => $("exportDialog").close());
+  $("expSaveAs").addEventListener("click", () => doExport("dialog"));
+  $("historyClear").addEventListener("click", async () => {
+    const ok = await confirmBox(t("settings.clearConfirmTitle"), t("settings.clearConfirm"), t("settings.clearYes"));
+    if (!ok) return;
+    await api().history_clear();
+    setStatus(t("settings.historyCleared"));
+    if (!els.history.hidden) refreshHistory();
+  });
   els.thBack.addEventListener("click", () => { if (th.history.length) lookup(th.history.pop(), true); });
   els.thSearch.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); lookup(els.thSearch.value); } });
   $("thReplace").addEventListener("click", replaceWithChip);
@@ -1197,7 +1435,7 @@ function wire() {
   els.thBody.addEventListener("scroll", hideChipMenu);
 
   $("trClose").addEventListener("click", closeTranslate);
-  for (const panel of [els.thesaurus, els.translate]) {
+  for (const panel of [els.thesaurus, els.translate, els.history]) {
     panel.querySelector(".detach").addEventListener("click", () => toggleFloating(panel));
     panel.querySelector(".popover-head").addEventListener("pointerdown", (e) => startDrag(panel, e));
   }
@@ -1224,7 +1462,7 @@ function wire() {
   window.addEventListener("resize", () => {
     LT_FIELDS.forEach(renderGrammar);
     syncSourceHighlight();
-    for (const panel of [els.thesaurus, els.translate]) if (!panel.hidden) keepOnScreen(panel);
+    for (const panel of [els.thesaurus, els.translate, els.history]) if (!panel.hidden) keepOnScreen(panel);
   });
   $("trGo").addEventListener("click", translateNow);
   $("trReplace").addEventListener("click", replaceWithTranslation);
@@ -1266,6 +1504,7 @@ function wire() {
     else if (mod && e.shiftKey && key === "v") { e.preventDefault(); pasteAndReview(); }
     else if (mod && e.shiftKey && key === "c") { e.preventDefault(); copyResult(); }
     else if (mod && e.shiftKey && key === "t") { e.preventDefault(); openTranslate(); }
+    else if (mod && !e.shiftKey && key === "s") { e.preventDefault(); saveVersion(); }
     else if (mod && !e.shiftKey && key === "t") {
       e.preventDefault();
       if (document.activeElement === els.thSearch) lookup(els.thSearch.value);
@@ -1275,13 +1514,14 @@ function wire() {
       if (!$("ltPop").hidden) hideLtPop();
       else if (rec.recorder) stopRecording(true);
       else if (!els.thMenu.hidden) hideChipMenu();
-      else if (!els.thesaurus.hidden || !els.translate.hidden) closePanels();
+      else if (!els.thesaurus.hidden || !els.translate.hidden || !els.history.hidden) closePanels();
     }
   });
   document.addEventListener("mousedown", (e) => {
     if (!$("ltPop").hidden && !$("ltPop").contains(e.target)) hideLtPop();
-    if (e.target.closest("#thesaurusBtn, #translateBtn")) return;
+    if (e.target.closest("#thesaurusBtn, #translateBtn, #historyBtn, dialog")) return;
     const floating = (panel) => panel.classList.contains("floating");
+    if (!els.history.hidden && !floating(els.history) && !els.history.contains(e.target)) closeHistory();
     if (!els.translate.hidden && !floating(els.translate) && !els.translate.contains(e.target)) closeTranslate();
     if (els.thesaurus.hidden) return;
     if (!els.thesaurus.contains(e.target)) { if (floating(els.thesaurus)) hideChipMenu(); else closeThesaurus(); }

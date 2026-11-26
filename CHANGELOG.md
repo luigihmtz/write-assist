@@ -1,5 +1,18 @@
 # Changelog
 
+## v02.10.00 - 2026-11-25
+
+- Version history: every Review or Create saves the text and the result, and
+  Ctrl+S (or *Save current draft*) saves the Draft by hand, with a label. The
+  History panel restores, compares, copies, exports or deletes any version.
+  The last 200 are kept, on this computer only (Settings turns it off or
+  clears it).
+- Export to Word, PDF, text or Markdown, from the result or any version, with
+  an optional details block at the end (author, date, task, prompt, language,
+  AI, "Made with Write Assist"). Save anywhere, or straight to OneDrive,
+  Google Drive or Dropbox when they're installed.
+- Settings: your name for exports, and the version history switch.
+
 ## v02.09.00 - 2026-11-25
 
 - macOS, first pass (not yet tested on a Mac): `install.sh` installs Write

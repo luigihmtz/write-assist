@@ -10,11 +10,12 @@
 # If the chosen AI hits a usage limit, the request goes to the other one.
 # This file is the desktop window (pywebview on Microsoft WebView2, or WebKit on
 # macOS; page in ui/) and the bridge the page calls; the logic is in waCore.py,
-# waSpeech.py and waGrammar.py, and platform differences in waPlatform.py.
+# waSpeech.py and waGrammar.py, version history in waHistory.py, exports in
+# waExport.py, and platform differences in waPlatform.py.
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v02.08.00
+# Version: v02.09.00
 # Date:    2026-11-25
 #
 # Usage: installed by install.ps1 (Start Menu shortcut + global hotkey, default
@@ -37,6 +38,8 @@ import webview
 
 import waCore as core
 import waGrammar as grammar
+import waExport as export
+import waHistory as history
 import waPlatform as platform
 import waSpeech as speech
 
@@ -164,6 +167,7 @@ class Bridge:
         self._thesaurus_cache = {}
         self._translate_cache = {}
         self._transcriber = speech.Transcriber()
+        self._history = history.History(core.USER_DIR / "history.json")
         self._grammar = grammar.Checker()
         self._grammar_setup = {"running": False}   # progress of the grammar checker download
         self._speech_install_lock = threading.Lock()
@@ -256,7 +260,126 @@ class Bridge:
             request.get("mode", "polish"), request.get("tone", "keep"),
             core.load_user_settings().get("profile", ""), self._settings.get("timeout_seconds", 120),
             request.get("language", "")))
+        self._remember(task, request, extra, result["text"])
         return {"task": task, "elapsed": time.time() - started, **extra, **result}
+
+    def _remember(self, task, request, extra, result_text):
+        """History: the draft that was reviewed (if any) and the result."""
+        if not self._settings.get("history", True):
+            return
+        provider = extra.get("provider", request.get("provider", ""))
+        details = {
+            "task": task, "prompt": (request.get("prompt") or "").strip(),
+            "mode": request.get("mode", "") if task == "review" else "", "tone": request.get("tone", ""),
+            "provider": provider,
+            "model": (request.get("model") or "").strip() if provider == request.get("provider") else "",
+        }
+        chosen = request.get("language", "")
+        draft = request.get("draft", "")
+        if task == "review":
+            self._history.add(draft, "draft", **details,
+                              language=chosen if chosen not in ("", "auto") else core.detect_language(draft))
+        self._history.add(result_text, "result", **details,
+                          language=chosen if chosen not in ("", "auto") else core.detect_language(result_text))
+
+    # ---- Version history -------------------------------------------------- #
+    @safely
+    def history_list(self):
+        return {**self._history.list(), "enabled": bool(self._settings.get("history", True))}
+
+    @safely
+    def history_save(self, text, label=""):
+        version = self._history.add(text, "saved", label, language=core.detect_language(text))
+        return {"version": version}
+
+    @safely
+    def history_delete(self, version_id):
+        self._history.delete(version_id)
+
+    @safely
+    def history_clear(self):
+        self._history.clear()
+
+    @safely
+    def history_new_group(self):
+        return {"group": self._history.new_group()}
+
+    @safely
+    def history_compare(self, old, new):
+        return {"parts": history.compare(old, new)}
+
+    # ---- Export ----------------------------------------------------------- #
+    def _author(self):
+        return (self._settings.get("author_name") or "").strip() or export.account_name()
+
+    @safely
+    def export_targets(self):
+        return {"clouds": export.cloud_folders(), "pdf": platform.IS_WINDOWS, "author": self._author()}
+
+    @safely
+    def export_file(self, request):
+        """Saves text as request["format"] (docx, pdf, txt, md) to a file the user
+        picks ("dialog") or to a synced cloud folder (its key), in a "Write Assist"
+        subfolder. request["details"] is the side-text: [[label, value], ...]."""
+        from datetime import datetime
+        text, fmt = request.get("text") or "", request.get("format", "docx")
+        if not text.strip():
+            raise RuntimeError("There's no text to export.")
+        if fmt not in export.FORMATS or (fmt == "pdf" and not platform.IS_WINDOWS):
+            raise RuntimeError(f"Unsupported format: {fmt}")
+        when = datetime.fromisoformat(request["when"]) if request.get("when") else datetime.now()
+        when = when if when.tzinfo else when.astimezone()
+        name = export.suggested_name(text, fmt, when)
+        target = request.get("target", "dialog")
+        if target == "dialog":
+            save = getattr(getattr(webview, "FileDialog", None), "SAVE", None) or webview.SAVE_DIALOG
+            chosen = self._window.create_file_dialog(save, save_filename=name,
+                                                     file_types=(f"{export.FORMATS[fmt]} (*.{fmt})",))
+            if not chosen:
+                return {"cancelled": True}
+            path = Path(chosen[0] if isinstance(chosen, (list, tuple)) else chosen)
+            if path.suffix.lower() != f".{fmt}":
+                path = path.with_name(path.name + f".{fmt}")
+        else:
+            cloud = next((c for c in export.cloud_folders() if c["key"] == target), None)
+            if not cloud:
+                raise RuntimeError("That cloud folder isn't available on this computer anymore.")
+            folder = Path(cloud["path"]) / "Write Assist"
+            path = folder / name
+            counter = 2
+            while path.exists():
+                path = folder / f"{Path(name).stem} ({counter}).{fmt}"
+                counter += 1
+        if fmt == "pdf":
+            path.parent.mkdir(parents=True, exist_ok=True)
+            self._print_pdf(path)   # the page has filled its print area
+        else:
+            export.write(path, fmt, text, export.title_of(text), self._author(), when, request.get("details") or [])
+        return {"path": str(path), "folder": str(path.parent)}
+
+    def _print_pdf(self, path):
+        """PDF through WebView2's print-to-PDF: the page shows only its print area
+        when printing, so the PDF looks like the app's text, emojis included."""
+        def start(form):
+            browser = form.webview.CoreWebView2
+            settings = browser.Environment.CreatePrintSettings()
+            settings.ShouldPrintHeaderAndFooter = False
+            settings.ShouldPrintBackgrounds = False
+            return browser.PrintToPdfAsync(str(path), settings)
+        task = on_ui_thread(self._window, start)
+        for _ in range(600):   # up to a minute
+            if task.IsCompleted:
+                break
+            time.sleep(0.1)
+        if not task.IsCompleted or task.IsFaulted or not task.Result:
+            raise RuntimeError("The PDF couldn't be created.")
+
+    @safely
+    def open_folder(self, folder):
+        if platform.IS_WINDOWS:
+            os.startfile(folder)
+        else:
+            subprocess.Popen(["open" if platform.IS_MAC else "xdg-open", folder])
 
     # ---- Thesaurus (only when the user asks) ------------------------------ #
     @safely
@@ -452,13 +575,16 @@ class Bridge:
                 "ui_language": self._settings.get("ui_language", ""),
                 "microphone": self._settings.get("microphone", ""),
                 "check_mode": self._check_mode(),
+                "history": bool(self._settings.get("history", True)),
+                "author_name": self._settings.get("author_name", ""), "author_default": export.account_name(),
                 "version": self._version, "is_dev": core.IS_DEV}
 
     @safely
     def save_settings(self, values):
         user = core.load_user_settings()
         user["profile"] = (values.get("profile") or "").strip()
-        for key in ("speech_model", "speech_language", "ui_language", "microphone", "check_mode"):
+        for key in ("speech_model", "speech_language", "ui_language", "microphone", "check_mode",
+                    "history", "author_name"):
             if key in values:
                 user[key] = values[key]
         new_hotkey = (values.get("hotkey") or "").strip()

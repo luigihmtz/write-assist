@@ -7,7 +7,7 @@ buttons, settings dialog. Rendered by writeAssist.pyw in a WebView2 window.
 
 Author:  Luis Martinez
 Email:   16788942+luigihmtz@users.noreply.github.com
-Version: v01.10.00
+Version: v01.11.00
 Date:    2026-11-25
 
 Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
@@ -64,6 +64,7 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
     <span class="toolbar-actions">
     <button id="translateBtn" class="ghost" data-i18n="translate" data-i18n-title="translate.title">Translate</button>
     <button id="thesaurusBtn" class="ghost" data-i18n="thesaurus" data-i18n-title="thesaurus.title">Thesaurus</button>
+    <button id="historyBtn" class="ghost" data-i18n="history" data-i18n-title="history.title">History</button>
     <button id="settingsBtn" class="ghost" data-i18n="settings" data-i18n-title="settings.title">Settings</button>
     </span>
   </header>
@@ -102,6 +103,7 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
           <h2 id="resultTitle" data-i18n="result">Result</h2>
           <span class="spacer"></span>
           <button class="tool" id="useDraftBtn" data-i18n="useDraft" data-i18n-title="useDraft.title">Use as draft</button>
+          <button class="tool" id="exportBtn" data-i18n="export" data-i18n-title="export.title">Export</button>
           <button class="tool primary-soft" id="copyBtn" data-i18n="copy" data-i18n-title="copy.title">Copy</button>
         </div>
         <div id="result" class="result" contenteditable="plaintext-only" spellcheck="false" data-i18n-placeholder="result.placeholder"></div>
@@ -182,6 +184,54 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
     <div class="lt-actions"><button class="ghost small" id="ltIgnore" data-i18n="lt.ignore">Ignore</button></div>
   </div>
 
+  <div id="historyPanel" class="popover" hidden>
+    <div class="popover-head">
+      <strong data-i18n="history">History</strong>
+      <span class="spacer"></span>
+      <button class="ghost small detach" data-i18n-title="panel.detach" aria-label="Detach">⧉</button>
+      <button class="ghost small" id="histClose" data-i18n-title="th.close">✕</button>
+    </div>
+    <div class="hist-save">
+      <input id="histLabel" data-i18n-placeholder="history.labelPlaceholder" spellcheck="true" autocomplete="off">
+      <button class="tool primary-soft" id="histSave" data-i18n="history.save" data-i18n-title="history.saveTitle">Save current draft</button>
+    </div>
+    <div id="histList" class="popover-body hist-list"></div>
+  </div>
+
+  <dialog id="exportDialog">
+    <form method="dialog" class="dialog narrow">
+      <h2 data-i18n="export">Export</h2>
+      <label class="block" id="expWhatBlock"><span data-i18n="export.what">Text</span>
+        <select id="expWhat">
+          <option value="result" data-i18n="export.result">Result</option>
+          <option value="draft" data-i18n="export.draft">Draft</option>
+        </select>
+      </label>
+      <p id="expVersion" class="muted" hidden></p>
+      <label class="block"><span data-i18n="export.format">Format</span>
+        <select id="expFormat">
+          <option value="docx" data-i18n="export.fmtDocx">Word document (.docx)</option>
+          <option value="pdf" data-i18n="export.fmtPdf">PDF (.pdf)</option>
+          <option value="txt" data-i18n="export.fmtTxt">Text (.txt)</option>
+          <option value="md" data-i18n="export.fmtMd">Markdown (.md)</option>
+        </select>
+      </label>
+      <label class="check-block">
+        <input type="checkbox" id="expDetails" checked>
+        <span><strong data-i18n="export.details">Add details at the end</strong>
+          <span class="muted" data-i18n="export.detailsHint"></span></span>
+      </label>
+      <div class="block" id="expCloudBlock" hidden><span data-i18n="export.cloudTitle">Or save straight to:</span>
+        <span id="expClouds" class="export-clouds"></span>
+      </div>
+      <p id="expError" class="error" hidden></p>
+      <div class="dialog-buttons">
+        <button type="button" id="expCancel" class="ghost" data-i18n="cancel">Cancel</button>
+        <button type="button" id="expSaveAs" class="primary" data-i18n="export.saveAs">Save as...</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog id="settingsDialog">
     <form method="dialog" class="dialog">
       <h2 id="settingsTitle" data-i18n="settings">Settings</h2>
@@ -224,6 +274,18 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
           </select>
         </label>
       </div>
+      <label class="block"><span data-i18n="settings.author">Your name (for exports)</span>
+        <span class="muted" data-i18n="settings.authorHint"></span>
+        <input id="authorName" spellcheck="false">
+      </label>
+      <div class="history-setting">
+        <label class="check-block">
+          <input type="checkbox" id="historyOn">
+          <span><strong data-i18n="settings.history">Keep version history</strong>
+            <span class="muted" data-i18n="settings.historyHint"></span></span>
+        </label>
+        <button type="button" class="ghost small" id="historyClear" data-i18n="settings.clearHistory">Clear history</button>
+      </div>
       <p id="versionText" class="muted small"></p>
       <p id="settingsError" class="error" hidden></p>
       <div class="dialog-buttons">
@@ -243,6 +305,8 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
       </div>
     </form>
   </dialog>
+
+  <div id="printArea" aria-hidden="true"></div>
 
   <script src="i18n.js"></script>
   <script src="app.js"></script>

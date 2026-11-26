@@ -94,6 +94,8 @@ Press **Ctrl+Enter**, then **Copy** the result.
 | **Model** | Local: `gemma3:4b` (default, about 3.3 GB), `gemma3:12b` (better, about 8 GB, for PCs with a good graphics card or lots of memory). Claude: `haiku` (default, fastest and lightest on your plan's limits), `sonnet`, `opus` (strongest). ChatGPT: `gpt-6-luna` (default, fast and affordable), `gpt-5.6-terra`. Copilot: `auto`. *Other...* lets you enter any other model name the AI accepts. |
 | **Thesaurus** | Select a word (or put the cursor on it) in Prompt, Draft or the result, then click *Thesaurus* at the top or press **Ctrl+T**: meaning, synonyms and antonyms that fit your sentence. Click a synonym or antonym to **Replace** your word with it or **Search** it in turn (← goes back). You can also type any word in the panel's search box. It asks the AI only when you look something up. |
 | **Underline** | In the top bar: **off**; **spelling** (default: the spellchecker built into Windows, free, nothing to download; it checks English, Spanish and French with Windows' own dictionaries, so on an English-language Windows, French needs *Settings > Time & language > Language & region > Add a language > French*); or **spelling + grammar**, with LanguageTool, a free, open-source checker that runs on your computer (no account, nothing sent anywhere, no AI usage). It underlines spelling (red), grammar (blue) and style (purple); click one for suggestions, or *Ignore*. The first time, it asks before a one-time download of about 300 MB (about 500 MB on disk). With *Language* on Auto, each paragraph is checked in its own language. |
+| **History** | Every Review or Create saves the text you sent and the result; **Save current draft** (or **Ctrl+S**) saves the Draft by hand, with an optional label. The History panel lists them newest first, grouped by piece of writing (*Clear* starts a new one). Click a version to **Restore** it to the Draft (the current Draft is saved first, so nothing is lost), **Compare** it with the Draft (added words in green, removed in red), **Copy**, **Export** or **Delete** it. The last 200 versions are kept, on this computer only; turn history off or clear it in *Settings*. |
+| **Export** | From the result (or any version in History): **Word** (.docx), **PDF**, **Text** or **Markdown**. *Add details at the end* appends a small block with the author, date, task, prompt, language, AI and "Made with Write Assist" (Word files also get the author, title and date in their document properties). **Save as...** picks any folder; if OneDrive, Google Drive or Dropbox is installed, **Save to...** puts the file straight into a *Write Assist* folder there, and the sync app takes it to the cloud. The author is your name from *Settings*, or your account name. |
 | **Panels** | Thesaurus and Translate open next to the text they work on, and that text stays highlighted in yellow. **⧉** detaches a panel: drag it anywhere by its title bar, and it stays open while you keep working. Drag the bottom-right corner to resize it; **⧉** again docks it. |
 | **Translate** | Select text (a word, a sentence, a paragraph) in Prompt, Draft or the result, then click *Translate* at the top or press **Ctrl+Shift+T**. Pick the target language; *English ⇄ Spanish* translates English into Spanish and anything else into English. The panel shows only the translation, with the original highlighted in place. Then **Replace selection**, **Use as draft** or **Copy**. For a single word it also offers other options; click one to swap it in. With nothing selected, the panel offers a box to type or paste text into. It asks the AI only when you translate. |
 | **Dictate** | Speak into Prompt or Draft; click again to stop (Esc cancels). Transcribed on your computer with faster-whisper: free, offline, private. The first time, it offers a one-time download (speech engine about 250 MB, plus the model: 465 MB for *small*). |
@@ -138,6 +140,9 @@ replaced in June 2026 by one without a documented way for other apps to use it.
   and terms apply to it. With **Local (free)**, the text stays on your
   computer: the model runs there, through Ollama.
 - **Dictation** is transcribed on your computer. Audio never leaves it.
+- **Version history** is kept on your computer only (`history.json`, the last
+  200 versions). It holds the texts you reviewed, so turn it off in Settings
+  if you'd rather nothing is kept, or clear it there.
 - **Write Assist itself collects nothing:** no accounts, analytics or
   tracking. Your settings stay in `%APPDATA%\WriteAssist` on your PC. The
   only other connections it makes are the update check (it asks GitHub for
@@ -223,6 +228,13 @@ dictado por voz.
 - **IA:** arriba eliges entre **Local (gratis)**, **Claude** y, si los
   tienes instalados, **ChatGPT** y **GitHub Copilot**. La primera vez que eliges Local (gratis), la
   app te avisa del tamaño de la descarga antes de bajar nada.
+- **Historial:** cada Revisar o Crear guarda el texto y el resultado; **Ctrl+S**
+  guarda el Borrador a mano. En **Historial** puedes restaurar, comparar,
+  copiar o exportar una versión. Se guardan las últimas 200, solo en tu
+  computadora.
+- **Exportar:** desde el resultado o el historial, en Word, PDF, texto o
+  Markdown, con detalles al final (autor, fecha, instrucciones, idioma, IA).
+  Puedes guardarlo directo en OneDrive, Google Drive o Dropbox si los tienes.
 - **Subrayar errores:** arriba, en **Subrayar**, eliges *no*, *ortografía* (la
   opción predeterminada, integrada en Windows, sin descargas) u *ortografía +
   gramática* (LanguageTool, gratuito y en tu computadora; haz clic en un error
@@ -252,6 +264,8 @@ haz clic en **Desinstalar**.
 | `waCore.py` | Settings, Review/Create, Thesaurus and Translate requests to the AIs (Claude Code, Copilot CLI, Ollama), the local AI's setup, usage-limit fallback, edit highlighting, update check. |
 | `waSpeech.py` | Offline dictation with faster-whisper, installed on first use. |
 | `waGrammar.py` | Live grammar check with a self-hosted LanguageTool server, installed on first use. |
+| `waHistory.py` | Version history: saving, grouping and comparing versions. |
+| `waExport.py` | Exports to Word, text and Markdown (PDF is printed by the window), and finds synced cloud folders. |
 | `waPlatform.py` | What differs between Windows and macOS: folders, clipboard, system language, how updates start. |
 | `ui/` | The window's page: `index.html`, `style.css`, `app.js`, and `i18n.js` with the English, Spanish and French interface text. |
 | `hotkeyListener.pyw` | Background listener for the global hotkey; opens or wakes the app. |
@@ -268,7 +282,8 @@ haz clic en **Desinstalar**.
 
 Per-user files, kept across updates, in `%APPDATA%\WriteAssist\`:
 `user_settings.json` (*About you*, hotkey, and any `settings.json` key to
-override) and `state.json` (last-used options, window size). Installed copies
+override), `state.json` (last-used options, window size) and `history.json`
+(version history). Installed copies
 live in `%LOCALAPPDATA%\WriteAssist\`.
 
 ## How it works
