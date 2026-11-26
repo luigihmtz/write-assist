@@ -5,7 +5,7 @@
 //
 // Author:  Luis Martinez
 // Email:   16788942+luigihmtz@users.noreply.github.com
-// Version: v01.05.00
+// Version: v01.06.00
 // Date:    2026-11-25
 //
 // Usage: loaded by ui/index.html before app.js. In index.html:
@@ -171,8 +171,13 @@ const STRINGS = {
     "settings.microphone": "Microphone for dictation",
     "settings.micDefault": "Same as Windows",
     "speech.micMissing": "\"{name}\" isn't connected, so the Windows default microphone is used.",
-    "settings.liveGrammar": "Live grammar check",
-    "settings.liveGrammarHint": "Underlines mistakes in Prompt and Draft as you type; click one for suggestions. Free, and it runs on this PC (LanguageTool).",
+    "settings.checkMode": "Underline mistakes as I type",
+    "check.off": "Off",
+    "check.spelling": "Spelling only (built in)",
+    "check.grammar": "Spelling and grammar (LanguageTool)",
+    "check.offHint": "No lines in Prompt and Draft.",
+    "check.spellingHint": "Misspelled words only, with the spellchecker built into Windows. Free, nothing to download.",
+    "check.grammarHint": "Spelling, grammar and style, in each paragraph's language; click a mistake for suggestions. Free, runs on this PC; a one-time download of about 300 MB.",
     "lt.setupTitle": "Set up live grammar checking?",
     "lt.setupText": "Live grammar uses LanguageTool, a free, open-source checker that runs on this computer: no account, and your text never leaves your PC. It needs a one-time download of about {download} MB (LanguageTool and the Java it runs on), using about {disk} MB of disk space.",
     "lt.download": "Download",
@@ -345,8 +350,13 @@ const STRINGS = {
     "settings.microphone": "Micrófono para dictar",
     "settings.micDefault": "El mismo que Windows",
     "speech.micMissing": "\"{name}\" no está conectado, así que se usa el micrófono predeterminado de Windows.",
-    "settings.liveGrammar": "Revisión gramatical en vivo",
-    "settings.liveGrammarHint": "Subraya los errores en Instrucciones y Borrador mientras escribes; haz clic en uno para ver sugerencias. Gratis y funciona en esta PC (LanguageTool).",
+    "settings.checkMode": "Subrayar errores mientras escribo",
+    "check.off": "No",
+    "check.spelling": "Solo ortografía (integrada)",
+    "check.grammar": "Ortografía y gramática (LanguageTool)",
+    "check.offHint": "Sin líneas en Instrucciones y Borrador.",
+    "check.spellingHint": "Solo palabras mal escritas, con el corrector integrado de Windows. Gratis, sin descargas.",
+    "check.grammarHint": "Ortografía, gramática y estilo, en el idioma de cada párrafo; haz clic en un error para ver sugerencias. Gratis, funciona en esta PC; descarga única de unos 300 MB.",
     "lt.setupTitle": "¿Configurar la revisión gramatical en vivo?",
     "lt.setupText": "La revisión en vivo usa LanguageTool, un corrector gratuito y de código abierto que funciona en esta computadora: sin cuenta, y tu texto nunca sale de tu PC. Necesita una descarga única de unos {download} MB (LanguageTool y el Java con el que funciona) y ocupa unos {disk} MB de disco.",
     "lt.download": "Descargar",

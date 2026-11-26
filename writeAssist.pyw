@@ -13,7 +13,7 @@
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v02.06.00
+# Version: v02.07.00
 # Date:    2026-11-24
 #
 # Usage: installed by install.ps1 (Start Menu shortcut + global hotkey, default
@@ -175,7 +175,7 @@ class Bridge:
             "hotkey": self._settings.get("hotkey", ""),
             "ui_language": self._settings.get("ui_language", ""),
             "microphone": self._settings.get("microphone", ""),
-            "live_grammar": bool(self._settings.get("live_grammar", False)) and grammar.is_installed(),
+            "check_mode": self._check_mode(),
             "state": self._state,
             "needs_profile": "profile" not in user,
         }
@@ -360,10 +360,25 @@ class Bridge:
     def grammar_check(self, text, language="auto"):
         return self._grammar.check(text, language, core.load_user_settings().get("profile", ""))
 
+    _CHECK_MODES = ("off", "spelling", "grammar")
+
+    def _check_mode(self):
+        """How Prompt and Draft are underlined: "off", "spelling" (the built-in
+        spellchecker) or "grammar" (LanguageTool, once it's downloaded)."""
+        mode = self._settings.get("check_mode")
+        if mode not in self._CHECK_MODES:   # before v02.08.01 it was a live_grammar on/off switch
+            mode = "grammar" if self._settings.get("live_grammar") else "spelling"
+        if mode == "grammar" and not grammar.is_installed():
+            mode = "spelling"
+        return mode
+
     @safely
-    def set_live_grammar(self, on):
+    def set_check_mode(self, mode):
+        if mode not in self._CHECK_MODES:
+            raise RuntimeError(f"Unknown check mode: {mode}")
         user = core.load_user_settings()
-        user["live_grammar"] = bool(on)
+        user["check_mode"] = mode
+        user.pop("live_grammar", None)
         core.save_user_settings(user)
         self._settings = core.load_settings()
 
@@ -416,14 +431,14 @@ class Bridge:
                 "speech_model": self._speech_model(), "speech_language": self._settings.get("speech_language", ""),
                 "ui_language": self._settings.get("ui_language", ""),
                 "microphone": self._settings.get("microphone", ""),
-                "live_grammar": bool(self._settings.get("live_grammar", False)),
+                "check_mode": self._check_mode(),
                 "version": self._version, "is_dev": core.IS_DEV}
 
     @safely
     def save_settings(self, values):
         user = core.load_user_settings()
         user["profile"] = (values.get("profile") or "").strip()
-        for key in ("speech_model", "speech_language", "ui_language", "microphone", "live_grammar"):
+        for key in ("speech_model", "speech_language", "ui_language", "microphone", "check_mode"):
             if key in values:
                 user[key] = values[key]
         new_hotkey = (values.get("hotkey") or "").strip()

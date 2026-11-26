@@ -2,9 +2,12 @@
 
 ## v02.08.01 - 2026-11-25
 
-- With *Live grammar check* off, Prompt and Draft no longer show the
-  browser's own red spelling squiggles: the setting now decides whether any
-  lines appear there.
+- *Underline mistakes as I type* (Settings) replaces the live grammar switch,
+  with three choices: *Off*; *Spelling only*, the spellchecker built into
+  Windows (the default: free, nothing to download); and *Spelling and
+  grammar*, with LanguageTool. If live grammar was on, it stays on.
+- With *Off*, Prompt and Draft show no wavy lines at all (before, the
+  built-in spellchecker kept drawing them).
 
 ## v02.08.00 - 2026-11-25
 

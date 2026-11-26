@@ -7,7 +7,7 @@
 //
 // Author:  Luis Martinez
 // Email:   16788942+luigihmtz@users.noreply.github.com
-// Version: v01.08.01
+// Version: v01.09.00
 // Date:    2026-11-25
 //
 // Usage: loaded by ui/index.html after i18n.js (t(), applyLanguage()). Every
@@ -59,7 +59,7 @@ async function init() {
   document.documentElement.style.setProperty("--fs", `${Math.round(info.font_size * 1.33)}px`);
   setUiLanguage(info.ui_language || "");
   app.microphone = info.microphone || "";
-  if (info.live_grammar) setLiveGrammar(true);
+  applyCheckMode(info.check_mode || "spelling");
 
   const state = info.state || {};
   // models_rev 2: Claude's default became haiku; forget models saved before that.
@@ -879,7 +879,20 @@ function ignoreGrammarMatch() {
   renderGrammar(field);
 }
 
-// Turning it on the first time downloads the checker, after the size warning.
+// Underlines in Prompt and Draft: "off", "spelling" (the browser's built-in
+// spellchecker) or "grammar" (LanguageTool on this PC).
+function applyCheckMode(mode) {
+  app.checkMode = mode;
+  for (const field of LT_FIELDS) els[field].spellcheck = mode === "spelling";
+  setLiveGrammar(mode === "grammar");
+}
+
+function showCheckModeHint() {
+  $("checkModeHint").textContent = t(`check.${$("checkMode").value}Hint`);
+}
+
+// Choosing "grammar" the first time downloads the checker, after the size
+// warning; declining keeps the current mode.
 async function enableLiveGrammar() {
   const info = await api().grammar_info();
   if (!info.ok) { setStatus(info.error, true); return false; }
@@ -902,8 +915,8 @@ async function enableLiveGrammar() {
       break;
     }
   }
-  await api().set_live_grammar(true);
-  setLiveGrammar(true);
+  await api().set_check_mode("grammar");
+  applyCheckMode("grammar");
   setStatus(t("lt.ready"));
   return true;
 }
@@ -1077,7 +1090,8 @@ async function openSettings(firstRun = false) {
   $("speechLanguage").value = res.speech_language;
   $("uiLanguage").value = res.ui_language || "";
   fillMicrophones(res.microphone || "");
-  $("liveGrammar").checked = Boolean(res.live_grammar) && lt.on;
+  $("checkMode").value = app.checkMode || res.check_mode || "spelling";
+  showCheckModeHint();
   $("versionText").textContent = t("settings.version", { version: res.version }) + (res.is_dev ? t("settings.devCopy") : "");
   $("settingsError").hidden = true;
   const dialog = $("settingsDialog");
@@ -1109,15 +1123,16 @@ async function closeSettings(save) {
     profile: $("profile").value, hotkey: $("hotkey").value,
     speech_model: $("speechModel").value, speech_language: $("speechLanguage").value,
     ui_language: uiLanguage, microphone: $("microphone").value,
-    live_grammar: $("liveGrammar").checked && lt.on,   // turned on below, after any download
+    // "grammar" is saved by enableLiveGrammar, after any download
+    check_mode: $("checkMode").value === "grammar" && !lt.on ? app.checkMode : $("checkMode").value,
   });
   if (!res.ok) { $("settingsError").textContent = res.error; $("settingsError").hidden = false; return; }
   app.microphone = $("microphone").value;
   if (uiLanguage !== app.uiLanguage) setUiLanguage(uiLanguage);
-  const wantGrammar = $("liveGrammar").checked;
-  if (wantGrammar !== lt.on) {
-    if (wantGrammar) setTimeout(enableLiveGrammar, 0);   // after the dialog closes
-    else { setLiveGrammar(false); api().set_live_grammar(false); }
+  const wantMode = $("checkMode").value;
+  if (wantMode !== app.checkMode) {
+    if (wantMode === "grammar") setTimeout(enableLiveGrammar, 0);   // after the dialog closes
+    else applyCheckMode(wantMode);
   }
   if (res.hotkey_changed && !res.hotkey_ok) {
     $("settingsError").textContent = t("settings.hotkeyFailed", { message: res.hotkey_message });
@@ -1197,6 +1212,7 @@ function wire() {
     area.addEventListener("scroll", () => { if (lt.mirrors[field]) lt.mirrors[field].scrollTop = area.scrollTop; hideLtPop(); });
   }
   $("ltIgnore").addEventListener("click", ignoreGrammarMatch);
+  $("checkMode").addEventListener("change", showCheckModeHint);
   els.textLanguage.addEventListener("change", () => LT_FIELDS.forEach((f) => scheduleGrammarCheck(f, 0)));
   window.addEventListener("resize", () => {
     LT_FIELDS.forEach(renderGrammar);
