@@ -10,11 +10,13 @@
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v01.00.00
+# Version: v01.01.00
 # Date:    2026-11-25
 #
 # Usage:   Install or update (Terminal):
 #            curl -fsSL https://raw.githubusercontent.com/luigihmtz/write-assist/main/install.sh | bash
+#          A specific (e.g. pre-release) version:
+#            curl -fsSL .../install.sh | WA_VERSION=v02.09.00 bash
 #          Development copy: bash install.sh from the repo folder.
 #          macOS 12 or later, Apple silicon or Intel.
 
@@ -134,10 +136,16 @@ main() {
         step "Using the development copy in $DEV_DIR"
         app="$DEV_DIR"
     else
-        step "Downloading the latest Write Assist"
-        local tag work
-        tag="$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" | "$VENV/bin/python" -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])')" \
-            || { fail "the latest release could not be found."; return 1; }
+        # WA_VERSION picks a specific release, e.g. a pre-release being tested;
+        # otherwise the latest regular release.
+        local tag="${WA_VERSION:-}" work
+        if [ -n "$tag" ]; then
+            step "Downloading Write Assist $tag"
+        else
+            step "Downloading the latest Write Assist"
+            tag="$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" | "$VENV/bin/python" -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])')" \
+                || { fail "the latest release could not be found."; return 1; }
+        fi
         work="$(mktemp -d)"
         curl -fsSL -o "$work/release.tar.gz" "https://github.com/$REPO/archive/refs/tags/$tag.tar.gz" || { fail "the release could not be downloaded."; return 1; }
         tar -xzf "$work/release.tar.gz" -C "$work" || { fail "the release could not be unpacked."; return 1; }
