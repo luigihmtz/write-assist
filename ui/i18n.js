@@ -5,7 +5,7 @@
 //
 // Author:  Luis Martinez
 // Email:   16788942+luigihmtz@users.noreply.github.com
-// Version: v01.14.00
+// Version: v01.15.00
 // Date:    2026-11-26
 //
 // Usage: loaded by ui/index.html before app.js. In index.html:
@@ -85,6 +85,9 @@ const STRINGS = {
     "run.review": "Review",
     "run.create": "Create",
     "run.refine": "Refine",
+    "run.run": "Run",
+    "switch.title": "What the prompt is for: the Draft (review it, or create a text when the Draft is empty) or the result (refine it)",
+    "prompt.hintRefine": "what to change in the result",
     "run.refineTitle": "Apply the Prompt's changes to the result, e.g. \"shorter and friendlier\" (the Draft stays as it is)",
     "status.refining": "Refining with {provider}... {seconds}s",
     "status.refined": "Refined with {provider}",
@@ -389,6 +392,9 @@ const STRINGS = {
     "run.review": "Revisar",
     "run.create": "Crear",
     "run.refine": "Ajustar",
+    "run.run": "Ejecutar",
+    "switch.title": "Para qué son las instrucciones: el Borrador (revisarlo, o crear un texto si está vacío) o el resultado (ajustarlo)",
+    "prompt.hintRefine": "qué cambiar del resultado",
     "run.refineTitle": "Aplica al resultado los cambios de las instrucciones, p. ej. \"más corto y amable\" (el Borrador no cambia)",
     "status.refining": "Ajustando con {provider}... {seconds}s",
     "status.refined": "Ajustado con {provider}",
@@ -687,6 +693,9 @@ const STRINGS = {
     "run.review": "Réviser",
     "run.create": "Créer",
     "run.refine": "Affiner",
+    "run.run": "Lancer",
+    "switch.title": "À quoi sert la consigne : le brouillon (le réviser, ou créer un texte s'il est vide) ou le résultat (l'affiner)",
+    "prompt.hintRefine": "ce qu'il faut changer dans le résultat",
     "run.refineTitle": "Applique au résultat les modifications de la consigne, p. ex. \"plus court et plus chaleureux\" (le brouillon ne change pas)",
     "status.refining": "Affinage avec {provider}... {seconds}s",
     "status.refined": "Affiné avec {provider}",

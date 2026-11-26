@@ -11,7 +11,7 @@
 //
 // Author:  Luis Martinez
 // Email:   16788942+luigihmtz@users.noreply.github.com
-// Version: v01.17.01
+// Version: v01.18.00
 // Date:    2026-11-26
 //
 // Usage: loaded by ui/index.html after i18n.js (t(), applyLanguage()). Every
@@ -26,7 +26,7 @@ const els = {
   provider: $("provider"), model: $("model"),
   prompt: $("prompt"), draftEl: $("draft"), preset: $("preset"),   // els.draft: the RichBox below
   result: $("result"), resultTitle: $("resultTitle"), changes: $("changes"),
-  runBtn: $("runBtn"), refineBtn: $("refineBtn"), autoCopy: $("autoCopy"), updateBtn: $("updateBtn"), status: $("status"),
+  runBtn: $("runBtn"), autoCopy: $("autoCopy"), updateBtn: $("updateBtn"), status: $("status"),
   thesaurus: $("thesaurus"), thSearch: $("thSearch"), thBack: $("thBack"), thBody: $("thBody"), thMenu: $("thMenu"),
   translate: $("translatePanel"), trTarget: $("trTarget"), trSource: $("trSource"), trOut: $("trOut"),
   trMeta: $("trMeta"), trText: $("trText"), trAltBlock: $("trAltBlock"), trAlts: $("trAlts"), trNote: $("trNote"),
@@ -42,6 +42,7 @@ const app = {
   updateTag: null,
   uiLanguage: "",       // "" follows Windows
   microphone: "",       // name of the dictation microphone; "" is the Windows default
+  target: "draft",      // what the prompt is for: "draft" (Review/Create) or "refine"
   resultTitle: null,    // {key, provider} or {key, date, src} of the shown result
   lastChanges: null,    // {task, changes, notes} shown under the result
 };
@@ -120,7 +121,8 @@ function setUiLanguage(setting) {
   if (other) other.textContent = t("model.other");
   if (app.updateTag) els.updateBtn.textContent = t("update.button", { tag: app.updateTag });
   for (const option of els.provider.options) option.textContent = providerLabel(option.value);
-  document.querySelectorAll(".kbd-run").forEach((k) => { k.textContent = RUN_KEYS(); });
+  document.querySelectorAll(".kbd-run").forEach((k) => { k.textContent = RUN_KEYS(); });   // Translate's Go
+  updateRefine();
 }
 
 // Shown name of an AI: the local one is labeled "Local (free)" / "Local (gratis)".
@@ -238,25 +240,60 @@ function detectTask() {
   return null;
 }
 
+// The switch in the Prompt header says what the prompt is for: the Draft
+// (Review it, or Create a text when the Draft is empty) or the result
+// (Refine it). Run follows the switch; Ctrl+Enter and Ctrl+Shift+Enter run
+// one or the other directly (and move the switch).
 function updateTask() {
   const task = detectTask();
   if (task === app.task) return;
   app.task = task;
   const label = task === "create" ? t("run.create") : t("run.review");
-  els.runBtn.innerHTML = `${escapeHtml(label)} <kbd class="kbd-run">${RUN_KEYS()}</kbd>`;
-  els.refineBtn.innerHTML = `${escapeHtml(t("run.refine"))} <kbd class="kbd-run">${onMac ? "⇧⌘↩" : "Ctrl+Shift+Enter"}</kbd>`;
-  els.mode.disabled = task === "create";
+  $("segDraft").textContent = label;
+  $("hintDraft").innerHTML = `${escapeHtml(label)} <kbd>${RUN_KEYS()}</kbd>`;
+  updateSwitch();
 }
 
 // Refine: the Prompt's changes applied to the current result (Draft untouched).
 const canRefine = () => Boolean(els.result.textContent.trim());
+const REFINE_KEYS = () => (onMac ? "⇧⌘↩" : "Ctrl+Shift+Enter");
+
+function setTarget(target) {
+  app.target = target === "refine" && canRefine() ? "refine" : "draft";
+  updateSwitch();
+}
+
+function updateSwitch() {
+  const refine = app.target === "refine";
+  $("segDraft").classList.toggle("on", !refine);
+  $("segRefine").classList.toggle("on", refine);
+  $("segDraft").setAttribute("aria-checked", String(!refine));
+  $("segRefine").setAttribute("aria-checked", String(refine));
+  $("promptHead").classList.toggle("tint-review", !refine);
+  $("promptHead").classList.toggle("tint-refine", refine);
+  $("promptHint").textContent = t(refine ? "prompt.hintRefine" : "prompt.hint");
+  els.runBtn.classList.toggle("tone-refine", refine);
+  els.mode.disabled = refine || app.task === "create";   // fix / polish is for Review only
+}
 
 function updateRefine() {
-  els.refineBtn.hidden = !canRefine();
+  const can = canRefine();
+  $("segRefine").disabled = !can;
+  $("hintRefine").classList.toggle("off", !can);
+  $("hintRefine").innerHTML = `${escapeHtml(t("run.refine"))} <kbd>${REFINE_KEYS()}</kbd>`;
+  if (!can && app.target === "refine") setTarget("draft");
+}
+
+// Where a result came from, for its header color: a prompt (Review/Create),
+// a Refine, or the Draft alone (Review without a prompt).
+function originOf(task, prompt) {
+  if (task === "refine") return "refine";
+  return task === "create" || (prompt || "").trim() ? "review" : "draft";
 }
 
 async function run(refine = false) {
   if (app.busy) return;
+  setTarget(refine ? "refine" : "draft");
   const task = refine ? "refine" : detectTask();
   if (!task) { setStatus(t("status.empty")); return; }
   if (refine && !canRefine()) return;
@@ -268,7 +305,7 @@ async function run(refine = false) {
   const draft = draftLines ? listText(draftLines) : "";   // plain: the formatting is put back here, after
   const before = beforeLines ? richToMd(beforeLines) : "";
   app.busy = true;
-  els.runBtn.disabled = els.refineBtn.disabled = true;
+  els.runBtn.disabled = true;
   const started = Date.now();
   const key = { review: "status.reviewing", create: "status.writing", refine: "status.refining" }[task];
   // The instruction that started this text: background for Refine.
@@ -306,7 +343,7 @@ async function run(refine = false) {
   } finally {
     clearInterval(timer);
     app.busy = false;
-    els.runBtn.disabled = els.refineBtn.disabled = false;
+    els.runBtn.disabled = false;
   }
 }
 
@@ -326,6 +363,7 @@ function renderResultTitle() {
   const r = app.resultTitle;
   els.resultTitle.textContent = r ? t(r.key, r) + (r.src ? ` · ${t(`history.src.${r.src}`)}` : "") : t("result");
   els.resultTitle.title = els.resultTitle.textContent;   // the full title when it is cut short
+  for (const tone of ["review", "refine", "draft"]) $("resultHead").classList.toggle(`tint-${tone}`, r?.origin === tone);
 }
 
 // The Changes panel: a review's fixes and the AI's notes.
@@ -364,7 +402,7 @@ function renderChanges(info) {
 
 function showResult(res) {
   const titles = { review: "result.corrected", create: "result.written", refine: "result.refined" };
-  app.resultTitle = { key: titles[res.task], provider: providerLabel(res.provider) };
+  app.resultTitle = { key: titles[res.task], provider: providerLabel(res.provider), origin: originOf(res.task, app.lastRun?.prompt) };
   renderResultTitle();
   els.result.innerHTML = richToEditorHtml(res.lines || mdToRich(res.text), res.marks);
   renderChanges({ task: res.task, changes: res.changes || [], notes: res.notes || "", ...(res.diff ? { diff: res.diff } : {}) });
@@ -1718,7 +1756,7 @@ function historyItem(v) {
   const ai = v.provider ? `${escapeHtml(providerLabel(v.provider))}${v.model ? ` (${escapeHtml(v.model)})` : ""}` : "";
   item.innerHTML =
     `<div class="hist-top"><span>${escapeHtml(formatWhen(v.time))}</span>` +
-    `<span class="badge">${escapeHtml(t(`history.src.${v.source}`))}</span></div>` +
+    `<span class="badge${versionOrigin(v) ? ` tint-${versionOrigin(v)}` : ""}">${escapeHtml(t(`history.src.${v.source}`))}</span></div>` +
     (v.label ? `<div class="hist-top"><span class="label">${escapeHtml(v.label)}</span></div>` : "") +
     `<div class="hist-preview">${escapeHtml(mdToPlain(v.text).replace(/\s+/g, " ").trim())}</div>` +
     (ai ? `<div class="hist-ai">${ai}</div>` : "");
@@ -1748,7 +1786,7 @@ function showVersion(v) {
   const lines = v.rich?.length ? v.rich : mdToRich(v.text);
   els.result.innerHTML = richToEditorHtml(lines);
   if (v.source === "result" && ["review", "refine"].includes(v.task)) markVersion(v, lines);
-  app.resultTitle = { key: "history.viewing", date: formatWhen(v.time), src: v.source };
+  app.resultTitle = { key: "history.viewing", date: formatWhen(v.time), src: v.source, origin: versionOrigin(v) };
   renderResultTitle();
   app.lastRun = { task: v.task, provider: v.provider, model: v.model, prompt: v.prompt, language: v.language, when: v.time };
   if (v.source === "result" && v.task !== "refine" && (v.changes || v.notes)) {
@@ -1756,6 +1794,12 @@ function showVersion(v) {
   } else showDiffFromPrevious(v);
   updateRefine();
   checkUnsaved();
+}
+
+// Header and badge color of a version: drafts are the Draft's; results by where they came from.
+function versionOrigin(v) {
+  if (v.source === "draft") return "draft";
+  return v.source === "result" ? originOf(v.task, v.prompt) : null;
 }
 
 function previousVersion(v) {
@@ -2370,8 +2414,9 @@ async function startUpdate() {
 // Wiring
 // ---------------------------------------------------------------------------
 function wire() {
-  els.runBtn.addEventListener("click", () => run());
-  els.refineBtn.addEventListener("click", () => run(true));
+  els.runBtn.addEventListener("click", () => run(app.target === "refine"));
+  $("segDraft").addEventListener("click", () => setTarget("draft"));
+  $("segRefine").addEventListener("click", () => setTarget("refine"));
   els.result.addEventListener("input", updateRefine);
   $("pasteBtn").addEventListener("click", pasteAndReview);
   $("clearBtn").addEventListener("click", clearAll);

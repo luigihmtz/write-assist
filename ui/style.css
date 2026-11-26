@@ -6,7 +6,7 @@
  *
  * Author:  Luis Martinez
  * Email:   16788942+luigihmtz@users.noreply.github.com
- * Version: v01.10.00
+ * Version: v01.11.00
  * Date:    2026-11-26
  *
  * Usage: linked from ui/index.html. --fs is set from settings.json font_size.
@@ -23,6 +23,11 @@
   --accent: #2563eb;
   --accent-text: #ffffff;
   --accent-soft: #e8efff;
+  /* What a request is for: Review/Create from a prompt (blue), Refine (violet),
+     the Draft alone (slate). Headers get a light tint, Run the full color. */
+  --tone-review: #2563eb;
+  --tone-refine: #7c3aed;
+  --tone-draft: #64748b;
   --mark: #fff1a8;
   --source-hl: #ffe066;
   --lt-spell: #e5484d;
@@ -48,6 +53,9 @@
     --accent: #5b8dff;
     --accent-text: #0b1020;
     --accent-soft: #24304a;
+    --tone-review: #5b8dff;
+    --tone-refine: #a78bfa;
+    --tone-draft: #94a3b8;
     --mark: rgba(250, 204, 21, 0.32);
     --source-hl: rgba(250, 204, 21, 0.55);
     --lt-spell: #ff6369;
@@ -255,7 +263,33 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
   padding: 6px 16px;
 }
 
-.primary kbd, #refineBtn kbd {
+/* Review / Refine colors */
+.card-head.tint-review { background: color-mix(in srgb, var(--tone-review) 14%, var(--surface-2)); }
+.card-head.tint-refine { background: color-mix(in srgb, var(--tone-refine) 16%, var(--surface-2)); }
+.card-head.tint-draft { background: color-mix(in srgb, var(--tone-draft) 24%, var(--surface-2)); }
+.card-head.tint-draft h2 { color: color-mix(in srgb, var(--tone-draft) 70%, var(--text)); }
+.card-head.tint-review h2 { color: var(--tone-review); }
+.card-head.tint-refine h2 { color: var(--tone-refine); }
+.task-switch { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; background: var(--surface); }
+.task-switch .seg { border: none; border-radius: 0; background: transparent; padding: 2px 10px; font-size: 0.85em; color: var(--muted); }
+.task-switch .seg:disabled { opacity: 0.45; cursor: default; }
+.task-switch .seg.on { color: #fff; font-weight: 600; }
+#segDraft.on { background: var(--tone-review); }
+#segRefine.on { background: var(--tone-refine); }
+@media (prefers-color-scheme: dark) { .task-switch .seg.on { color: #0b1020; } }
+#runBtn { min-width: 6em; }
+#runBtn.tone-refine { background: var(--tone-refine); border-color: var(--tone-refine); color: var(--accent-text); }
+.run-hints { display: inline-flex; gap: 12px; font-size: 0.85em; }
+.run-hint { font-weight: 600; white-space: nowrap; }
+.run-hint kbd { font: inherit; font-weight: 400; opacity: 0.8; margin-left: 4px; }
+.run-hint.off { opacity: 0.4; }
+.tone-review { color: var(--tone-review); }
+.tone-refine { color: var(--tone-refine); }
+.hist-top .badge.tint-review { background: color-mix(in srgb, var(--tone-review) 22%, transparent); }
+.hist-top .badge.tint-refine { background: color-mix(in srgb, var(--tone-refine) 24%, transparent); }
+.hist-top .badge.tint-draft { background: color-mix(in srgb, var(--tone-draft) 24%, transparent); }
+
+.primary kbd {
   font: inherit;
   font-weight: 400;
   font-size: 0.8em;

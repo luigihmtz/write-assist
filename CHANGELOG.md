@@ -2,6 +2,15 @@
 
 ## v02.15.00 - 2026-11-26
 
+- A **Review / Refine** switch in the Prompt's header says what the prompt is
+  for: the Draft (Review, or Create when the Draft is empty) or the result
+  (Refine). One **Run** button follows it, with the shortcuts next to it:
+  Ctrl+Enter always reviews or creates, Ctrl+Shift+Enter always refines. The
+  separate Refine button is gone.
+- Colors tell them apart: blue for Review/Create from a prompt, violet for
+  Refine, slate for the Draft. The result's header takes the color of where it
+  came from (slate when it came from the Draft alone), and so do the History
+  badges.
 - The Draft is now rich text, with the same formatting bar as the result:
   bold, italic, underline, strikethrough, lists and links (Ctrl+K).
 - Formatting survives everything: Review, Refine, *Use as draft*, History,

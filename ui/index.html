@@ -7,7 +7,7 @@ buttons, settings dialog. Rendered by writeAssist.pyw in a WebView2 window.
 
 Author:  Luis Martinez
 Email:   16788942+luigihmtz@users.noreply.github.com
-Version: v01.16.00
+Version: v01.17.00
 Date:    2026-11-26
 
 Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
@@ -74,10 +74,14 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
   <main class="grid">
     <div class="column">
       <section class="card prompt-card">
-        <div class="card-head">
+        <div class="card-head" id="promptHead">
           <h2 data-i18n="prompt">Prompt</h2>
-          <span class="hint" data-i18n="prompt.hint">context or instructions, optional for review</span>
+          <span class="hint" id="promptHint">context or instructions, optional for review</span>
           <span class="spacer"></span>
+          <div class="task-switch" role="radiogroup" data-i18n-title="switch.title">
+            <button type="button" class="seg" id="segDraft" role="radio">Review</button>
+            <button type="button" class="seg" id="segRefine" role="radio" data-i18n="run.refine">Refine</button>
+          </div>
           <select id="preset" data-i18n-title="preset.title">
             <option value="" data-i18n="preset">Insert preset...</option>
           </select>
@@ -88,7 +92,7 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
       <div class="splitter splitter-h" data-split="left" data-i18n-title="layout.split"></div>
 
       <section class="card draft-card">
-        <div class="card-head">
+        <div class="card-head tint-draft">
           <h2 data-i18n="draft">Draft</h2>
           <span class="hint" data-i18n="draft.hint">text to review, leave empty to create</span>
           <span class="spacer"></span>
@@ -105,7 +109,7 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
 
     <div class="column">
       <section class="card result-card">
-        <div class="card-head">
+        <div class="card-head" id="resultHead">
           <h2 id="resultTitle" data-i18n="result">Result</h2>
           <span class="spacer"></span>
           <button class="tool" id="historyToggle" data-i18n="history" data-i18n-title="history.title">History</button>
@@ -149,8 +153,11 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
   </main>
 
   <footer class="statusbar">
-    <button id="runBtn" class="primary">Review <kbd class="kbd-run">Ctrl+Enter</kbd></button>
-    <button id="refineBtn" class="ghost" data-i18n-title="run.refineTitle" hidden></button>
+    <button id="runBtn" class="primary" data-i18n="run.run">Run</button>
+    <span class="run-hints">
+      <span class="run-hint tone-review" id="hintDraft"></span>
+      <span class="run-hint tone-refine" id="hintRefine" data-i18n-title="run.refineTitle"></span>
+    </span>
     <label class="check"><input type="checkbox" id="autoCopy"> <span data-i18n="autoCopy">Copy result automatically</span></label>
     <button id="updateBtn" class="update" hidden></button>
     <span id="status" class="status"></span>
