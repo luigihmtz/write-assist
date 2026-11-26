@@ -56,11 +56,11 @@ Settings > Apps > Ollama if you don't need them.
 ### macOS (first pass, not yet tested)
 
 A first version for Mac (macOS 12 or later, Apple silicon or Intel) is in the
-repository but hasn't been tested on a Mac yet. It's published as a test
-version (a GitHub pre-release), so to try it, open **Terminal** and run:
+repository but hasn't been tested on a Mac yet. To try it, open **Terminal**
+and run:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/luigihmtz/write-assist/main/install.sh | WA_VERSION=v02.09.00 bash
+curl -fsSL https://raw.githubusercontent.com/luigihmtz/write-assist/main/install.sh | bash
 ```
 
 It sets up Python for Write Assist alone (with [uv](https://github.com/astral-sh/uv),
