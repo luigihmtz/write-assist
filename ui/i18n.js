@@ -5,7 +5,7 @@
 //
 // Author:  Luis Martinez
 // Email:   16788942+luigihmtz@users.noreply.github.com
-// Version: v01.15.01
+// Version: v01.15.02
 // Date:    2026-11-26
 //
 // Usage: loaded by ui/index.html before app.js. In index.html:
@@ -87,6 +87,7 @@ const STRINGS = {
     "run.refine": "Refine",
     "run.run": "Run",
     "run.switchTo": "Switch to {mode}",
+    "status.switchNeedsPrompt": "Write a prompt first: Review/Refine says what it's for.",
     "status.refineNeedsResult": "Refine works on a result: run a Review or Create first.",
     "switch.title": "What the prompt is for: the Draft (review it, or create a text when the Draft is empty) or the result (refine it)",
     "prompt.hintRefine": "what to change in the result",
@@ -396,6 +397,7 @@ const STRINGS = {
     "run.refine": "Ajustar",
     "run.run": "Ejecutar",
     "run.switchTo": "Cambiar a {mode}",
+    "status.switchNeedsPrompt": "Primero escribe instrucciones: Revisar/Ajustar indica para qué son.",
     "status.refineNeedsResult": "Ajustar trabaja sobre un resultado: primero Revisa o Crea.",
     "switch.title": "Para qué son las instrucciones: el Borrador (revisarlo, o crear un texto si está vacío) o el resultado (ajustarlo)",
     "prompt.hintRefine": "qué cambiar del resultado",
@@ -699,6 +701,7 @@ const STRINGS = {
     "run.refine": "Affiner",
     "run.run": "Lancer",
     "run.switchTo": "Passer à {mode}",
+    "status.switchNeedsPrompt": "Écrivez d'abord une consigne : Réviser/Affiner indique à quoi elle sert.",
     "status.refineNeedsResult": "Affiner travaille sur un résultat : lancez d'abord une révision ou une création.",
     "switch.title": "À quoi sert la consigne : le brouillon (le réviser, ou créer un texte s'il est vide) ou le résultat (l'affiner)",
     "prompt.hintRefine": "ce qu'il faut changer dans le résultat",

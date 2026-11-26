@@ -4,8 +4,10 @@
 
 - A **Review / Refine** switch in the Prompt's header says what the prompt is
   for: the Draft (Review, or Create when the Draft is empty) or the result
-  (Refine). One **Run** button (Ctrl+Enter) always does what the switch shows;
-  Ctrl+Shift+Enter, or the hint next to Run, flips the switch. The separate
+  (Refine). One button (Ctrl+Enter) does what the switch shows and says so:
+  *Review*, *Create* or *Refine*, in that color. Ctrl+Shift+Enter, or the hint
+  next to it, flips the switch. With an empty Prompt the switch is greyed and
+  the button reviews the Draft alone. The separate
   Refine button is gone.
 - Colors tell them apart: blue for Review/Create from a prompt, violet for
   Refine, slate for the Draft. The result's header takes the color of where it

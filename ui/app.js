@@ -11,7 +11,7 @@
 //
 // Author:  Luis Martinez
 // Email:   16788942+luigihmtz@users.noreply.github.com
-// Version: v01.18.01
+// Version: v01.19.00
 // Date:    2026-11-26
 //
 // Usage: loaded by ui/index.html after i18n.js (t(), applyLanguage()). Every
@@ -206,7 +206,7 @@ async function runLocalSetup(model) {
     }
   } finally {
     app.busy = false;
-    els.runBtn.disabled = false;
+    updateSwitch();
   }
 }
 
@@ -242,16 +242,21 @@ function detectTask() {
 
 // The switch in the Prompt header says what the prompt is for: the Draft
 // (Review it, or Create a text when the Draft is empty) or the result
-// (Refine it). Run (Ctrl+Enter) always does what the switch shows;
-// Ctrl+Shift+Enter, or the hint next to Run, flips the switch.
+// (Refine it). Run (Ctrl+Enter) does what the switch shows and says so
+// (Review, Create or Refine); Ctrl+Shift+Enter, or the hint next to Run,
+// flips the switch. With an empty Prompt the switch is greyed and Run works
+// on the Draft alone; the switch remembers Refine for the next prompt.
 function updateTask() {
-  const task = detectTask();
-  if (task === app.task) return;
-  app.task = task;
-  const label = task === "create" ? t("run.create") : t("run.review");
-  $("segDraft").textContent = label;
+  app.task = detectTask();
+  $("segDraft").textContent = app.task === "create" ? t("run.create") : t("run.review");
   updateSwitch();
 }
+
+const hasPrompt = () => Boolean(els.prompt.value.trim());
+// The side in effect: Refine needs a prompt and a result.
+const effectiveTarget = () => (app.target === "refine" && hasPrompt() && canRefine() ? "refine" : "draft");
+// What Run does now: "review", "create", "refine", or null (nothing to do).
+const runAction = () => (effectiveTarget() === "refine" ? "refine" : app.task);
 
 // Refine: the Prompt's changes applied to the current result (Draft untouched).
 const canRefine = () => Boolean(els.result.textContent.trim());
@@ -263,12 +268,16 @@ function setTarget(target) {
 }
 
 function flipTarget() {
-  if (app.target !== "refine" && !canRefine()) { setStatus(t("status.refineNeedsResult")); return; }
-  setTarget(app.target === "refine" ? "draft" : "refine");
+  if (!hasPrompt()) { setStatus(t("status.switchNeedsPrompt")); return; }
+  if (effectiveTarget() !== "refine" && !canRefine()) { setStatus(t("status.refineNeedsResult")); return; }
+  setTarget(effectiveTarget() === "refine" ? "draft" : "refine");
 }
 
 function updateSwitch() {
-  const refine = app.target === "refine";
+  const refine = effectiveTarget() === "refine";
+  const prompt = hasPrompt();
+  $("segDraft").disabled = !prompt;
+  $("segRefine").disabled = !prompt || !canRefine();
   $("segDraft").classList.toggle("on", !refine);
   $("segRefine").classList.toggle("on", refine);
   $("segDraft").setAttribute("aria-checked", String(!refine));
@@ -276,21 +285,24 @@ function updateSwitch() {
   $("promptHead").classList.toggle("tint-review", !refine);
   $("promptHead").classList.toggle("tint-refine", refine);
   $("promptHint").textContent = t(refine ? "prompt.hintRefine" : "prompt.hint");
-  els.runBtn.classList.toggle("tone-refine", refine);
-  els.runBtn.innerHTML = `${escapeHtml(t("run.run"))} <kbd class="kbd-run">${RUN_KEYS()}</kbd>`;
-  // The hint offers the other side, in its color (greyed when there's nothing to refine yet).
+  // Run says what it will do, in that color: Refine violet, a prompt's Review
+  // or Create blue, a Review of the Draft alone slate; nothing to do: disabled.
+  const action = runAction();
+  els.runBtn.disabled = !action || app.busy;
+  els.runBtn.classList.toggle("tone-refine", action === "refine");
+  els.runBtn.classList.toggle("tone-draft", action === "review" && !prompt);
+  els.runBtn.innerHTML = `${escapeHtml(t(action ? `run.${action}` : "run.run"))} <kbd class="kbd-run">${RUN_KEYS()}</kbd>`;
+  // The hint offers the other side, in its color (greyed when it can't be used).
   const other = refine ? (app.task === "create" ? t("run.create") : t("run.review")) : t("run.refine");
   const hint = $("hintSwitch");
-  hint.className = `run-hint tone-${refine ? "review" : "refine"}${!refine && !canRefine() ? " off" : ""}`;
+  hint.className = `run-hint tone-${refine ? "review" : "refine"}${!prompt || (!refine && !canRefine()) ? " off" : ""}`;
   hint.innerHTML = `${escapeHtml(t("run.switchTo", { mode: other }))} <kbd>${REFINE_KEYS()}</kbd>`;
   els.mode.disabled = refine || app.task === "create";   // fix / polish is for Review only
 }
 
 function updateRefine() {
-  const can = canRefine();
-  $("segRefine").disabled = !can;
-  if (!can && app.target === "refine") setTarget("draft");
-  else updateSwitch();
+  if (!canRefine() && app.target === "refine") app.target = "draft";   // nothing left to refine
+  updateSwitch();
 }
 
 // Where a result came from, for its header color: a prompt (Review/Create),
@@ -351,7 +363,7 @@ async function run(refine = false) {
   } finally {
     clearInterval(timer);
     app.busy = false;
-    els.runBtn.disabled = false;
+    updateSwitch();
   }
 }
 
@@ -2422,7 +2434,7 @@ async function startUpdate() {
 // Wiring
 // ---------------------------------------------------------------------------
 function wire() {
-  els.runBtn.addEventListener("click", () => run(app.target === "refine"));
+  els.runBtn.addEventListener("click", () => run(effectiveTarget() === "refine"));
   $("segDraft").addEventListener("click", () => setTarget("draft"));
   $("segRefine").addEventListener("click", () => setTarget("refine"));
   $("hintSwitch").addEventListener("click", flipTarget);
@@ -2560,7 +2572,7 @@ function wire() {
     else if (mod && e.key === "Enter") {
       e.preventDefault();
       if (els.translate.contains(document.activeElement)) translateNow();
-      else run(app.target === "refine");
+      else run(effectiveTarget() === "refine");
     }
     else if (mod && e.shiftKey && key === "v") { e.preventDefault(); pasteAndReview(); }
     else if (mod && e.shiftKey && key === "c") { e.preventDefault(); copyResult(); }

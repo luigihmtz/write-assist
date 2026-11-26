@@ -279,6 +279,9 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 @media (prefers-color-scheme: dark) { .task-switch .seg.on { color: #0b1020; } }
 #runBtn { min-width: 6em; }
 #runBtn.tone-refine { background: var(--tone-refine); border-color: var(--tone-refine); color: var(--accent-text); }
+#runBtn.tone-draft { background: var(--tone-draft); border-color: var(--tone-draft); color: #fff; }
+@media (prefers-color-scheme: dark) { #runBtn.tone-draft { color: #0b1020; } }
+#runBtn:disabled { background: var(--surface-2); border-color: var(--border); color: var(--muted); }
 .run-hint { font-size: 0.85em; font-weight: 600; white-space: nowrap; border: none; background: transparent; padding: 2px 4px; }
 .run-hint:hover:not(.off) { text-decoration: underline; text-underline-offset: 3px; }
 .run-hint.off { cursor: default; }
