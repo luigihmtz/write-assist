@@ -1,5 +1,12 @@
 # Changelog
 
+## v02.16.00 - 2026-11-26
+
+- Error messages are now in the interface language too (English, Spanish or
+  French): failed AI requests, downloads, the grammar checker, exports,
+  sessions and the global hotkey. Technical details, such as what an AI's own
+  tool printed, are shown as they are.
+
 ## v02.15.00 - 2026-11-26
 
 - A **Review / Refine** switch in the Prompt's header says what the prompt is

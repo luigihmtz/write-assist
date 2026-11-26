@@ -15,7 +15,7 @@
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v02.14.00
+# Version: v02.15.00
 # Date:    2026-11-26
 #
 # Usage: installed by install.ps1 (Start Menu shortcut + global hotkey, default
@@ -28,6 +28,7 @@
 
 import base64
 import json
+import re
 import os
 import socket
 import subprocess
@@ -157,10 +158,29 @@ def clipboard_set_text(window, text, html=None):
 # --------------------------------------------------------------------------- #
 # Hotkey listener control
 # --------------------------------------------------------------------------- #
+# The hotkey listener (a separate program, possibly an older one still running
+# after an update) answers in English: its messages are mapped to keys here.
+_HOTKEY_MESSAGES = [
+    (re.compile(r"^Unknown key '(?P<key>.*)' in '(?P<hotkey>.*)'$"), "err.hotkeyKey"),
+    (re.compile(r"^'(?P<hotkey>.*)' needs at least one modifier"), "err.hotkeyModifier"),
+    (re.compile(r"^(?P<hotkey>.*) is already used by Windows or another app$"), "err.hotkeyUsed"),
+    (re.compile(r"^The hotkey listener didn't respond$"), "err.hotkeyNoReply"),
+]
+
+
+def hotkey_error(message):
+    """(key, params) for a listener message, or (None, {})."""
+    for pattern, key in _HOTKEY_MESSAGES:
+        match = pattern.match(message)
+        if match:
+            return key, match.groupdict()
+    return None, {}
+
+
 def reload_hotkey_listener():
     """Asks the listener to apply the saved hotkey, starting it if needed. Returns (ok, message)."""
     if not platform.IS_WINDOWS:
-        return False, "the global hotkey isn't available on this system yet"
+        return False, "err.hotkeyMac"
     for attempt in range(3):
         try:
             with socket.create_connection(("127.0.0.1", LISTENER_PORT), timeout=4) as conn:
@@ -172,7 +192,7 @@ def reload_hotkey_listener():
             if attempt == 0 and LISTENER_SCRIPT.exists():
                 subprocess.Popen([core.pythonw_exe(), str(LISTENER_SCRIPT)], cwd=core.APP_DIR)
             time.sleep(1.5)
-    return False, "the hotkey listener isn't running"
+    return False, "err.hotkeyNotRunning"
 
 
 # --------------------------------------------------------------------------- #
@@ -186,7 +206,7 @@ def safely(fn):
             return {"ok": True, **(fn(*args, **kwargs) or {})}
         except Exception as exc:
             diagnostics.record_error(fn.__name__, exc, args[1:])   # for About > Copy diagnostics
-            return {"ok": False, "error": str(exc) or exc.__class__.__name__}
+            return {"ok": False, **core.error_fields(exc)}   # the page translates error_key
     wrapper.__name__ = fn.__name__
     return wrapper
 
@@ -281,7 +301,8 @@ class Bridge:
         except core.LimitReached as exc:
             backup = self._backup_for(name)
             if not backup:
-                raise RuntimeError(f"{name} hit a usage limit and no other AI is installed to take over.\n\n{exc}")
+                raise core.UserError("err.limitNoBackup", "{provider} hit a usage limit and no other AI is installed to take over.\n\n{detail}",
+                                     provider=name, detail=str(exc))
             backup_name, backup_provider = backup
             result = call(backup_name, backup_provider, backup_provider.get("default_model", ""))
             limit_note = str(exc).strip().splitlines()[0][:120]
@@ -296,11 +317,11 @@ class Bridge:
         if refine:
             task, source = "refine", request.get("result", "")
             if not source.strip() or not request.get("prompt", "").strip():
-                raise RuntimeError("Write in the Prompt what to change in the result.")
+                raise core.UserError("status.refineNeedsPrompt", "Write in the Prompt what to change in the result, then Refine.")
         else:
             task, source = core.detect_task(request.get("prompt", ""), request.get("draft", "")), request.get("draft", "")
             if not task:
-                raise RuntimeError("Paste a draft to review, or write a prompt to create.")
+                raise core.UserError("status.empty", "Paste a draft to review, or write a prompt to create.")
         started = time.time()
         result, extra = self._ask_with_fallback(request, lambda name, provider, model: core.run_text_task(
             name, provider, model, task, request.get("prompt", ""), source,
@@ -409,7 +430,7 @@ class Bridge:
         except (OSError, ValueError):
             session = None
         if not isinstance(session, dict) or session.get("format") != self.SESSION_FORMAT:
-            raise RuntimeError(f"{path.name} isn't a Write Assist session file.")
+            raise core.UserError("err.notSession", "{name} isn't a Write Assist session file.", name=path.name)
         if self._settings.get("history", True):
             self._history.import_versions(session.get("history"))
         return {"session": session, "name": path.name}
@@ -426,7 +447,7 @@ class Bridge:
             data = self._read_session(path)
             self._window.evaluate_js(f"window.WA && WA.applySession({json.dumps(data)})")
         except Exception as exc:
-            self._window.evaluate_js(f"window.WA && WA.showError({json.dumps(str(exc))})")
+            self._window.evaluate_js(f"window.WA && WA.showError({json.dumps(core.error_fields(exc))})")
 
     @safely
     def diagnostics(self):
@@ -455,9 +476,9 @@ class Bridge:
         from datetime import datetime
         text, fmt = request.get("text") or "", request.get("format", "docx")
         if not text.strip():
-            raise RuntimeError("There's no text to export.")
+            raise core.UserError("export.empty", "There's no text to export.")
         if fmt not in export.FORMATS or (fmt == "pdf" and not platform.IS_WINDOWS):
-            raise RuntimeError(f"Unsupported format: {fmt}")
+            raise core.UserError("err.format", "Unsupported format: {format}", format=fmt)
         when = datetime.fromisoformat(request["when"]) if request.get("when") else datetime.now()
         when = when if when.tzinfo else when.astimezone()
         name = export.suggested_name(text, fmt, when)
@@ -474,7 +495,7 @@ class Bridge:
         else:
             cloud = next((c for c in export.cloud_folders() if c["key"] == target), None)
             if not cloud:
-                raise RuntimeError("That cloud folder isn't available on this computer anymore.")
+                raise core.UserError("err.cloudGone", "That cloud folder isn't available on this computer anymore.")
             folder = Path(cloud["path"]) / "Write Assist"
             path = folder / name
             counter = 2
@@ -504,7 +525,7 @@ class Bridge:
                 break
             time.sleep(0.1)
         if not task.IsCompleted or task.IsFaulted or not task.Result:
-            raise RuntimeError("The PDF couldn't be created.")
+            raise core.UserError("err.pdf", "The PDF couldn't be created.")
 
     @safely
     def open_folder(self, folder):
@@ -518,7 +539,7 @@ class Bridge:
     def thesaurus(self, request):
         word = (request.get("word") or "").strip()
         if not word:
-            raise RuntimeError("Select a word first.")
+            raise core.UserError("err.selectWord", "Select a word first.")
         context = (request.get("context") or "").strip()
         explain_in = EXPLAIN_LANGUAGES.get(request.get("ui_language", ""), "")
         key = (word.lower(), context, request["provider"], request.get("model", ""), explain_in)
@@ -535,7 +556,7 @@ class Bridge:
     def translate(self, request):
         text = (request.get("text") or "").strip()
         if not text:
-            raise RuntimeError("Select some text or type it in the box first.")
+            raise core.UserError("err.selectText", "Select some text or type it in the box first.")
         target = request.get("target") or "auto"
         context = (request.get("context") or "").strip()
         explain_in = EXPLAIN_LANGUAGES.get(request.get("ui_language", ""), "")
@@ -553,7 +574,7 @@ class Bridge:
         for name, p in self._settings["providers"].items():
             if p.get("type") == "ollama":
                 return name, p
-        raise RuntimeError("The local AI isn't configured in settings.json.")
+        raise core.UserError("err.localConfig", "The local AI isn't configured in settings.json.")
 
     @safely
     def local_info(self, model=""):
@@ -594,7 +615,7 @@ class Bridge:
                 core.pull_local_model(cli, model, progress)
                 state["finished"] = True
             except Exception as exc:
-                state["error"] = str(exc) or exc.__class__.__name__
+                state.update(core.error_fields(exc))
             finally:
                 state["running"] = False
         threading.Thread(target=work, daemon=True).start()
@@ -623,7 +644,7 @@ class Bridge:
                     state["done_mb"], state["total_mb"] = done_mb, total_mb
                 grammar.install(progress)
             except Exception as exc:
-                state["error"] = str(exc) or exc.__class__.__name__
+                state.update(core.error_fields(exc))
             finally:
                 state["running"] = False
         threading.Thread(target=work, daemon=True).start()
@@ -652,7 +673,7 @@ class Bridge:
     @safely
     def set_check_mode(self, mode):
         if mode not in self._CHECK_MODES:
-            raise RuntimeError(f"Unknown check mode: {mode}")
+            raise core.UserError("err.checkMode", "Unknown check mode: {mode}", mode=mode)
         user = core.load_user_settings()
         user["check_mode"] = mode
         user.pop("live_grammar", None)
@@ -680,7 +701,7 @@ class Bridge:
                 return {}
             ok, message = speech.install(core.python_exe())
             if not ok:
-                raise RuntimeError(f"Couldn't install the speech engine:\n{message}")
+                raise core.UserError("err.speechInstall", "Couldn't install the speech engine:\n{detail}", detail=message)
         return {}
 
     @safely
@@ -731,7 +752,8 @@ class Bridge:
         if not hotkey_changed:
             return {"hotkey_changed": False}
         ok, message = reload_hotkey_listener()
-        return {"hotkey_changed": True, "hotkey_ok": ok, "hotkey_message": message}
+        key, params = (message, {}) if message.startswith("err.") else hotkey_error(message) if not ok else (None, {})
+        return {"hotkey_changed": True, "hotkey_ok": ok, "hotkey_message": message, "hotkey_key": key, "hotkey_params": params}
 
     @safely
     def skip_profile(self):

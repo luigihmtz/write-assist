@@ -8,8 +8,8 @@
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v01.01.00
-# Date:    2026-11-25
+# Version: v01.01.01
+# Date:    2026-11-26
 #
 # Usage: imported by writeAssist.pyw. install(progress) once; then
 #        Checker().check(text, language, mother_tongue) returns the matches.
@@ -28,6 +28,7 @@ import zipfile
 from pathlib import Path
 
 import waPlatform as platform
+from waCore import UserError
 
 HOME = platform.data_dir("WriteAssist-LanguageTool")
 LT_URL = "https://languagetool.org/download/LanguageTool-stable.zip"
@@ -106,7 +107,7 @@ def install(progress):
             with zipfile.ZipFile(zip_path) as archive:
                 archive.extractall(HOME)
     if not is_installed():
-        raise RuntimeError("The grammar checker didn't finish installing. Check your internet connection and try again.")
+        raise UserError("err.ltInstall", "The grammar checker didn't finish installing. Check your internet connection and try again.")
 
 
 def mother_tongue(profile):
@@ -138,7 +139,7 @@ class Checker:
             return
         java, jar = java_exe(), server_jar()
         if not (java and jar):
-            raise RuntimeError("Live grammar isn't set up yet. Turn it on in Settings to download it.")
+            raise UserError("err.ltNotSetUp", "Live grammar isn't set up yet. Choose spelling + grammar under Underline to download it.")
         self._process = subprocess.Popen(
             [str(java), "-Xms64m", "-Xmx1g", "-cp", str(jar), "org.languagetool.server.HTTPServer",
              "--port", str(PORT)],
@@ -150,7 +151,7 @@ class Checker:
                 return
             if self._process.poll() is not None:
                 break
-        raise RuntimeError("The grammar checker didn't start. Restart Write Assist and try again.")
+        raise UserError("err.ltNoStart", "The grammar checker didn't start. Restart Write Assist and try again.")
 
     def check(self, text, language="auto", profile=""):
         """LanguageTool matches for text: [{offset, length, message, replacements, type, rule}].

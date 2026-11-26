@@ -8,7 +8,7 @@
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v01.10.00
+# Version: v01.11.00
 # Date:    2026-11-26
 #
 # Usage: imported by writeAssist.pyw. Per-user files live in
@@ -218,13 +218,33 @@ def parse_json_reply(text):
     text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip())
     start, end = text.find("{"), text.rfind("}")
     if start == -1 or end <= start:
-        raise RuntimeError(f"The reply wasn't the expected JSON:\n{text[:800]}")
+        raise UserError("err.notJson", "The reply wasn't the expected JSON:\n{detail}", detail=text[:800])
     try:
         # strict=False: some models put real line breaks inside the text
         # instead of \n (texts with paragraphs failed with "Invalid control character").
         return json.loads(text[start:end + 1], strict=False)
     except ValueError as exc:
-        raise RuntimeError(f"Couldn't read the reply as JSON ({exc}):\n{text[:800]}")
+        raise UserError("err.badJson", "Couldn't read the reply as JSON ({reason}):\n{detail}", reason=str(exc), detail=text[:800])
+
+
+class UserError(RuntimeError):
+    """An error the user reads: the English text (kept for logs and the
+    diagnostics report) and a key the page shows in the interface language
+    (ui/i18n.js "err.*", with the same {placeholders}). Technical details, such
+    as what a command-line tool printed, go in as they are."""
+
+    def __init__(self, key, message, **params):
+        super().__init__(message.format(**params))
+        self.key = key
+        self.params = params
+
+
+def error_fields(exc):
+    """{error, error_key?, error_params?} for the page (which translates the key)."""
+    fields = {"error": str(exc) or exc.__class__.__name__}
+    if isinstance(exc, UserError):
+        fields.update(error_key=exc.key, error_params=exc.params)
+    return fields
 
 
 class LimitReached(RuntimeError):
@@ -266,7 +286,7 @@ def run_claude(cli, provider, model, message, system_prompt, schema, json_hint, 
         check_limit(detail)
         if "login" in detail.lower() or "auth" in detail.lower():
             detail += "\n\nSign in by running `claude auth login` in a terminal."
-        raise RuntimeError(f"Claude failed (exit {code}):\n{detail[:1500]}")
+        raise UserError("err.aiFailed", "{provider} failed (exit {code}):\n{detail}", provider="Claude", code=code, detail=detail[:1500])
     if payload.get("is_error"):
         detail = str(payload.get("result") or payload)
         if payload.get("api_error_status") in (429, 529):
@@ -295,7 +315,8 @@ def run_copilot(cli, provider, model, message, system_prompt, schema, json_hint,
     code, out, err = run_cli(cmd, prompt, timeout)
     if code != 0 or not out.strip():
         check_limit(f"{err}\n{out}")
-        raise RuntimeError(f"Copilot failed (exit {code}):\n{(err or out or 'no output').strip()[:1500]}")
+        raise UserError("err.aiFailed", "{provider} failed (exit {code}):\n{detail}", provider="Copilot", code=code,
+                        detail=(err or out or "no output").strip()[:1500])
     return parse_json_reply(out)
 
 
@@ -368,8 +389,9 @@ def run_codex(cli, provider, model, message, system_prompt, schema, json_hint, t
         detail = "\n".join(errors) or proc.stderr.strip() or "no output"
         check_limit(detail)
         if any(word in detail.lower() for word in ("401", "unauthorized", "not logged in", "login")):
-            raise RuntimeError("ChatGPT isn't signed in. Open a terminal, run: codex login")
-        raise RuntimeError(f"ChatGPT failed (exit {proc.returncode}):\n{detail[:1500]}")
+            raise UserError("err.codexLogin", "ChatGPT isn't signed in. Open a terminal, run: codex login")
+        raise UserError("err.aiFailed", "{provider} failed (exit {code}):\n{detail}", provider="ChatGPT", code=proc.returncode,
+                        detail=detail[:1500])
 
 
 # --------------------------------------------------------------------------- #
@@ -420,7 +442,7 @@ def start_ollama(cli):
         time.sleep(0.5)
         if ollama_running():
             return
-    raise RuntimeError("The local AI (Ollama) didn't start. Restart the computer and try again.")
+    raise UserError("err.ollamaNoStart", "The local AI (Ollama) didn't start. Restart the computer and try again.")
 
 
 def install_ollama():
@@ -431,12 +453,12 @@ def install_ollama():
         return
     winget = shutil.which("winget")
     if not winget:
-        raise RuntimeError("Windows' winget isn't available. Install Ollama from https://ollama.com/download and try again.")
+        raise UserError("err.noWinget", "Windows' winget isn't available. Install Ollama from https://ollama.com/download and try again.")
     proc = subprocess.run([winget, "install", "--id", "Ollama.Ollama", "-e", "--silent",
                            "--accept-package-agreements", "--accept-source-agreements", "--disable-interactivity"],
                           capture_output=True, text=True, encoding="utf-8", errors="replace", creationflags=NO_WINDOW)
     if not find_cli("ollama"):
-        raise RuntimeError(f"Ollama couldn't be installed:\n{(proc.stdout + proc.stderr).strip()[-800:]}")
+        raise UserError("err.ollamaInstall", "Ollama couldn't be installed:\n{detail}", detail=(proc.stdout + proc.stderr).strip()[-800:])
     remove_ollama_autostart()
 
 
@@ -451,7 +473,7 @@ def _install_ollama_mac():
         # ditto keeps the app's permissions and signature intact (zipfile doesn't).
         proc = subprocess.run(["ditto", "-x", "-k", str(archive), str(MAC_APPS)], capture_output=True, text=True)
     if not find_cli("ollama"):
-        raise RuntimeError(f"Ollama couldn't be installed:\n{(proc.stdout + proc.stderr).strip()[-800:]}")
+        raise UserError("err.ollamaInstall", "Ollama couldn't be installed:\n{detail}", detail=(proc.stdout + proc.stderr).strip()[-800:])
 
 
 def remove_ollama_autostart():
@@ -473,16 +495,16 @@ def pull_local_model(cli, model, progress):
         for line in response:
             event = json.loads(line or b"{}")
             if event.get("error"):
-                raise RuntimeError(f"The model couldn't be downloaded: {event['error']}")
+                raise UserError("err.modelDownload", "The model couldn't be downloaded: {detail}", detail=event["error"])
             if event.get("total"):
                 progress(event.get("completed", 0) / 1e6, event["total"] / 1e6)
     if not local_model_present(model):
-        raise RuntimeError(f"The model {model} didn't finish downloading. Try again.")
+        raise UserError("err.modelIncomplete", "The model {model} didn't finish downloading. Try again.", model=model)
 
 
 def run_ollama(cli, provider, model, message, system_prompt, schema, json_hint, timeout):
     if not local_model_present(model):
-        raise RuntimeError(f"The local model {model} isn't downloaded yet. Pick it again to download it.")
+        raise UserError("err.modelMissing", "The local model {model} isn't downloaded yet. Pick it again to download it.", model=model)
     start_ollama(cli)
     # Small models can get stuck repeating themselves inside the JSON, and
     # Ollama's default 4k context then cuts the reply off mid-string. So: room for
@@ -500,7 +522,7 @@ def run_ollama(cli, provider, model, message, system_prompt, schema, json_hint, 
             with ollama_api("/api/chat", body, timeout=timeout) as response:
                 reply = json.load(response)
         except urllib.error.HTTPError as exc:
-            raise RuntimeError(f"The local AI failed: {exc.read().decode('utf-8', 'replace')[:500]}")
+            raise UserError("err.localFailed", "The local AI failed: {detail}", detail=exc.read().decode("utf-8", "replace")[:500])
         content = reply.get("message", {}).get("content", "")
         if reply.get("done_reason") != "length":
             try:
@@ -509,8 +531,8 @@ def run_ollama(cli, provider, model, message, system_prompt, schema, json_hint, 
                 pass
         # Stuck or cut off: one more try with different sampling usually escapes the loop.
         options = {**options, "temperature": 0.7, "seed": 7}
-    raise RuntimeError("The free local AI got stuck on this text and didn't finish its answer. "
-                       "Try again, shorten the text, or choose Claude or ChatGPT for this one.")
+    raise UserError("err.localStuck", "The free local AI got stuck on this text and didn't finish its answer. "
+                    "Try again, shorten the text, or choose Claude or ChatGPT for this one.")
 
 
 RUNNERS = {"claude": run_claude, "codex": run_codex, "copilot": run_copilot, "ollama": run_ollama}
@@ -520,7 +542,7 @@ def ask(provider_name, provider, model, message, system_prompt, schema, json_hin
     kind = provider.get("type", "claude")
     cli = find_cli(kind, provider.get("path", ""))
     if not cli:
-        raise RuntimeError(f"{provider_name} isn't installed. Run the Write Assist installer again.")
+        raise UserError("err.notInstalled", "{provider} isn't installed. Run the Write Assist installer again.", provider=provider_name)
     return RUNNERS[kind](cli, provider, model, message, system_prompt, schema, json_hint, timeout)
 
 
@@ -651,7 +673,7 @@ def run_text_task(provider_name, provider, model, task, prompt, draft, mode, ton
     result = ask(provider_name, provider, model, message, load_system_prompt(profile),
                  TEXT_SCHEMA, TEXT_JSON_HINT, timeout)
     if not isinstance(result.get("text"), str):
-        raise RuntimeError("The reply had no text.")
+        raise UserError("err.noText", "The reply had no text.")
     # Spaces some models leave at line ends would show up as changes.
     result["text"] = "\n".join(line.rstrip() for line in result["text"].split("\n"))
     changes = [c for c in (result.get("changes") or [])
@@ -795,7 +817,7 @@ def run_translate(provider_name, provider, model, text, target, context, timeout
     result = ask(provider_name, provider, model, message, TRANSLATE_PROMPT,
                  TRANSLATE_SCHEMA, TRANSLATE_JSON_HINT, timeout)
     if not isinstance(result.get("translation"), str):
-        raise RuntimeError("The reply had no translation.")
+        raise UserError("err.noTranslation", "The reply had no translation.")
     return {
         "translation": result["translation"],
         "source_language": str(result.get("source_language") or ""),

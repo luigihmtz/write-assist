@@ -11,14 +11,21 @@
 //
 // Author:  Luis Martinez
 // Email:   16788942+luigihmtz@users.noreply.github.com
-// Version: v01.19.00
+// Version: v01.20.00
 // Date:    2026-11-26
 //
 // Usage: loaded by ui/index.html after i18n.js (t(), applyLanguage()). Every
 //        api.* call returns a Promise of {ok: true, ...} or {ok: false, error}.
 
 const $ = (id) => document.getElementById(id);
-const api = () => window.pywebview.api;
+// Python's errors arrive as a message key (error_key, error_params; see
+// waCore.UserError): every call's error is shown in the interface language.
+const translateError = (res) => {
+  if (res && res.error_key) res.error = t(res.error_key, res.error_params || {});
+  return res;
+};
+const apiCalls = new Proxy({}, { get: (_, name) => (...args) => window.pywebview.api[name](...args).then(translateError) });
+const api = () => apiCalls;
 
 const els = {
   histColumn: $("histColumn"), histList: $("histList"), histLabel: $("histLabel"),
@@ -2379,6 +2386,9 @@ async function fillMicrophones(selected) {
   select.value = selected;
 }
 
+// The hotkey's message: the hotkey itself, or why it couldn't be set (translated).
+const hotkeyText = (res) => (res.hotkey_key ? t(res.hotkey_key, res.hotkey_params || {}) : res.hotkey_message);
+
 async function closeSettings(save) {
   const dialog = $("settingsDialog");
   if (!save) {
@@ -2401,12 +2411,12 @@ async function closeSettings(save) {
   if (app.onClose === "keep") flushAutosave(); else api().autosave(null);   // start keeping, or forget the kept work
   if (uiLanguage !== app.uiLanguage) setUiLanguage(uiLanguage);
   if (res.hotkey_changed && !res.hotkey_ok) {
-    $("settingsError").textContent = t("settings.hotkeyFailed", { message: res.hotkey_message });
+    $("settingsError").textContent = t("settings.hotkeyFailed", { message: hotkeyText(res) });
     $("settingsError").hidden = false;
     return;
   }
   dialog.close();
-  setStatus(res.hotkey_changed ? t("status.settingsSavedHotkey", { message: res.hotkey_message }) : t("status.settingsSaved"));
+  setStatus(res.hotkey_changed ? t("status.settingsSavedHotkey", { message: hotkeyText(res) }) : t("status.settingsSaved"));
 }
 
 // ---------------------------------------------------------------------------
@@ -2606,7 +2616,7 @@ function wire() {
 window.WA = {
   focusDraft: () => els.draft.focus(),
   applySession,
-  showError: (message) => setStatus(message, true),
+  showError: (fields) => setStatus(translateError({ ...fields }).error, true),
   confirmQuit,
   flushAutosave,
 };
