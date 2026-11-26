@@ -6,7 +6,7 @@
  *
  * Author:  Luis Martinez
  * Email:   16788942+luigihmtz@users.noreply.github.com
- * Version: v01.05.00
+ * Version: v01.05.01
  * Date:    2026-11-25
  *
  * Usage: linked from ui/index.html. --fs is set from settings.json font_size.
@@ -105,6 +105,7 @@ button, select, input, textarea { font: inherit; color: inherit; }
 #mode { max-width: 11em; }
 #tone { max-width: 8.5em; }
 #provider { max-width: 9em; }
+#checkMode { max-width: 10.5em; }
 #textLanguage { max-width: 9.5em; }
 .toolbar-actions { display: flex; gap: 6px; margin-left: auto; white-space: nowrap; }
 .toolbar-actions button { padding-left: 10px; padding-right: 10px; }

@@ -7,7 +7,7 @@ buttons, settings dialog. Rendered by writeAssist.pyw in a WebView2 window.
 
 Author:  Luis Martinez
 Email:   16788942+luigihmtz@users.noreply.github.com
-Version: v01.07.00
+Version: v01.08.00
 Date:    2026-11-25
 
 Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
@@ -53,6 +53,13 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
     </label>
     <label class="field"><span data-i18n="ai">AI</span> <select id="provider"></select></label>
     <label class="field"><span data-i18n="model">Model</span> <select id="model"></select></label>
+    <label class="field" data-i18n-title="check.title"><span data-i18n="check.label">Underline</span>
+      <select id="checkMode">
+        <option value="off" data-i18n="check.off" data-i18n-title="check.offHint">off</option>
+        <option value="spelling" data-i18n="check.spelling" data-i18n-title="check.spellingHint">spelling</option>
+        <option value="grammar" data-i18n="check.grammar" data-i18n-title="check.grammarHint">spelling + grammar</option>
+      </select>
+    </label>
     <span class="spacer"></span>
     <span class="toolbar-actions">
     <button id="translateBtn" class="ghost" data-i18n="translate" data-i18n-title="translate.title">Translate</button>
@@ -191,14 +198,6 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
         <select id="microphone">
           <option value="" data-i18n="settings.micDefault">Same as Windows</option>
         </select>
-      </label>
-      <label class="block"><span data-i18n="settings.checkMode">Underline mistakes as I type</span>
-        <select id="checkMode">
-          <option value="off" data-i18n="check.off">Off</option>
-          <option value="spelling" data-i18n="check.spelling">Spelling only (built in)</option>
-          <option value="grammar" data-i18n="check.grammar">Spelling and grammar (LanguageTool)</option>
-        </select>
-        <span class="muted" id="checkModeHint"></span>
       </label>
       <div class="row">
         <label class="block"><span data-i18n="settings.speechModel">Speech model</span>

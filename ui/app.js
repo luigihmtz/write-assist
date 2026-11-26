@@ -7,7 +7,7 @@
 //
 // Author:  Luis Martinez
 // Email:   16788942+luigihmtz@users.noreply.github.com
-// Version: v01.09.00
+// Version: v01.10.00
 // Date:    2026-11-25
 //
 // Usage: loaded by ui/index.html after i18n.js (t(), applyLanguage()). Every
@@ -883,12 +883,23 @@ function ignoreGrammarMatch() {
 // spellchecker) or "grammar" (LanguageTool on this PC).
 function applyCheckMode(mode) {
   app.checkMode = mode;
+  $("checkMode").value = mode;
   for (const field of LT_FIELDS) els[field].spellcheck = mode === "spelling";
   setLiveGrammar(mode === "grammar");
 }
 
-function showCheckModeHint() {
-  $("checkModeHint").textContent = t(`check.${$("checkMode").value}Hint`);
+// The Underline dropdown in the top bar. "grammar" needs the checker: the
+// dropdown keeps the current mode until it's downloaded and running.
+async function onCheckModeChange() {
+  const mode = $("checkMode").value;
+  if (mode === app.checkMode) return;
+  if (mode === "grammar") {
+    $("checkMode").value = app.checkMode;
+    await enableLiveGrammar();
+    return;
+  }
+  applyCheckMode(mode);
+  api().set_check_mode(mode);
 }
 
 // Choosing "grammar" the first time downloads the checker, after the size
@@ -1090,8 +1101,6 @@ async function openSettings(firstRun = false) {
   $("speechLanguage").value = res.speech_language;
   $("uiLanguage").value = res.ui_language || "";
   fillMicrophones(res.microphone || "");
-  $("checkMode").value = app.checkMode || res.check_mode || "spelling";
-  showCheckModeHint();
   $("versionText").textContent = t("settings.version", { version: res.version }) + (res.is_dev ? t("settings.devCopy") : "");
   $("settingsError").hidden = true;
   const dialog = $("settingsDialog");
@@ -1123,17 +1132,10 @@ async function closeSettings(save) {
     profile: $("profile").value, hotkey: $("hotkey").value,
     speech_model: $("speechModel").value, speech_language: $("speechLanguage").value,
     ui_language: uiLanguage, microphone: $("microphone").value,
-    // "grammar" is saved by enableLiveGrammar, after any download
-    check_mode: $("checkMode").value === "grammar" && !lt.on ? app.checkMode : $("checkMode").value,
   });
   if (!res.ok) { $("settingsError").textContent = res.error; $("settingsError").hidden = false; return; }
   app.microphone = $("microphone").value;
   if (uiLanguage !== app.uiLanguage) setUiLanguage(uiLanguage);
-  const wantMode = $("checkMode").value;
-  if (wantMode !== app.checkMode) {
-    if (wantMode === "grammar") setTimeout(enableLiveGrammar, 0);   // after the dialog closes
-    else applyCheckMode(wantMode);
-  }
   if (res.hotkey_changed && !res.hotkey_ok) {
     $("settingsError").textContent = t("settings.hotkeyFailed", { message: res.hotkey_message });
     $("settingsError").hidden = false;
@@ -1212,7 +1214,7 @@ function wire() {
     area.addEventListener("scroll", () => { if (lt.mirrors[field]) lt.mirrors[field].scrollTop = area.scrollTop; hideLtPop(); });
   }
   $("ltIgnore").addEventListener("click", ignoreGrammarMatch);
-  $("checkMode").addEventListener("change", showCheckModeHint);
+  $("checkMode").addEventListener("change", onCheckModeChange);
   els.textLanguage.addEventListener("change", () => LT_FIELDS.forEach((f) => scheduleGrammarCheck(f, 0)));
   window.addEventListener("resize", () => {
     LT_FIELDS.forEach(renderGrammar);

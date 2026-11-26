@@ -5,6 +5,8 @@
 - *Spelling only* now checks Spanish (Mexico) as well as English, so correct
   Spanish words are no longer underlined as mistakes. It uses the Spanish
   dictionary that comes with Windows; nothing to download.
+- The underline choice moved from Settings to the top bar (*Underline*:
+  off, spelling, spelling + grammar).
 
 ## v02.08.01 - 2026-11-25
 

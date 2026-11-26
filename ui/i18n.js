@@ -5,7 +5,7 @@
 //
 // Author:  Luis Martinez
 // Email:   16788942+luigihmtz@users.noreply.github.com
-// Version: v01.06.01
+// Version: v01.07.00
 // Date:    2026-11-25
 //
 // Usage: loaded by ui/index.html before app.js. In index.html:
@@ -171,10 +171,11 @@ const STRINGS = {
     "settings.microphone": "Microphone for dictation",
     "settings.micDefault": "Same as Windows",
     "speech.micMissing": "\"{name}\" isn't connected, so the Windows default microphone is used.",
-    "settings.checkMode": "Underline mistakes as I type",
-    "check.off": "Off",
-    "check.spelling": "Spelling only (built in)",
-    "check.grammar": "Spelling and grammar (LanguageTool)",
+    "check.label": "Underline",
+    "check.title": "Underline mistakes in Prompt and Draft as you type",
+    "check.off": "off",
+    "check.spelling": "spelling",
+    "check.grammar": "spelling + grammar",
     "check.offHint": "No lines in Prompt and Draft.",
     "check.spellingHint": "Misspelled words only, with the spellchecker built into Windows. Free, nothing to download.",
     "check.grammarHint": "Spelling, grammar and style, in each paragraph's language; click a mistake for suggestions. Free, runs on this PC; a one-time download of about 300 MB.",
@@ -350,10 +351,11 @@ const STRINGS = {
     "settings.microphone": "Micrófono para dictar",
     "settings.micDefault": "El mismo que Windows",
     "speech.micMissing": "\"{name}\" no está conectado, así que se usa el micrófono predeterminado de Windows.",
-    "settings.checkMode": "Subrayar errores mientras escribo",
-    "check.off": "No",
-    "check.spelling": "Solo ortografía (integrada)",
-    "check.grammar": "Ortografía y gramática (LanguageTool)",
+    "check.label": "Subrayar",
+    "check.title": "Subrayar errores en Instrucciones y Borrador mientras escribes",
+    "check.off": "no",
+    "check.spelling": "ortografía",
+    "check.grammar": "ortografía + gramática",
     "check.offHint": "Sin líneas en Instrucciones y Borrador.",
     "check.spellingHint": "Solo palabras mal escritas, con el corrector integrado de Windows. Gratis, sin descargas.",
     "check.grammarHint": "Ortografía, gramática y estilo, en el idioma de cada párrafo; haz clic en un error para ver sugerencias. Gratis, funciona en esta PC; descarga única de unos 300 MB.",
