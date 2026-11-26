@@ -500,11 +500,12 @@ class Bridge:
         if not word:
             raise RuntimeError("Select a word first.")
         context = (request.get("context") or "").strip()
-        key = (word.lower(), context, request["provider"], request.get("model", ""))
+        explain_in = EXPLAIN_LANGUAGES.get(request.get("ui_language", ""), "")
+        key = (word.lower(), context, request["provider"], request.get("model", ""), explain_in)
         if key in self._thesaurus_cache:
             return self._thesaurus_cache[key]
         result, extra = self._ask_with_fallback(request, lambda name, provider, model: core.run_thesaurus(
-            name, provider, model, word, context, self._settings.get("timeout_seconds", 120)))
+            name, provider, model, word, context, self._settings.get("timeout_seconds", 120), explain_in))
         if "fallback_from" not in extra:  # cache only real answers from the chosen AI
             self._thesaurus_cache[key] = result
         return {**result, **extra}
@@ -517,11 +518,12 @@ class Bridge:
             raise RuntimeError("Select some text or type it in the box first.")
         target = request.get("target") or "auto"
         context = (request.get("context") or "").strip()
-        key = (text, target, context, request["provider"], request.get("model", ""))
+        explain_in = EXPLAIN_LANGUAGES.get(request.get("ui_language", ""), "")
+        key = (text, target, context, request["provider"], request.get("model", ""), explain_in)
         if key in self._translate_cache:
             return self._translate_cache[key]
         result, extra = self._ask_with_fallback(request, lambda name, provider, model: core.run_translate(
-            name, provider, model, text, target, context, self._settings.get("timeout_seconds", 120)))
+            name, provider, model, text, target, context, self._settings.get("timeout_seconds", 120), explain_in))
         if "fallback_from" not in extra:
             self._translate_cache[key] = result
         return {**result, **extra}

@@ -7,9 +7,12 @@
   without a "save changes?" question. *Settings > When closing Write Assist*
   can instead ask to save a session file, or start empty.
 - Opening a session no longer asks either: what you had goes to History first.
-- The explanations of changes and the notes are in the interface language
-  (English, Spanish or French), whatever the language of the text. The text
-  itself keeps its own language.
+- Everything the AI explains follows the interface language (English, Spanish
+  or French), whatever the language of the text: the reasons for each change
+  and the notes in a review, the Thesaurus definitions, and Translate's notes
+  and language names. The text itself, synonyms and translations keep their
+  own language. With the free local AI, the Thesaurus stays in the word's
+  language (the small model would otherwise translate the synonyms too).
 
 ## v02.12.00 - 2026-11-26
 

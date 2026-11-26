@@ -840,6 +840,7 @@ async function lookup(word, fromBack = false) {
 
   const res = await api().thesaurus({
     word, context: th.target ? th.target.context : "", provider: els.provider.value, model: els.model.value,
+    ui_language: uiLang,   // definitions in the interface language
   });
   if (seq !== th.seq) return;  // closed or another word looked up meanwhile
   if (!res.ok) { els.thBody.innerHTML = `<p class="error">${escapeHtml(res.error)}</p>`; return; }
@@ -949,6 +950,7 @@ async function translateNow() {
   const res = await api().translate({
     text, target: els.trTarget.value, context: fromSelection ? tr.target.context : "",
     provider: els.provider.value, model: els.model.value,
+    ui_language: uiLang,   // notes and language names in the interface language
   });
   if (seq !== tr.seq) return;
   if (!res.ok) { els.trMeta.textContent = ""; els.trText.innerHTML = `<span class="error">${escapeHtml(res.error)}</span>`; return; }
