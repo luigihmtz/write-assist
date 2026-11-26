@@ -1,5 +1,12 @@
 # Changelog
 
+## v02.08.03 - 2026-11-25
+
+- The interface is now also in French (Settings > Interface language; by
+  default the same as Windows), and dictation can be set to French.
+- Reviews no longer list the same fix twice (once on its own and once inside
+  a longer snippet).
+
 ## v02.08.02 - 2026-11-25
 
 - *Spelling only* now checks Spanish (Mexico) as well as English, so correct

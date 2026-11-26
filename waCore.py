@@ -8,8 +8,8 @@
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v01.05.01
-# Date:    2026-11-24
+# Version: v01.05.02
+# Date:    2026-11-25
 #
 # Usage: imported by writeAssist.pyw. Per-user files live in
 #        %APPDATA%\WriteAssist (user_settings.json, state.json); product
@@ -557,6 +557,24 @@ def build_text_message(task, prompt, draft, mode, tone, language=""):
     return "\n".join(parts)
 
 
+def drop_repeated_changes(changes):
+    """Models sometimes list one fix twice: alone ("allready" -> "already") and
+    inside a longer snippet ("who allready invest" -> "who already invest").
+    A change is dropped when applying a smaller listed change to its original
+    gives exactly its fix, so it adds nothing."""
+    keep = []
+    for change in changes:
+        original, fixed = str(change.get("original", "")), str(change.get("fixed", ""))
+        repeated = any(
+            other is not change and other.get("original") and other["original"] != original
+            and other["original"] in original
+            and original.replace(other["original"], str(other.get("fixed", "")), 1) == fixed
+            for other in changes)
+        if not repeated:
+            keep.append(change)
+    return keep
+
+
 def run_text_task(provider_name, provider, model, task, prompt, draft, mode, tone, profile, timeout,
                   language=""):
     """Review or Create. Returns {text, changes, notes, spans}."""
@@ -567,6 +585,7 @@ def run_text_task(provider_name, provider, model, task, prompt, draft, mode, ton
         raise RuntimeError("The reply had no text.")
     changes = [c for c in (result.get("changes") or [])
                if isinstance(c, dict) and c.get("original") != c.get("fixed")]  # drop no-op entries
+    changes = drop_repeated_changes(changes)
     # Models occasionally over-escape quotes inside explanations.
     for item in changes:
         item["reason"] = str(item.get("reason") or "").replace('\\"', '"')

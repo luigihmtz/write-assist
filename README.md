@@ -5,13 +5,13 @@
 A small Windows app that reviews and writes text with AI: messages, emails,
 posts, docs. Paste what you wrote and get it proofread, or describe what you
 need and get it written. It also has a context-aware thesaurus and offline
-dictation, a translator, live grammar underlines, and an English or Spanish
-interface. It works with
+dictation, a translator, live grammar underlines, and an English, Spanish or
+French interface. It works with
 your existing Claude subscription through Claude Code, or with a **free AI that
 runs on your own computer**, so there are no API keys and nothing extra to pay.
 ChatGPT and GitHub Copilot plans work too.
 
-![Write Assist reviewing a client email: the corrected text with the edits highlighted, and each change listed with its reason](assets/screenshot.png)
+![Write Assist reviewing a creative brief: the prompt gives the context, the corrected text has the edits highlighted, and each change is listed with its reason](assets/screenshot.png)
 
 ## Install
 
@@ -79,7 +79,9 @@ Press **Ctrl+Enter**, then **Copy** the result.
 | **Panels** | Thesaurus and Translate open next to the text they work on, and that text stays highlighted in yellow. **⧉** detaches a panel: drag it anywhere by its title bar, and it stays open while you keep working. Drag the bottom-right corner to resize it; **⧉** again docks it. |
 | **Translate** | Select text (a word, a sentence, a paragraph) in Prompt, Draft or the result, then click *Translate* at the top or press **Ctrl+Shift+T**. Pick the target language; *English ⇄ Spanish* translates English into Spanish and anything else into English. The panel shows only the translation, with the original highlighted in place. Then **Replace selection**, **Use as draft** or **Copy**. For a single word it also offers other options; click one to swap it in. With nothing selected, the panel offers a box to type or paste text into. It asks the AI only when you translate. |
 | **Dictate** | Speak into Prompt or Draft; click again to stop (Esc cancels). Transcribed on your computer with faster-whisper: free, offline, private. The first time, it offers a one-time download (speech engine about 250 MB, plus the model: 465 MB for *small*). |
-| **Settings** | *About you*, the global hotkey, the microphone for dictation (by default the Windows one), the speech model and language, and the interface language (English or Spanish; by default the same as Windows). |
+| **Settings** | *About you*, the global hotkey, the microphone for dictation (by default the Windows one), the speech model and language, and the interface language (English, Spanish or French; by default the same as Windows). |
+
+![The Translate panel, with the French interface: the selected key message stays highlighted in the result while its French translation shows next to it](assets/screenshot-translate-fr.png)
 
 **Review** shows the corrected text with the edits highlighted, and below it
 each change (old → new) with a short reason, plus an optional note (e.g. "this
@@ -208,8 +210,8 @@ dictado por voz.
   gramática* (LanguageTool, gratuito y en tu computadora; haz clic en un error
   para ver sugerencias). La primera vez te avisa de la descarga (unos 300 MB)
   antes de bajar nada.
-- **El idioma de la app** sigue al de Windows. Puedes cambiarlo en
-  **Ajustes > Idioma de la interfaz**.
+- **El idioma de la app** (español, inglés o francés) sigue al de Windows.
+  Puedes cambiarlo en **Ajustes > Idioma de la interfaz**.
 
 ### Privacidad
 
@@ -232,7 +234,7 @@ haz clic en **Desinstalar**.
 | `waCore.py` | Settings, Review/Create, Thesaurus and Translate requests to the AIs (Claude Code, Copilot CLI, Ollama), the local AI's setup, usage-limit fallback, edit highlighting, update check. |
 | `waSpeech.py` | Offline dictation with faster-whisper, installed on first use. |
 | `waGrammar.py` | Live grammar check with a self-hosted LanguageTool server, installed on first use. |
-| `ui/` | The window's page: `index.html`, `style.css`, `app.js`, and `i18n.js` with the English and Spanish interface text. |
+| `ui/` | The window's page: `index.html`, `style.css`, `app.js`, and `i18n.js` with the English, Spanish and French interface text. |
 | `hotkeyListener.pyw` | Background listener for the global hotkey; opens or wakes the app. |
 | `system_prompt.md` | Instructions for both tasks, shared by all AIs. `{{profile}}` becomes the user's *About you*. |
 | `settings.json` | Shipped defaults: hotkey, AIs and models, timeout, font, prompt presets. |
@@ -241,7 +243,7 @@ haz clic en **Desinstalar**.
 | `uninstall.ps1` | Removes the app, shortcuts and settings. |
 | `release.ps1` | Publishes a new version (maintainer only). |
 | `assets/writeAssist.ico` | Icon. |
-| `assets/screenshot.png` | The screenshot in this README. |
+| `assets/screenshot.png`, `assets/screenshot-translate-fr.png` | The screenshots in this README. |
 | `LICENSE` | MIT license. |
 
 Per-user files, kept across updates, in `%APPDATA%\WriteAssist\`:
