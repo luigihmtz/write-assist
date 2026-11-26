@@ -8,7 +8,7 @@
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v01.00.00
+# Version: v01.01.00
 # Date:    2026-11-25
 #
 # Usage: imported by writeAssist.pyw. install(progress) once; then
@@ -27,14 +27,21 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-HOME = Path(os.environ.get("LOCALAPPDATA") or Path.home()) / "WriteAssist-LanguageTool"
+import waPlatform as platform
+
+HOME = platform.data_dir("WriteAssist-LanguageTool")
 LT_URL = "https://languagetool.org/download/LanguageTool-stable.zip"
-JRE_URL = "https://api.adoptium.net/v3/binary/latest/21/ga/windows/x64/jre/hotspot/normal/eclipse?project=jdk"
+if platform.IS_MAC:   # a .tar.gz for Apple silicon or Intel
+    import platform as _arch
+    JRE_URL = ("https://api.adoptium.net/v3/binary/latest/21/ga/mac/"
+               f"{'aarch64' if _arch.machine() == 'arm64' else 'x64'}/jre/hotspot/normal/eclipse?project=jdk")
+else:
+    JRE_URL = "https://api.adoptium.net/v3/binary/latest/21/ga/windows/x64/jre/hotspot/normal/eclipse?project=jdk"
 DOWNLOAD_MB = 300      # LanguageTool ~252 MB + Java runtime ~49 MB
 DISK_MB = 500
 PORT = 47615
 IDLE_STOP_SECONDS = 15 * 60
-NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+NO_WINDOW = platform.NO_WINDOW
 
 # Write Assist's text-language choices -> LanguageTool language codes.
 LANGUAGES = {
@@ -44,7 +51,8 @@ LANGUAGES = {
 
 
 def java_exe():
-    found = sorted((HOME / "jre").glob("*/bin/java.exe"))
+    pattern = "*/Contents/Home/bin/java" if platform.IS_MAC else "*/bin/java.exe"
+    found = sorted((HOME / "jre").glob(pattern))
     return found[-1] if found else None
 
 
@@ -79,11 +87,17 @@ def install(progress):
     with tempfile.TemporaryDirectory(prefix="WriteAssist-lt-") as temp:
         temp = Path(temp)
         if not java_exe():
-            zip_path = temp / "jre.zip"
-            done_mb += _download(JRE_URL, zip_path, progress, done_mb, DOWNLOAD_MB)
+            archive_path = temp / ("jre.tar.gz" if platform.IS_MAC else "jre.zip")
+            done_mb += _download(JRE_URL, archive_path, progress, done_mb, DOWNLOAD_MB)
             shutil.rmtree(HOME / "jre", ignore_errors=True)
-            with zipfile.ZipFile(zip_path) as archive:
-                archive.extractall(HOME / "jre")
+            if platform.IS_MAC:   # tar keeps the executables' permissions
+                import tarfile
+                with tarfile.open(archive_path) as archive:
+                    archive.extractall(HOME / "jre", filter="data") if hasattr(tarfile, "data_filter") \
+                        else archive.extractall(HOME / "jre")
+            else:
+                with zipfile.ZipFile(archive_path) as archive:
+                    archive.extractall(HOME / "jre")
         else:
             done_mb += 49
         if not server_jar():

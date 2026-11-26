@@ -53,6 +53,24 @@ the bottom of the window. One click and it updates itself.
 live grammar checker. Python, Claude Code and Ollama stay installed for other uses; remove Ollama and its models from
 Settings > Apps > Ollama if you don't need them.
 
+### macOS (first pass, not yet tested)
+
+A first version for Mac (macOS 12 or later, Apple silicon or Intel) is in the
+repository but hasn't been tested on a Mac yet. To try it, open **Terminal**
+and run:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/luigihmtz/write-assist/main/install.sh | bash
+```
+
+It sets up Python for Write Assist alone (with [uv](https://github.com/astral-sh/uv),
+no admin password), the AI you choose (Claude Code, or Ollama and the Gemma
+model, about 3.5 GB), and creates **Write Assist.app** in your Applications
+folder. Shortcuts use ⌘ (⌘↩ to run, ⌘T thesaurus, ⇧⌘T translate). Not on
+Mac yet: the global hotkey. Dictation needs macOS's microphone permission,
+which may not work in this first pass. To remove it, run
+`bash "$HOME/Library/Application Support/WriteAssist-App/app/uninstall.sh"`.
+
 ## How to use it
 
 Fill in one or both fields. The button shows which task you'll get:
@@ -234,6 +252,7 @@ haz clic en **Desinstalar**.
 | `waCore.py` | Settings, Review/Create, Thesaurus and Translate requests to the AIs (Claude Code, Copilot CLI, Ollama), the local AI's setup, usage-limit fallback, edit highlighting, update check. |
 | `waSpeech.py` | Offline dictation with faster-whisper, installed on first use. |
 | `waGrammar.py` | Live grammar check with a self-hosted LanguageTool server, installed on first use. |
+| `waPlatform.py` | What differs between Windows and macOS: folders, clipboard, system language, how updates start. |
 | `ui/` | The window's page: `index.html`, `style.css`, `app.js`, and `i18n.js` with the English, Spanish and French interface text. |
 | `hotkeyListener.pyw` | Background listener for the global hotkey; opens or wakes the app. |
 | `system_prompt.md` | Instructions for both tasks, shared by all AIs. `{{profile}}` becomes the user's *About you*. |
@@ -241,8 +260,9 @@ haz clic en **Desinstalar**.
 | `release.json` | Product version and GitHub repo, used for updates and releases. |
 | `install.ps1` | Installer and updater (see above). |
 | `uninstall.ps1` | Removes the app, shortcuts and settings. |
+| `install.sh`, `uninstall.sh` | The same for macOS (first pass). |
 | `release.ps1` | Publishes a new version (maintainer only). |
-| `assets/writeAssist.ico` | Icon. |
+| `assets/writeAssist.ico`, `assets/writeAssist.png` | Icon (Windows; PNG for the Mac Dock and app). |
 | `assets/screenshot.png`, `assets/screenshot-fr.png` | The screenshots in this README. |
 | `LICENSE` | MIT license. |
 

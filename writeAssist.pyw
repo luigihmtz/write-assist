@@ -1,19 +1,20 @@
 # writeAssist.pyw
-# Write Assist: small Windows writing assistant. Fill in a Draft to have it
+# Write Assist: small writing assistant for Windows (and macOS, first pass). Fill in a Draft to have it
 # reviewed (grammar, spelling, typos, punctuation), a Prompt to have a text
 # written, or both. Also a context-aware thesaurus and translator (on demand),
 # offline speech-to-text, live grammar underlines (LanguageTool, self-hosted),
-# and an English or Spanish interface. It runs an AI's
+# and an English, Spanish or French interface. It runs an AI's
 # local CLI headless, so it uses your existing subscription and needs no API
 # key: Claude (Claude Code), ChatGPT (Codex CLI) or GitHub Copilot, or a free AI
 # model that runs on this computer (Ollama), set up on first use.
 # If the chosen AI hits a usage limit, the request goes to the other one.
-# This file is the desktop window (pywebview on Microsoft WebView2, page in
-# ui/) and the bridge the page calls; the logic is in waCore.py / waSpeech.py.
+# This file is the desktop window (pywebview on Microsoft WebView2, or WebKit on
+# macOS; page in ui/) and the bridge the page calls; the logic is in waCore.py,
+# waSpeech.py and waGrammar.py, and platform differences in waPlatform.py.
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v02.07.02
+# Version: v02.08.00
 # Date:    2026-11-25
 #
 # Usage: installed by install.ps1 (Start Menu shortcut + global hotkey, default
@@ -21,6 +22,8 @@
 #        Needs Python 3.10+ with pywebview, the WebView2 runtime (built into
 #        Windows 10/11), and Claude Code and/or GitHub Copilot CLI signed in.
 #        Only one window runs at a time: launching again brings it forward.
+#        macOS: installed by install.sh as ~/Applications/Write Assist.app (no
+#        global hotkey yet). macOS support is a first pass, not yet tested.
 
 import base64
 import os
@@ -34,10 +37,12 @@ import webview
 
 import waCore as core
 import waGrammar as grammar
+import waPlatform as platform
 import waSpeech as speech
 
 UI_FILE = core.APP_DIR / "ui" / "index.html"
 ICON_FILE = core.APP_DIR / "assets" / "writeAssist.ico"
+ICON_PNG = core.APP_DIR / "assets" / "writeAssist.png"   # macOS Dock icon
 LISTENER_SCRIPT = core.APP_DIR / "hotkeyListener.pyw"
 
 # Same ID as the Start Menu shortcut install.ps1 creates, so the pinned taskbar
@@ -45,7 +50,6 @@ LISTENER_SCRIPT = core.APP_DIR / "hotkeyListener.pyw"
 APP_ID = "LuisMartinez.WriteAssist"
 INSTANCE_PORT = 47613   # detects an open window and asks it to come forward
 LISTENER_PORT = 47614   # hotkeyListener.pyw control port (hotkey reload)
-NEW_CONSOLE = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
 
 
 # --------------------------------------------------------------------------- #
@@ -93,11 +97,24 @@ def tune_webview(window):
 
 
 def clipboard_get_text(window):
+    if not platform.IS_WINDOWS:
+        return platform.mac_clipboard_get()
     from System.Windows.Forms import Clipboard
     return on_ui_thread(window, lambda form: Clipboard.GetText() if Clipboard.ContainsText() else "")
 
 
+def set_mac_dock_icon():
+    """Shows Write Assist's icon in the Dock (otherwise it's Python's)."""
+    from AppKit import NSApplication, NSImage
+    image = NSImage.alloc().initWithContentsOfFile_(str(ICON_PNG))
+    if image is not None:
+        NSApplication.sharedApplication().setApplicationIconImage_(image)
+
+
 def clipboard_set_text(window, text):
+    if not platform.IS_WINDOWS:
+        platform.mac_clipboard_set(text)
+        return
     from System.Windows.Forms import Clipboard
     on_ui_thread(window, lambda form: Clipboard.SetText(text) if text else Clipboard.Clear())
 
@@ -107,6 +124,8 @@ def clipboard_set_text(window, text):
 # --------------------------------------------------------------------------- #
 def reload_hotkey_listener():
     """Asks the listener to apply the saved hotkey, starting it if needed. Returns (ok, message)."""
+    if not platform.IS_WINDOWS:
+        return False, "the global hotkey isn't available on this system yet"
     for attempt in range(3):
         try:
             with socket.create_connection(("127.0.0.1", LISTENER_PORT), timeout=4) as conn:
@@ -165,6 +184,7 @@ class Bridge:
         user = core.load_user_settings()
         return {
             "app_name": core.APP_NAME,
+            "platform": platform.NAME,
             "version": self._version,
             "is_dev": core.IS_DEV,
             "providers": providers,
@@ -470,10 +490,7 @@ class Bridge:
     @safely
     def start_update(self):
         script = core.download_installer(self._repo)
-        # Started from the temp folder: a process whose working folder is the app
-        # folder keeps Windows from deleting it, and the update replaces it.
-        subprocess.Popen(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script)],
-                         cwd=str(script.parent), creationflags=NEW_CONSOLE)
+        platform.launch_installer(script)   # in a visible window (Terminal on macOS), from the temp folder
         threading.Timer(0.3, self._window.destroy).start()
 
     # ---- Window ----------------------------------------------------------- #
@@ -485,7 +502,11 @@ class Bridge:
             window.on_top = True
             time.sleep(0.2)
             window.on_top = False
-            on_ui_thread(window, lambda form: form.Activate())
+            if platform.IS_WINDOWS:
+                on_ui_thread(window, lambda form: form.Activate())
+            elif platform.IS_MAC:
+                from AppKit import NSApplication
+                NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
             window.evaluate_js("window.WA && WA.focusDraft()")
         except Exception:
             pass
@@ -536,19 +557,10 @@ def listen_for_wakeups(server, bridge):
     threading.Thread(target=serve, daemon=True).start()
 
 
-def windows_ui_language():
-    """Windows' display language, e.g. "en-US"."""
-    import ctypes
-    buffer = ctypes.create_unicode_buffer(85)
-    lcid = ctypes.windll.kernel32.GetUserDefaultUILanguage()
-    ctypes.windll.kernel32.LCIDToLocaleName(lcid, buffer, 85, 0)
-    return buffer.value or "en-US"
-
-
 # The window's browser data (WebView2 user data folder). Private mode keeps
 # nothing between runs and pywebview deletes the folder when the window closes;
 # it's a fixed folder only so its settings can be written before it opens.
-WEBVIEW_DIR = Path(os.environ.get("LOCALAPPDATA") or Path.home()) / "WriteAssist-WebView"
+WEBVIEW_DIR = platform.data_dir("WriteAssist-WebView")
 
 
 def prepare_webview_profile():
@@ -559,7 +571,7 @@ def prepare_webview_profile():
     Windows supplies the dictionaries (French only when French is added in
     Windows' language settings); a language it has none for is skipped, without
     affecting the others. (Chromium's own .bdic dictionary files are ignored.)"""
-    languages = list(dict.fromkeys([windows_ui_language(), "en-US", "es-MX", "fr-FR"]))
+    languages = list(dict.fromkeys([platform.system_language(), "en-US", "es-MX", "fr-FR"]))
     core.save_json(WEBVIEW_DIR / "EBWebView" / "Default" / "Preferences",
                    {"spellcheck": {"dictionaries": languages, "use_spelling_service": False}})
 
@@ -584,14 +596,17 @@ def main():
 
     def on_shown():
         try:
-            set_window_icon(window)
+            if platform.IS_WINDOWS:
+                set_window_icon(window)
+            elif platform.IS_MAC:
+                set_mac_dock_icon()
         except Exception:
             pass
 
     tuned = {"done": False}
 
     def on_loaded():
-        if not tuned["done"]:
+        if platform.IS_WINDOWS and not tuned["done"]:
             try:
                 tune_webview(window)
                 tuned["done"] = True
@@ -611,8 +626,12 @@ def main():
     window.events.closing += on_closing
     if server is not None:
         listen_for_wakeups(server, bridge)
-    prepare_webview_profile()
-    webview.start(gui="edgechromium", http_server=True, private_mode=True, storage_path=str(WEBVIEW_DIR))
+    if platform.IS_WINDOWS:
+        prepare_webview_profile()
+        webview.start(gui="edgechromium", http_server=True, private_mode=True, storage_path=str(WEBVIEW_DIR))
+    else:
+        # macOS: WebKit, with the system's own spellchecker and languages.
+        webview.start(gui="cocoa" if platform.IS_MAC else None, http_server=True, private_mode=True)
 
 
 if __name__ == "__main__":

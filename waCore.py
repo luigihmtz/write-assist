@@ -8,7 +8,7 @@
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v01.05.04
+# Version: v01.06.00
 # Date:    2026-11-25
 #
 # Usage: imported by writeAssist.pyw. Per-user files live in
@@ -28,6 +28,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+import waPlatform as platform
+
 APP_NAME = "Write Assist"
 
 APP_DIR = Path(__file__).resolve().parent
@@ -36,7 +38,7 @@ PROMPT_FILE = APP_DIR / "system_prompt.md"
 RELEASE_FILE = APP_DIR / "release.json"            # product version + GitHub repo
 IS_DEV = (APP_DIR / ".git").exists()              # running from the repo: no self-updates
 
-USER_DIR = Path(os.environ.get("APPDATA") or Path.home()) / "WriteAssist"
+USER_DIR = platform.user_dir()   # %APPDATA%\WriteAssist; ~/Library/Application Support/WriteAssist on macOS
 USER_SETTINGS_FILE = USER_DIR / "user_settings.json"  # per-user, survives updates
 STATE_FILE = USER_DIR / "state.json"                   # last-used options, window size
 
@@ -63,12 +65,14 @@ CLAUDE_DENIED_TOOLS = " ".join([
     "TaskStop", "ToolSearch",
 ])
 
-NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+NO_WINDOW = platform.NO_WINDOW
 
 OLLAMA_URL = "http://127.0.0.1:11434"
 # Download sizes in MB, for the warning shown before setup.
-OLLAMA_DOWNLOAD_MB = 2000          # OllamaSetup.exe (bundles GPU support)
-OLLAMA_DISK_MB = 3300
+OLLAMA_DOWNLOAD_MB = 2000 if platform.IS_WINDOWS else 240   # OllamaSetup.exe bundles GPU support; Ollama-darwin.zip
+OLLAMA_DISK_MB = 3300 if platform.IS_WINDOWS else 600
+OLLAMA_MAC_URL = "https://ollama.com/download/Ollama-darwin.zip"
+MAC_APPS = Path.home() / "Applications"
 LOCAL_MODEL_MB = {"gemma3:4b": 3300, "gemma3:12b": 8100}
 
 
@@ -137,11 +141,13 @@ def latest_release(repo):
 
 
 def download_installer(repo):
-    """Saves the repo's install.ps1 to the temp folder and returns its path."""
-    url = f"https://raw.githubusercontent.com/{repo}/main/install.ps1"
+    """Saves the repo's installer (install.ps1, or install.sh on macOS) to the
+    temp folder and returns its path."""
+    name = platform.installer_name()
+    url = f"https://raw.githubusercontent.com/{repo}/main/{name}"
     with urllib.request.urlopen(url, timeout=20) as response:
         data = response.read()
-    path = Path(tempfile.gettempdir()) / "WriteAssist-install.ps1"
+    path = Path(tempfile.gettempdir()) / f"WriteAssist-{name}"
     path.write_bytes(data)
     return path
 
@@ -153,6 +159,15 @@ def find_cli(kind, configured=""):
     """Path to the provider's CLI, or None if it isn't installed."""
     if configured and Path(configured).exists():
         return configured
+    if platform.IS_MAC:
+        candidates = [shutil.which(kind)] + [Path(folder) / kind for folder in _MAC_BIN_DIRS]
+        if kind == "ollama":
+            candidates += [MAC_APPS / "Ollama.app/Contents/Resources/ollama",
+                           Path("/Applications/Ollama.app/Contents/Resources/ollama")]
+        for candidate in candidates:
+            if candidate and Path(candidate).exists():
+                return str(candidate)
+        return None
     local = Path(os.environ.get("LOCALAPPDATA", ""))
     if kind == "claude":
         candidates = [shutil.which("claude"), Path.home() / ".local" / "bin" / "claude.exe"]
@@ -170,13 +185,23 @@ def find_cli(kind, configured=""):
     return None
 
 
+# Where command-line tools usually live on macOS. Apps opened from the Finder
+# get a minimal PATH, so these are checked directly.
+_MAC_BIN_DIRS = [Path.home() / ".local" / "bin", "/opt/homebrew/bin", "/usr/local/bin",
+                 Path.home() / ".npm-global" / "bin"]
+
+
 def python_exe():
     """python.exe next to the running interpreter (pythonw.exe has no console output)."""
+    if not platform.IS_WINDOWS:
+        return sys.executable
     python = Path(sys.executable).with_name("python.exe")
     return str(python if python.exists() else sys.executable)
 
 
 def pythonw_exe():
+    if not platform.IS_WINDOWS:
+        return sys.executable
     pythonw = Path(sys.executable).with_name("pythonw.exe")
     return str(pythonw if pythonw.exists() else sys.executable)
 
@@ -398,7 +423,11 @@ def start_ollama(cli):
 
 
 def install_ollama():
-    """Installs Ollama for this user with winget."""
+    """Installs Ollama for this user: winget on Windows; on macOS, the Ollama app
+    unzipped into ~/Applications (only its engine is used, never the app)."""
+    if platform.IS_MAC:
+        _install_ollama_mac()
+        return
     winget = shutil.which("winget")
     if not winget:
         raise RuntimeError("Windows' winget isn't available. Install Ollama from https://ollama.com/download and try again.")
@@ -410,9 +439,25 @@ def install_ollama():
     remove_ollama_autostart()
 
 
+def _install_ollama_mac():
+    import zipfile
+    MAC_APPS.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="WriteAssist-ollama-") as temp:
+        archive = Path(temp) / "Ollama-darwin.zip"
+        request = urllib.request.Request(OLLAMA_MAC_URL, headers={"User-Agent": "WriteAssist"})
+        with urllib.request.urlopen(request, timeout=60) as response, open(archive, "wb") as out:
+            shutil.copyfileobj(response, out, 1 << 20)
+        # ditto keeps the app's permissions and signature intact (zipfile doesn't).
+        proc = subprocess.run(["ditto", "-x", "-k", str(archive), str(MAC_APPS)], capture_output=True, text=True)
+    if not find_cli("ollama"):
+        raise RuntimeError(f"Ollama couldn't be installed:\n{(proc.stdout + proc.stderr).strip()[-800:]}")
+
+
 def remove_ollama_autostart():
     """Ollama's installer starts its tray app at every login; Write Assist starts
     Ollama's engine only when it's needed, so a copy it installed doesn't need that."""
+    if not platform.IS_WINDOWS:
+        return   # on macOS only Ollama's engine is run, so its app never adds a login item
     startup = Path(os.environ.get("APPDATA", "")) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup"
     try:
         (startup / "Ollama.lnk").unlink(missing_ok=True)

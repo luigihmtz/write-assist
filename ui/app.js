@@ -7,7 +7,7 @@
 //
 // Author:  Luis Martinez
 // Email:   16788942+luigihmtz@users.noreply.github.com
-// Version: v01.10.00
+// Version: v01.11.00
 // Date:    2026-11-25
 //
 // Usage: loaded by ui/index.html after i18n.js (t(), applyLanguage()). Every
@@ -57,6 +57,8 @@ async function init() {
   if (!info.ok) { setStatus(info.error, true); return; }
   app.info = info;
   document.documentElement.style.setProperty("--fs", `${Math.round(info.font_size * 1.33)}px`);
+  setPlatform(info.platform);
+  $("hotkeyBlock").hidden = info.platform !== "windows";   // the global hotkey is Windows-only for now
   setUiLanguage(info.ui_language || "");
   app.microphone = info.microphone || "";
   applyCheckMode(info.check_mode || "spelling");
@@ -103,6 +105,7 @@ function setUiLanguage(setting) {
   if (other) other.textContent = t("model.other");
   if (app.updateTag) els.updateBtn.textContent = t("update.button", { tag: app.updateTag });
   for (const option of els.provider.options) option.textContent = providerLabel(option.value);
+  document.querySelectorAll(".kbd-run").forEach((k) => { k.textContent = RUN_KEYS(); });
 }
 
 // Shown name of an AI: the local one is labeled "Local (free)" / "Local (gratis)".
@@ -225,7 +228,7 @@ function updateTask() {
   if (task === app.task) return;
   app.task = task;
   const label = task === "create" ? t("run.create") : t("run.review");
-  els.runBtn.innerHTML = `${escapeHtml(label)} <kbd>Ctrl+Enter</kbd>`;
+  els.runBtn.innerHTML = `${escapeHtml(label)} <kbd class="kbd-run">${RUN_KEYS()}</kbd>`;
   els.mode.disabled = task === "create";
 }
 
@@ -255,6 +258,8 @@ async function run() {
     els.runBtn.disabled = false;
   }
 }
+
+const RUN_KEYS = () => (onMac ? "⌘↩" : "Ctrl+Enter");
 
 function escapeHtml(text) {
   return String(text).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -1252,15 +1257,16 @@ function wire() {
 
   document.addEventListener("keydown", (e) => {
     const key = e.key.toLowerCase();
-    if (e.ctrlKey && e.key === "Enter") {
+    const mod = onMac ? e.metaKey : e.ctrlKey;   // ⌘ on macOS, Ctrl on Windows
+    if (mod && e.key === "Enter") {
       e.preventDefault();
       if (els.translate.contains(document.activeElement)) translateNow();
       else run();
     }
-    else if (e.ctrlKey && e.shiftKey && key === "v") { e.preventDefault(); pasteAndReview(); }
-    else if (e.ctrlKey && e.shiftKey && key === "c") { e.preventDefault(); copyResult(); }
-    else if (e.ctrlKey && e.shiftKey && key === "t") { e.preventDefault(); openTranslate(); }
-    else if (e.ctrlKey && !e.shiftKey && key === "t") {
+    else if (mod && e.shiftKey && key === "v") { e.preventDefault(); pasteAndReview(); }
+    else if (mod && e.shiftKey && key === "c") { e.preventDefault(); copyResult(); }
+    else if (mod && e.shiftKey && key === "t") { e.preventDefault(); openTranslate(); }
+    else if (mod && !e.shiftKey && key === "t") {
       e.preventDefault();
       if (document.activeElement === els.thSearch) lookup(els.thSearch.value);
       else openThesaurus();

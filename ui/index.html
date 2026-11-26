@@ -7,7 +7,7 @@ buttons, settings dialog. Rendered by writeAssist.pyw in a WebView2 window.
 
 Author:  Luis Martinez
 Email:   16788942+luigihmtz@users.noreply.github.com
-Version: v01.09.00
+Version: v01.10.00
 Date:    2026-11-25
 
 Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
@@ -115,7 +115,7 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
   </main>
 
   <footer class="statusbar">
-    <button id="runBtn" class="primary">Review <kbd>Ctrl+Enter</kbd></button>
+    <button id="runBtn" class="primary">Review <kbd class="kbd-run">Ctrl+Enter</kbd></button>
     <label class="check"><input type="checkbox" id="autoCopy"> <span data-i18n="autoCopy">Copy result automatically</span></label>
     <button id="updateBtn" class="update" hidden></button>
     <span id="status" class="status"></span>
@@ -156,7 +156,7 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
       <div id="trInput">
         <textarea id="trSource" rows="3" spellcheck="true" data-i18n-placeholder="tr.placeholder"></textarea>
         <div class="tr-actions">
-          <button class="primary small-primary" id="trGo"><span data-i18n="tr.go">Translate</span> <kbd>Ctrl+Enter</kbd></button>
+          <button class="primary small-primary" id="trGo"><span data-i18n="tr.go">Translate</span> <kbd class="kbd-run">Ctrl+Enter</kbd></button>
         </div>
       </div>
       <div id="trOut" hidden>
@@ -190,7 +190,7 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
         <span class="muted" data-i18n="settings.aboutHint"></span>
         <textarea id="profile" rows="4" spellcheck="true" data-i18n-placeholder="settings.aboutPlaceholder"></textarea>
       </label>
-      <label class="block"><span data-i18n="settings.hotkey">Global hotkey</span>
+      <label class="block" id="hotkeyBlock"><span data-i18n="settings.hotkey">Global hotkey</span>
         <span class="muted" data-i18n="settings.hotkeyHint"></span>
         <input id="hotkey" spellcheck="false">
       </label>

@@ -1,5 +1,14 @@
 # Changelog
 
+## v02.09.00 - 2026-11-25
+
+- macOS, first pass (not yet tested on a Mac): `install.sh` installs Write
+  Assist for the current user, with its own Python environment, the AI you
+  choose, and Write Assist.app in ~/Applications. Shortcuts use ⌘. No global
+  hotkey on Mac yet.
+- Windows: no change in behavior; the code that differs between systems now
+  lives in waPlatform.py.
+
 ## v02.08.03 - 2026-11-25
 
 - The interface is now also in French (Settings > Interface language; by

@@ -5,7 +5,7 @@
 //
 // Author:  Luis Martinez
 // Email:   16788942+luigihmtz@users.noreply.github.com
-// Version: v01.08.01
+// Version: v01.09.00
 // Date:    2026-11-25
 //
 // Usage: loaded by ui/index.html before app.js. In index.html:
@@ -567,6 +567,23 @@ const STRINGS = {
 };
 
 let uiLang = "en";
+let onMac = false;   // set from the app at startup (setPlatform)
+
+// On macOS the shortcuts use ⌘ and the system is macOS; a few messages differ.
+const MAC_STRINGS = {
+  en: { "speech.noMic": "Can't use the microphone ({error}). Check System Settings > Privacy & Security > Microphone." },
+  es: { "speech.noMic": "No se puede usar el micrófono ({error}). Revisa Configuración del Sistema > Privacidad y seguridad > Micrófono." },
+  fr: { "speech.noMic": "Impossible d'utiliser le micro ({error}). Vérifiez Réglages Système > Confidentialité et sécurité > Microphone." },
+};
+
+function setPlatform(name) {
+  onMac = name === "mac";
+}
+
+function forPlatform(text) {
+  if (!onMac) return text;
+  return text.replace(/Ctrl\+(Shift|Maj)\+/g, "⇧⌘").replace(/Ctrl\+/g, "⌘").replace(/Windows/g, "macOS");
+}
 
 // "" means follow Windows: the Intl locale is Windows' display language.
 function resolveLanguage(setting) {
@@ -576,8 +593,8 @@ function resolveLanguage(setting) {
 }
 
 function t(key, vars = {}) {
-  const text = STRINGS[uiLang][key] ?? STRINGS.en[key] ?? key;
-  return text.replace(/\{(\w+)\}/g, (m, name) => (name in vars ? vars[name] : m));
+  const text = (onMac && MAC_STRINGS[uiLang]?.[key]) || STRINGS[uiLang][key] || STRINGS.en[key] || key;
+  return forPlatform(text).replace(/\{(\w+)\}/g, (m, name) => (name in vars ? vars[name] : m));
 }
 
 function applyLanguage(setting) {

@@ -7,7 +7,7 @@
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v01.00.01
+# Version: v01.01.00
 # Date:    2026-11-24
 #
 # Usage: imported by writeAssist.pyw. Settings (settings.json or
@@ -26,9 +26,11 @@ import threading
 import time
 from pathlib import Path
 
+import waPlatform as platform
+
 PACKAGE = "faster-whisper"
 IDLE_UNLOAD_SECONDS = 10 * 60
-NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+NO_WINDOW = platform.NO_WINDOW
 
 # Approximate one-time download sizes, shown before installing.
 MODEL_SIZES_MB = {"tiny": 75, "base": 145, "small": 465, "medium": 1500}
@@ -76,9 +78,11 @@ def download_size_mb(model_name):
 
 
 def install(python):
-    """pip-installs faster-whisper for this user. Returns (ok, message)."""
+    """pip-installs faster-whisper for this user (into the app's own virtual
+    environment on macOS). Returns (ok, message)."""
+    scope = [] if platform.in_virtualenv() else ["--user"]
     proc = subprocess.run(
-        [python, "-m", "pip", "install", "--user", "--upgrade", "--disable-pip-version-check", PACKAGE],
+        [python, "-m", "pip", "install", *scope, "--upgrade", "--disable-pip-version-check", PACKAGE],
         capture_output=True, text=True, encoding="utf-8", errors="replace", creationflags=NO_WINDOW,
     )
     if proc.returncode != 0:
