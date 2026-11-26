@@ -7,7 +7,7 @@ buttons, settings dialog. Rendered by writeAssist.pyw in a WebView2 window.
 
 Author:  Luis Martinez
 Email:   16788942+luigihmtz@users.noreply.github.com
-Version: v01.17.00
+Version: v01.18.00
 Date:    2026-11-26
 
 Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
@@ -126,8 +126,31 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
           <button class="fmt" data-cmd="insertUnorderedList" data-i18n-title="fmt.bullets"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5a1.5 1.5 0 1 0 0 .01ZM8 5.5h12v2H8Zm-4 6a1.5 1.5 0 1 0 0 .01ZM8 11h12v2H8Zm-4 6.5a1.5 1.5 0 1 0 0 .01ZM8 16.5h12v2H8Z"/></svg></button>
           <button class="fmt" data-cmd="insertOrderedList" data-i18n-title="fmt.numbers"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h2v4H4V6H3Zm0 7.5c0-.8.7-1.5 1.5-1.5S6 11.7 6 12.4c0 .5-.3.9-.7 1.3L4.5 14.5H6V16H3v-1.2l1.6-1.6c.2-.2.3-.4.3-.6 0-.2-.2-.3-.4-.3s-.4.2-.4.4H3Zm5-7h12v2H8Zm0 5.5h12v2H8Zm0 5.5h12v2H8Z"/></svg></button>
           <span class="fmt-sep"></span>
+          <button class="fmt" data-cmd="highlight" data-i18n-title="fmt.highlight"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15.2 3.3 5.5 5.5-8.9 8.9H9.6l-.8.8H5.3l2.2-2.2v-2.2Zm0 2.8-6 6 2.7 2.7 6-6ZM3 20h18v2H3Z"/></svg></button>
+          <span class="fmt-sep"></span>
+          <button class="fmt" data-cmd="quote" data-i18n-title="fmt.quote"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18v-4.5C4 9.4 5.8 6.8 9.4 6l.6 1.6C8 8.3 7 9.6 6.9 11.5H10V18Zm10 0v-4.5c0-4.1 1.8-6.7 5.4-7.5l.6 1.6c-2 .7-3 2-3.1 3.9H20V18Z"/></svg></button>
           <button class="fmt" data-cmd="link" data-i18n-title="fmt.link"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.6 13.4a1 1 0 0 1 0-1.4l3.4-3.4a1 1 0 1 1 1.4 1.4L12 13.4a1 1 0 0 1-1.4 0Zm-2.1 4.2a3.5 3.5 0 0 1-2.5-6l2-2a1 1 0 1 1 1.4 1.4l-2 2a1.5 1.5 0 0 0 2.1 2.1l2-2a1 1 0 0 1 1.4 1.4l-2 2a3.5 3.5 0 0 1-2.4 1.1Zm6.6-3.2a1 1 0 0 1-.7-1.7l2-2a1.5 1.5 0 0 0-2.1-2.1l-2 2a1 1 0 0 1-1.4-1.4l2-2a3.5 3.5 0 0 1 5 5l-2 2a1 1 0 0 1-.8.2Z"/></svg></button>
-          <button class="fmt" data-cmd="clear" data-i18n-title="fmt.clear"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h12v2.5h-2V7h-3.1l-1.3 6.3L10 11.8 10.9 7H8v.5H6Zm-1.7 1.3 1.4-1.4 14 14-1.4 1.4-5.6-5.6-1.1 5.3H9.4l1.3-6.5Z"/></svg></button>
+          <button class="fmt" data-cmd="codeBlock" data-i18n-title="fmt.codeBlock"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm0 2v14h14V5Zm4.3 3.3 1.4 1.4L8.4 12l2.3 2.3-1.4 1.4L5.6 12Zm5.4 0 3.7 3.7-3.7 3.7-1.4-1.4 2.3-2.3-2.3-2.3Z"/></svg></button>
+          <span class="fmt-more">
+            <button class="fmt fmt-more-btn" data-i18n-title="fmt.more"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 10.2a1.8 1.8 0 1 1 0 3.6 1.8 1.8 0 0 1 0-3.6Zm7 0a1.8 1.8 0 1 1 0 3.6 1.8 1.8 0 0 1 0-3.6Zm7 0a1.8 1.8 0 1 1 0 3.6 1.8 1.8 0 0 1 0-3.6Z"/></svg></button>
+            <span class="fmt-menu" role="menu" hidden>
+              <button class="fmt-item" data-cmd="normal" data-i18n="fmt.normal">Normal text</button>
+              <button class="fmt-item fmt-h1" data-cmd="h1" data-i18n="fmt.h1">Heading 1</button>
+              <button class="fmt-item fmt-h2" data-cmd="h2" data-i18n="fmt.h2">Heading 2</button>
+              <button class="fmt-item fmt-h3" data-cmd="h3" data-i18n="fmt.h3">Heading 3</button>
+              <span class="fmt-menu-sep"></span>
+              <button class="fmt-item" data-cmd="code" data-i18n="fmt.code">Code</button>
+              <button class="fmt-item" data-cmd="clear" data-i18n="fmt.clear">Clear formatting</button>
+              <span class="fmt-menu-sep"></span>
+              <button class="fmt-item" data-cmd="outdent" data-i18n="fmt.outdent">Decrease indent</button>
+              <button class="fmt-item" data-cmd="indent" data-i18n="fmt.indent">Increase indent</button>
+              <span class="fmt-menu-sep"></span>
+              <button class="fmt-item" data-cmd="hr" data-i18n="fmt.hr">Horizontal line</button>
+              <span class="fmt-menu-sep"></span>
+              <button class="fmt-item" data-cmd="undo" data-i18n="fmt.undo">Undo</button>
+              <button class="fmt-item" data-cmd="redo" data-i18n="fmt.redo">Redo</button>
+            </span>
+          </span>
         </div>
         <div class="result-body">
           <div id="result" class="result" contenteditable="true" spellcheck="false" data-i18n-placeholder="result.placeholder"></div>

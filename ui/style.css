@@ -6,7 +6,7 @@
  *
  * Author:  Luis Martinez
  * Email:   16788942+luigihmtz@users.noreply.github.com
- * Version: v01.11.00
+ * Version: v01.12.00
  * Date:    2026-11-26
  *
  * Usage: linked from ui/index.html. --fs is set from settings.json font_size.
@@ -29,6 +29,8 @@
   --tone-refine: #7c3aed;
   --tone-draft: #64748b;
   --mark: #fff1a8;
+  --hl: #ffe500;        /* a highlight the writer added (strong marker yellow) */
+  --hl-text: #1d2129;
   --source-hl: #ffe066;
   --lt-spell: #e5484d;
   --lt-grammar: #2f7cf6;
@@ -57,6 +59,8 @@
     --tone-refine: #a78bfa;
     --tone-draft: #94a3b8;
     --mark: rgba(250, 204, 21, 0.32);
+    --hl: #e6c800;
+    --hl-text: #17191d;
     --source-hl: rgba(250, 204, 21, 0.55);
     --lt-spell: #ff6369;
     --lt-grammar: #70b8ff;
@@ -208,6 +212,17 @@ textarea, .result, .changes {
 .result ul, .result ol { margin: 2px 0; padding-left: 1.6em; white-space: normal; }
 .result li { white-space: pre-wrap; }
 .result a { color: var(--accent); }
+.result h1, .result h2, .result h3 { margin: 6px 0 2px; line-height: 1.25; }
+.result h1 { font-size: 1.5em; }
+.result h2 { font-size: 1.25em; }
+.result h3 { font-size: 1.1em; }
+.result blockquote { margin: 4px 0; padding: 2px 0 2px 12px; border-left: 3px solid var(--border); color: var(--muted); }
+.result pre, .result code { font-family: Consolas, "Cascadia Mono", Menlo, monospace; font-size: 0.92em; background: var(--surface-2); border-radius: 4px; }
+.result pre { margin: 4px 0; padding: 6px 10px; white-space: pre-wrap; }
+.result code { padding: 0 3px; }
+.result hr { border: none; border-top: 1px solid var(--border); margin: 8px 0; }
+/* A highlight shows in the theme's marker color, whatever color it came with. */
+.result span[style*="background"] { background-color: var(--hl) !important; color: var(--hl-text) !important; border-radius: 2px; }
 
 /* Formatting bar of the Result (Teams-like compose controls) */
 .format-bar { display: flex; align-items: center; gap: 2px; padding: 4px 8px; border-bottom: 1px solid var(--border); }
@@ -217,6 +232,17 @@ textarea, .result, .changes {
 .fmt.active { background: var(--accent-soft); border-color: var(--border); }
 .fmt svg { width: 16px; height: 16px; fill: currentColor; }
 .fmt-sep { width: 1px; height: 18px; background: var(--border); margin: 0 4px; }
+.fmt-more { display: inline-flex; }
+.fmt-menu { position: fixed; z-index: 50; display: flex; flex-direction: column; min-width: 190px; padding: 4px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25); }
+.fmt-menu[hidden] { display: none; }
+.fmt-item { text-align: left; padding: 6px 10px; border: none; background: transparent; border-radius: 6px; color: var(--text); }
+.fmt-item:hover { background: var(--accent-soft); }
+.fmt-item.active { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+.fmt-item.fmt-h1 { font-size: 1.25em; font-weight: 700; }
+.fmt-item.fmt-h2 { font-size: 1.12em; font-weight: 700; }
+.fmt-item.fmt-h3 { font-weight: 700; }
+.fmt-menu-sep { height: 1px; background: var(--border); margin: 4px 2px; }
 
 .result:empty::before {
   content: attr(data-placeholder);  /* set from i18n.js */
@@ -494,6 +520,10 @@ textarea.hl-on, textarea.lt-on { position: relative; z-index: 1; }
   #printArea .print-text { white-space: pre-wrap; word-wrap: break-word; }
   #printArea ul, #printArea ol { margin: 2pt 0; padding-left: 18pt; white-space: normal; }
   #printArea a { color: #0563c1; }
+  #printArea blockquote { margin: 4pt 0; padding-left: 10pt; border-left: 2pt solid #ccc; color: #444; }
+  #printArea pre, #printArea code { font-family: Consolas, Menlo, monospace; font-size: 0.92em; background: #f3f3f3; }
+  #printArea pre { padding: 4pt 8pt; white-space: pre-wrap; }
+  #printArea h1, #printArea h2, #printArea h3 { margin: 8pt 0 2pt; line-height: 1.25; }
   #printArea .print-details { margin-top: 24pt; padding-top: 8pt; border-top: 1px solid #bbb; color: #666; font-size: 8.5pt; }
   #printArea .print-details p { margin: 0 0 2pt; }
 }

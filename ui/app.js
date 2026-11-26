@@ -5,13 +5,14 @@
 // result with highlighted edits, the on-demand thesaurus and translator, the
 // free local AI's first-use download, live grammar underlines (LanguageTool),
 // version history (a column inside the Result panel), sessions (.wasession
-// files), exports (Word, PDF, text, Markdown), the Result's formatting bar
-// (bold, italic, underline, strikethrough, lists, links), resizable panels,
+// files), exports (Word, PDF, text, Markdown), the formatting bars (bold,
+// italic, underline, strikethrough, highlight, lists, quotes, links, code,
+// headings, horizontal lines, indent, undo), resizable panels,
 // speech-to-text recording, settings, About, interface language, and updates.
 //
 // Author:  Luis Martinez
 // Email:   16788942+luigihmtz@users.noreply.github.com
-// Version: v01.20.00
+// Version: v01.21.00
 // Date:    2026-11-26
 //
 // Usage: loaded by ui/index.html after i18n.js (t(), applyLanguage()). Every
@@ -456,16 +457,30 @@ function fallbackNote(res) {
 // ---------------------------------------------------------------------------
 // Rich Result: formatting read as lines of styled runs, the one model behind
 // the plain-text copy, the HTML copy (Teams, Outlook, Word) and the exports.
-//   line: {kind: "p" | "ul" | "ol", n: item number, runs: [{text, b, i, u, s, href}]}
+//   line: {kind: "p" | "ul" | "ol" | "h1" | "h2" | "h3" | "quote" | "code" | "hr",
+//          n: item number, depth: list nesting (0 = top, left out when 0),
+//          runs: [{text, b, i, u, s, hl (highlight), code (inline code), href}]}
+// A code block is a run of "code" lines; their runs are plain text.
 // ---------------------------------------------------------------------------
-const BLOCK_TAGS = new Set(["DIV", "P", "LI", "UL", "OL", "H1", "H2", "H3", "BLOCKQUOTE"]);
+const BLOCK_TAGS = new Set(["DIV", "P", "LI", "UL", "OL", "H1", "H2", "H3", "H4", "H5", "H6", "BLOCKQUOTE", "PRE", "HR"]);
 const SKIP_TAGS = new Set(["STYLE", "SCRIPT", "TEMPLATE", "HEAD", "TITLE", "META", "LINK"]);
+const BLOCK_KIND = { H1: "h1", H2: "h2", H3: "h3", H4: "h3", H5: "h3", H6: "h3", BLOCKQUOTE: "quote", PRE: "code" };
+const HEADINGS = { h1: "# ", h2: "## ", h3: "### " };
+const STYLE_KEYS = ["b", "i", "u", "s", "hl", "code", "href"];
+const isList = (kind) => kind === "ul" || kind === "ol";
+// The highlight color written for other apps (Teams, Outlook, Word); the
+// editors show any highlight in the theme's own color (style.css).
+const HL_COLOR = "yellow";
+// A background that is a highlight (not none, not the page's white).
+const isHighlight = (bg) => Boolean(bg) && !/^(transparent|initial|inherit|unset|none|white|#fff(fff)?|rgba?\(\s*255,\s*255,\s*255\s*(,\s*1\s*)?\)|rgba\(.*,\s*0\))$/i.test(bg.trim());
 
 function richModel(root) {
   const lines = [];
   let line = null;
   let pending = false;   // a block ended: the next content starts a new line
-  const start = (kind = "p", n = 0) => { line = { kind, n, runs: [], touched: false }; lines.push(line); };
+  let block = "p";       // the kind of the block being read (heading, quote, code block)
+  let depth = -1;        // list nesting
+  const start = (kind = block, n = 0, d = 0) => { line = { kind, n, depth: d, runs: [], touched: false }; lines.push(line); };
   const ensure = () => { if (pending) { if (line.touched) start(); pending = false; } };
   start();
 
@@ -479,6 +494,8 @@ function richModel(root) {
     if (tag === "I" || tag === "EM" || css.fontStyle === "italic") s.i = true;
     if (tag === "U" || (css.textDecoration || "").includes("underline")) s.u = true;
     if (tag === "S" || tag === "STRIKE" || tag === "DEL" || (css.textDecoration || "").includes("line-through")) s.s = true;
+    if (["CODE", "KBD", "SAMP", "TT"].includes(tag)) s.code = true;
+    if (!BLOCK_TAGS.has(tag) && isHighlight(css.backgroundColor)) s.hl = true;
     if (tag === "A" && el.getAttribute("href")) s.href = el.getAttribute("href");
     return s;
   }
@@ -488,7 +505,7 @@ function richModel(root) {
       node.textContent.split("\n").forEach((part, index) => {
         ensure();
         if (index > 0) { start(); }
-        if (part) { line.runs.push({ text: part, ...style }); }
+        if (part) { line.runs.push(block === "code" ? { text: part } : { text: part, ...style }); }   // code blocks: plain
         line.touched = true;
       });
       return;
@@ -510,34 +527,61 @@ function richModel(root) {
       if (!lastInBlock) start();
       return;
     }
+    if (tag === "HR") {
+      ensure();
+      if (line.touched || line.runs.length) start("hr");
+      else line.kind = "hr";
+      line.touched = true;
+      pending = true;
+      return;
+    }
     if (tag === "UL" || tag === "OL") {
+      depth += 1;
       let n = 0;
       for (const item of node.children) {
+        if (item.tagName === "UL" || item.tagName === "OL") { walk(item, style); continue; }   // a nested list (as the indent command makes it)
         if (item.tagName !== "LI") continue;
         n += 1;
-        if (line.touched || line.runs.length) start(tag.toLowerCase(), n);
-        else { line.kind = tag.toLowerCase(); line.n = n; }
+        const kind = tag.toLowerCase();
+        if (line.touched || line.runs.length) start(kind, n, depth);
+        else { line.kind = kind; line.n = n; line.depth = depth; }
         pending = false;
         for (const child of item.childNodes) walk(child, style);
         line.touched = true;
         pending = true;
       }
+      depth -= 1;
       return;
     }
-    const block = BLOCK_TAGS.has(tag);
-    if (block) { ensure(); if (line.touched) start(); }
+    const isBlock = BLOCK_TAGS.has(tag);
+    const outer = block;
+    if (BLOCK_KIND[tag]) block = BLOCK_KIND[tag];
+    if (isBlock) {
+      ensure();
+      if (line.touched) start();
+      else if (BLOCK_KIND[tag]) line.kind = block;
+    }
     const s = styleOf(node, style);
+    if (block === "code") delete s.code;
     for (const child of node.childNodes) walk(child, s);
-    if (block) { line.touched = true; pending = true; }
+    block = outer;
+    if (isBlock) { line.touched = true; pending = true; }
   }
 
   for (const child of root.childNodes) walk(child, {});
   while (lines.length > 1 && !lines[lines.length - 1].runs.length && lines[lines.length - 1].kind === "p") lines.pop();
-  return lines.map(({ kind, n, runs }) => ({ kind, n, runs }));
+  return lines.map(({ kind, n, depth: d, runs }) => ({ kind, n, ...(d > 0 && isList(kind) ? { depth: d } : {}), runs: kind === "hr" ? [] : runs }));
 }
 
+const BULLETS = ["•", "◦", "▪"];
 function richToPlain(lines) {
-  return lines.map((l) => (l.kind === "ul" ? "• " : l.kind === "ol" ? `${l.n}. ` : "") + l.runs.map((r) => r.text).join("")).join("\n");
+  return lines.map((l) => {
+    const text = l.runs.map((r) => r.text).join("");
+    if (l.kind === "hr") return "──────────";
+    if (!isList(l.kind)) return text;
+    const d = l.depth || 0;
+    return "    ".repeat(d) + (l.kind === "ul" ? `${BULLETS[d % 3]} ` : `${l.n}. `) + text;
+  }).join("\n");
 }
 
 function safeHref(href) {
@@ -546,36 +590,73 @@ function safeHref(href) {
 
 function runToHtml(run, inner = escapeHtml(run.text)) {
   let html = inner;
+  if (run.code) html = `<code>${html}</code>`;
   if (run.b) html = `<b>${html}</b>`;
   if (run.i) html = `<i>${html}</i>`;
   if (run.u) html = `<u>${html}</u>`;
   if (run.s) html = `<s>${html}</s>`;
+  if (run.hl) html = `<span style="background-color: ${HL_COLOR}">${html}</span>`;
   if (safeHref(run.href)) html = `<a href="${escapeHtml(run.href)}">${html}</a>`;
   return html;
 }
 
-// HTML for the clipboard and the PDF: lists as real lists, other lines with <br>.
-function richToHtml(lines) {
+// HTML of the lines: nested lists, quotes and code blocks grouped (their
+// lines joined by <br>). lineHtml(line, index) gives a line's content.
+// editor (Result, Draft): one <div> per plain line, and nested lists the way
+// the browser's own indent command makes them (a list right inside its
+// parent list), so indent and outdent keep working; otherwise (clipboard,
+// PDF) <br> between plain lines and a nested list inside its parent item.
+function linesToHtml(lines, lineHtml, editor) {
   let html = "";
-  let list = null;
-  lines.forEach((l, index) => {
-    const content = l.runs.map(runToHtml).join("");
-    if (l.kind === "ul" || l.kind === "ol") {
-      if (list !== l.kind) { if (list) html += `</${list}>`; html += `<${l.kind}>`; list = l.kind; }
-      html += `<li>${content || "<br>"}</li>`;
-      return;
+  const lists = [];   // the open list tags, outermost first
+  const end = editor ? "" : "</li>";   // what closes an item when the next one starts
+  const closeLists = (to) => { while (lists.length > to) html += `${end}</${lists.pop()}>`; };
+  let group = null;   // the open "quote" (<blockquote>) or "code" (<pre>)
+  (lines || []).forEach((l, index) => {
+    const content = lineHtml(l, index);
+    const kind = l.kind || "p";
+    if (!isList(kind)) closeLists(0);
+    const g = kind === "quote" || kind === "code" ? kind : null;
+    if (g !== group) {
+      if (group) html += group === "quote" ? "</blockquote>" : "</pre>";
+      if (g) html += g === "quote" ? "<blockquote>" : "<pre>";
+      group = g;
     }
-    if (list) { html += `</${list}>`; list = null; }
-    // A line break before the next plain line; an empty line keeps its own (a blank line before a list).
-    const next = lines[index + 1];
-    html += content + (next && (next.kind === "p" || !content) ? "<br>" : "");
+    if (isList(kind)) {
+      const d = Math.min(l.depth || 0, lists.length);
+      closeLists(d + 1);
+      if (lists.length === d + 1) {
+        if (lists[d] === kind) html += end;
+        else { html += `${end}</${lists.pop()}><${kind}>`; lists.push(kind); }
+      } else { html += `<${kind}>`; lists.push(kind); }
+      html += `<li>${content || "<br>"}${editor ? "</li>" : ""}`;
+    } else if (kind === "hr") {
+      html += "<hr>";
+    } else if (HEADINGS[kind]) {
+      html += `<${kind}>${content || "<br>"}</${kind}>`;
+    } else if (g) {
+      const more = lines[index + 1]?.kind === kind;
+      html += (content || (editor && !more ? "<br>" : "")) + (more ? "<br>" : "");
+    } else if (editor) {
+      html += `<div>${content || "<br>"}</div>`;
+    } else {
+      // A line break before the next plain line; an empty line keeps its own (a blank line before a list).
+      const next = lines[index + 1];
+      html += content + (next && (next.kind === "p" || !content) ? "<br>" : "");
+    }
   });
-  if (list) html += `</${list}>`;
+  closeLists(0);
+  if (group) html += group === "quote" ? "</blockquote>" : "</pre>";
   return html;
 }
 
-// Editor HTML (Result, Draft) from the rich model: one <div> per line, lists
-// as lists. marks: positions in linesText(lines) to mark as edited.
+// HTML for the clipboard and the PDF.
+function richToHtml(lines) {
+  return linesToHtml(lines, (l) => l.runs.map((r) => runToHtml(r)).join(""), false);
+}
+
+// Editor HTML (Result, Draft) from the rich model. marks: positions in
+// linesText(lines) to mark as edited.
 function richToEditorHtml(lines, marks = null) {
   let pos = 0;   // position in linesText(lines)
   const runHtml = (r) => {
@@ -591,51 +672,57 @@ function richToEditorHtml(lines, marks = null) {
     }
     return runToHtml(r, inner + (open ? "</mark>" : ""));
   };
-  let html = "";
-  let list = null;
-  for (const [index, l] of (lines || []).entries()) {
+  return linesToHtml(lines, (l, index) => {
     if (index) pos += 1;   // the line break
-    const content = (l.runs || []).map(runHtml).join("") || "<br>";
-    if (l.kind === "ul" || l.kind === "ol") {
-      if (list !== l.kind) { if (list) html += `</${list}>`; html += `<${l.kind}>`; list = l.kind; }
-      html += `<li>${content}</li>`;
-      continue;
-    }
-    if (list) { html += `</${list}>`; list = null; }
-    html += `<div>${content}</div>`;
-  }
-  if (list) html += `</${list}>`;
-  return html;
+    return (l.runs || []).map(runHtml).join("");
+  }, true);
 }
 
 // ---------------------------------------------------------------------------
 // Markdown: how formatted text travels to the AI and back, and how the Draft
 // and results are kept in History and sessions. A small subset: **bold**,
-// *italic*, <u>underline</u>, ~~strike~~, [text](url), "- " and "1. " lists,
-// "\" before a character that would read as formatting; every line break is
-// a line. The AI may also answer with _italic_, __bold__, "* " lists or "#"
-// headings (shown bold); those are read too. Review sends plain text instead,
-// and carryFormatting() puts the writer's formatting back on the answer.
+// *italic*, <u>underline</u>, ~~strike~~, ==highlight==, `code`, [text](url),
+// "- " and "1. " lists (nested by indenting), "#"/"##"/"###" headings, "> "
+// quotes, ``` code blocks, "---" rules, "\" before a character that would read
+// as formatting; every line break is a line. The AI may also answer with
+// _italic_, __bold__ or "* " lists; those are read too. Review sends plain
+// text (with the line markers) instead, and carryFormatting() puts the
+// writer's formatting back on the answer.
 // ---------------------------------------------------------------------------
-const MD_ESCAPABLE = "\\*_~<[]()`#-+.!>";
+const MD_ESCAPABLE = "\\*_~<[]()`#-+.!>=";
 
 function mdEscape(text) {
-  return text.replace(/\\(?=[\\*_~<[\]])/g, "\\\\").replace(/\*/g, "\\*").replace(/~~/g, "\\~\\~")
-    .replace(/<(\/?u>)/gi, "\\<$1").replace(/\[(?=[^\]\n]*\]\()/g, "\\[");
+  return text.replace(/\\(?=[\\*_~<[\]=`])/g, "\\\\").replace(/\*/g, "\\*").replace(/~~/g, "\\~\\~").replace(/==/g, "\\=\\=")
+    .replace(/`/g, "\\`").replace(/<(\/?u>)/gi, "\\<$1").replace(/\[(?=[^\]\n]*\]\()/g, "\\[");
+}
+
+// `text` with enough backticks around it to hold the backticks inside.
+function codeSpan(text) {
+  const longest = Math.max(0, ...(text.match(/`+/g) || []).map((m) => m.length));
+  const fence = "`".repeat(longest + 1);
+  const pad = text.startsWith("`") || text.endsWith("`") ? " " : "";
+  return fence + pad + text + pad + fence;
 }
 
 function runsToMd(runs) {
-  const ORDER = ["href", "b", "i", "s", "u"];
-  const OPEN = { b: "**", i: "*", s: "~~", u: "<u>" };
-  const CLOSE = { b: "**", i: "*", s: "~~", u: "</u>" };
+  const ORDER = ["href", "b", "i", "s", "u", "hl"];
+  const OPEN = { b: "**", i: "*", s: "~~", u: "<u>", hl: "==" };
+  const CLOSE = { b: "**", i: "*", s: "~~", u: "</u>", hl: "==" };
   const keysOf = (r) => ORDER.filter((k) => r[k]).map((k) => (k === "href" ? `href ${r.href.replace(/[()\s]/g, encodeURIComponent)}` : k));
+  // Neighbors with the same formatting as one run (two code spans side by side would read as one).
+  const merged = [];
+  for (const r of runs) {
+    const last = merged[merged.length - 1];
+    if (last && STYLE_KEYS.every((k) => (last[k] || false) === (r[k] || false))) last.text += r.text;
+    else merged.push({ ...r });
+  }
   const stack = [];
   let out = "";
   let trail = "";
   const closeTo = (n) => {
     while (stack.length > n) { const k = stack.pop(); out += k.startsWith("href ") ? `](${k.slice(5)})` : CLOSE[k]; }
   };
-  for (const r of runs) {
+  for (const r of merged) {
     const [, lead, core, end] = /^(\s*)([\s\S]*?)(\s*)$/.exec(r.text);
     if (!core) { trail += r.text; continue; }
     const want = keysOf(r);
@@ -644,19 +731,58 @@ function runsToMd(runs) {
     closeTo(n);
     out += mdEscape(trail + lead);
     for (const k of want.slice(n)) { stack.push(k); out += k.startsWith("href ") ? "[" : OPEN[k]; }
-    out += mdEscape(core);
+    out += r.code ? codeSpan(core) : mdEscape(core);
     trail = end;
   }
   closeTo(0);
   return out + mdEscape(trail);
 }
 
+// Markdown lines for the model: each line's block marker + body(line).
+// List items are indented under the text of their parent item; a run of code
+// lines gets ``` fences around it. escape: mark plain lines that would read
+// as something else (Markdown; Review's plain text doesn't need it).
+function mdLines(lines, body, escape = true) {
+  const out = [];
+  let cols = [];   // the indent of each list level
+  let fence = "";  // the open code fence
+  const plain = (l) => (l.runs || []).map((r) => r.text).join("");
+  lines.forEach((l, index) => {
+    const kind = l.kind || "p";
+    if (!isList(kind)) cols = [];
+    if (kind === "code") {
+      if (!fence) {
+        let end = index;
+        while (lines[end]?.kind === "code") end++;
+        fence = lines.slice(index, end).some((x) => /^\s*```/.test(plain(x))) ? "````" : "```";
+        out.push(fence);
+      }
+      out.push(plain(l));
+      if (lines[index + 1]?.kind !== "code") { out.push(fence); fence = ""; }
+      return;
+    }
+    if (kind === "hr") { out.push("---"); return; }
+    let text = body(l);
+    if (isList(kind)) {
+      if (!cols.length) cols = [0];
+      const d = Math.min(l.depth || 0, cols.length - 1);
+      const marker = kind === "ul" ? "- " : `${l.n || 1}. `;
+      out.push(" ".repeat(cols[d]) + marker + text);
+      cols = cols.slice(0, d + 1);
+      cols.push(cols[d] + marker.length);
+      return;
+    }
+    if (HEADINGS[kind]) { out.push(HEADINGS[kind] + text); return; }
+    if (kind === "quote") { out.push(text ? `> ${text}` : ">"); return; }
+    // A plain line that would read as a list, heading, quote, fence or rule.
+    if (escape && /^\s*([-*+]\s|\d{1,3}[.)]\s|#{1,6}(?:\s|$)|>|```|~~~|([-_])(?:\s*\2){2,}\s*$)/.test(text)) text = text.replace(/^(\s*)/, "$1\\");
+    out.push(text);
+  });
+  return out;
+}
+
 function richToMd(lines) {
-  return lines.map((l) => {
-    let body = runsToMd(l.runs || []);
-    if (l.kind === "p" && /^\s*([-*+]\s|\d{1,3}[.)]\s|#{1,6}\s|>)/.test(body)) body = body.replace(/^(\s*)/, "$1\\");
-    return (l.kind === "ul" ? "- " : l.kind === "ol" ? `${l.n || 1}. ` : "") + body;
-  }).join("\n");
+  return mdLines(lines, (l) => runsToMd(l.runs || [])).join("\n");
 }
 
 // Inline Markdown of cps[s..e) (code points) into runs with source offsets.
@@ -664,10 +790,10 @@ function mdInline(cps, s, e, base) {
   const isWs = (c) => c === undefined || /\s/u.test(c);
   const isPunct = (c) => c !== undefined && /[\p{P}\p{S}]/u.test(c);
   const toks = [];
-  const text = (ch, at) => {
+  const text = (ch, at, code = false) => {
     const last = toks[toks.length - 1];
-    if (last && last.t === "text" && last.src + last.n === at) { last.text += ch; last.n += 1; }
-    else toks.push({ t: "text", text: ch, src: at, n: 1 });
+    if (last && last.t === "text" && last.code === code && last.src + last.n === at) { last.text += ch; last.n += 1; }
+    else toks.push({ t: "text", text: ch, src: at, n: 1, code });
   };
   let link = null;   // {closeAt, endAt} of the link being read
   let k = s;
@@ -675,7 +801,28 @@ function mdInline(cps, s, e, base) {
     if (link && k === link.closeAt) { toks.push({ t: "linkClose" }); k = link.endAt; link = null; continue; }
     const c = cps[k];
     if (c === "\\" && k + 1 < e && MD_ESCAPABLE.includes(cps[k + 1])) { text(cps[k + 1], k + 1); k += 2; continue; }
-    if (c === "*" || c === "_" || c === "~") {
+    if (c === "`") {   // a code span: the same number of backticks closes it; nothing inside is formatting
+      let r = k;
+      while (r < e && cps[r] === "`") r++;
+      const len = r - k;
+      let close = -1;
+      for (let q = r; q < e && close < 0; q++) {
+        if (cps[q] !== "`") continue;
+        let w = q;
+        while (w < e && cps[w] === "`") w++;
+        if (w - q === len) close = q;
+        q = w - 1;
+      }
+      if (close < 0) { for (let q = k; q < r; q++) text("`", q); k = r; continue; }
+      let a = r;
+      let b = close;
+      const inner = cps.slice(a, b).join("");
+      if (inner.length > 2 && inner.startsWith(" ") && inner.endsWith(" ") && inner.trim()) { a += 1; b -= 1; }
+      for (let q = a; q < b; q++) text(cps[q], q, true);
+      k = close + len;
+      continue;
+    }
+    if (c === "*" || c === "_" || c === "~" || c === "=") {
       let r = k;
       while (r < e && cps[r] === c) r++;
       const len = r - k;
@@ -686,7 +833,7 @@ function mdInline(cps, s, e, base) {
       let canOpen = left;
       let canClose = right;
       if (c === "_") { canOpen = left && (!right || isPunct(prev)); canClose = right && (!left || isPunct(next)); }
-      if ((c === "~" && len !== 2) || (!canOpen && !canClose)) { for (let q = k; q < r; q++) text(c, q); k = r; continue; }
+      if (((c === "~" || c === "=") && len !== 2) || (!canOpen && !canClose)) { for (let q = k; q < r; q++) text(c, q); k = r; continue; }
       toks.push({ t: "delim", ch: c, len, left: len, src: k, canOpen, canClose, opens: [], closes: [] });
       k = r;
       continue;
@@ -708,7 +855,7 @@ function mdInline(cps, s, e, base) {
     text(c, k);
     k += 1;
   }
-  // Pair the delimiters (a simplified CommonMark): ** bold, * italic, ~~ strike, <u></u>.
+  // Pair the delimiters (a simplified CommonMark): ** bold, * italic, ~~ strike, == highlight, <u></u>.
   const stack = [];
   toks.forEach((tk, index) => {
     if (tk.t !== "delim") return;
@@ -718,8 +865,8 @@ function mdInline(cps, s, e, base) {
         const op = toks[stack[si]];
         if (op.ch !== tk.ch || op.left === 0) { si -= 1; continue; }
         const star = tk.ch === "*" || tk.ch === "_";
-        const use = star ? (tk.left >= 2 && op.left >= 2 ? 2 : 1) : tk.ch === "~" ? 2 : 1;
-        const style = star ? (use === 2 ? "b" : "i") : tk.ch === "~" ? "s" : "u";
+        const use = star ? (tk.left >= 2 && op.left >= 2 ? 2 : 1) : tk.ch === "~" || tk.ch === "=" ? 2 : 1;
+        const style = star ? (use === 2 ? "b" : "i") : { "~": "s", "=": "hl", u: "u" }[tk.ch];
         op.left -= use;
         tk.left -= use;
         op.opens.push(style);
@@ -731,20 +878,21 @@ function mdInline(cps, s, e, base) {
     }
     if (tk.left > 0 && tk.canOpen) stack.push(index);
   });
-  const on = { b: 0, i: 0, u: 0, s: 0 };
+  const on = { b: 0, i: 0, u: 0, s: 0, hl: 0 };
   let href = null;
   const runs = [];
-  const add = (str, src) => {
+  const add = (str, src, code = false) => {
     const style = {};
-    for (const key of ["b", "i", "u", "s"]) if (base[key] || on[key] > 0) style[key] = true;
+    for (const key of ["b", "i", "u", "s", "hl"]) if (base[key] || on[key] > 0) style[key] = true;
+    if (code) style.code = true;
     if (href) style.href = href;
     const last = runs[runs.length - 1];
-    const same = last && ["b", "i", "u", "s", "href"].every((key) => last[key] === style[key]);
+    const same = last && STYLE_KEYS.every((key) => last[key] === style[key]);
     if (same && last.src + Array.from(last.text).length === src) last.text += str;
     else runs.push({ text: str, ...style, src });
   };
   for (const tk of toks) {
-    if (tk.t === "text") add(tk.text, tk.src);
+    if (tk.t === "text") add(tk.text, tk.src, tk.code);
     else if (tk.t === "linkOpen") href = tk.href;
     else if (tk.t === "linkClose") href = null;
     else {
@@ -759,24 +907,58 @@ function mdInline(cps, s, e, base) {
 function mdToRich(md) {
   const cps = Array.from(md || "");
   const lines = [];
+  let fence = null;      // the open code fence, and whether its block has a line yet
+  let indents = [];      // the indent of each open list level
+  const width = (lead) => lead.replace(/\t/g, "    ").length;
   let s = 0;
   for (;;) {
     let e = s;
     while (e < cps.length && cps[e] !== "\n") e++;
     const raw = cps.slice(s, e).join("");
-    let kind = "p";
-    let n = 0;
-    let skip = 0;
-    const base = {};
     let m;
-    if ((m = /^\s*([-*+])\s+/u.exec(raw))) { kind = "ul"; skip = Array.from(m[0]).length; }
-    else if ((m = /^\s*(\d{1,3})[.)]\s+/u.exec(raw))) { kind = "ol"; n = Number(m[1]); skip = Array.from(m[0]).length; }
-    else if ((m = /^#{1,6}\s+/u.exec(raw))) { base.b = true; skip = Array.from(m[0]).length; }
-    else if ((m = /^>\s?/u.exec(raw))) { skip = Array.from(m[0]).length; }
-    lines.push({ kind, n, runs: mdInline(cps, s + skip, e, base) });
+    if (fence) {
+      m = /^ {0,3}(`{3,}|~{3,})\s*$/u.exec(raw);
+      if (m && m[1][0] === fence.mark[0] && m[1].length >= fence.mark.length) {
+        if (!fence.lines) lines.push({ kind: "code", n: 0, runs: [] });
+        fence = null;
+      } else {
+        lines.push({ kind: "code", n: 0, runs: raw ? [{ text: raw, src: s }] : [] });
+        fence.lines += 1;
+      }
+    } else if ((m = /^ {0,3}(`{3,}|~{3,})/u.exec(raw)) && !(m[1][0] === "`" && raw.slice(m[0].length).includes("`"))) {
+      fence = { mark: m[1], lines: 0 };
+      indents = [];
+    } else {
+      let kind = "p";
+      let n = 0;
+      let skip = 0;
+      let depth = 0;
+      const base = {};
+      if (/^ {0,3}([-*_])(\s*\1){2,}\s*$/u.test(raw)) kind = "hr";
+      else if ((m = /^(\s*)([-*+]|(\d{1,3})[.)])\s+/u.exec(raw))) {
+        kind = m[3] ? "ol" : "ul";
+        n = m[3] ? Number(m[3]) : 0;
+        skip = Array.from(m[0]).length;
+        // Nesting: deeper than the item above means its child.
+        const w = width(m[1]);
+        while (indents.length && indents[indents.length - 1] > w) indents.pop();
+        if (indents.length && indents[indents.length - 1] === w) indents.pop();
+        depth = indents.length;
+        indents.push(w);
+      } else if ((m = /^ {0,3}(#{1,6})(\s+|$)/u.exec(raw))) {
+        kind = `h${Math.min(m[1].length, 3)}`;
+        skip = Array.from(m[0]).length;
+      } else if ((m = /^ {0,3}(>\s?)+/u.exec(raw))) {
+        kind = "quote";
+        skip = Array.from(m[0]).length;
+      }
+      if (!isList(kind)) indents = [];
+      lines.push({ kind, n, ...(depth ? { depth } : {}), runs: kind === "hr" ? [] : mdInline(cps, s + skip, e, base) });
+    }
     if (e >= cps.length) break;
     s = e + 1;
   }
+  if (fence && !fence.lines) lines.push({ kind: "code", n: 0, runs: [] });
   while (lines.length > 1 && !lines[lines.length - 1].runs.length && lines[lines.length - 1].kind === "p") lines.pop();
   return lines;
 }
@@ -785,10 +967,8 @@ const mdToPlain = (md) => richToPlain(mdToRich(md));
 
 // The words of the lines, one "\n" between lines (no list markers): what gets compared.
 const linesText = (lines) => lines.map((l) => l.runs.map((r) => r.text).join("")).join("\n");
-// What Review sends: plain text, lists as "- " / "1. " lines.
-const listText = (lines) => lines.map((l) => (l.kind === "ul" ? "- " : l.kind === "ol" ? `${l.n || 1}. ` : "")
-  + l.runs.map((r) => r.text).join("")).join("\n");
-const STYLE_KEYS = ["b", "i", "u", "s", "href"];
+// What Review sends: plain text with the line markers (lists, headings, quotes, code fences, rules).
+const listText = (lines) => mdLines(lines, (l) => l.runs.map((r) => r.text).join(""), false).join("\n");
 const runStyle = (r) => (STYLE_KEYS.some((k) => r[k]) ? Object.fromEntries(STYLE_KEYS.filter((k) => r[k]).map((k) => [k, r[k]])) : null);
 const hasInline = (lines) => lines.some((l) => l.runs.some(runStyle));
 
@@ -822,13 +1002,14 @@ function carryFormatting(source, result, parts) {
   const src = styles(source);
   const res = styles(result);
   const out = res.slice();
+  const from = [];   // result position -> source position, for text that stayed
   let si = 0;
   let ri = 0;
   let carry = null;
   for (const part of parts) {
     const n = part.text.length;
     if (part.type === "equal") {
-      for (let k = 0; k < n; k++) out[ri + k] = merge(res[ri + k], src[si + k]);
+      for (let k = 0; k < n; k++) { out[ri + k] = merge(res[ri + k], src[si + k]); from[ri + k] = si + k; }
       si += n;
       ri += n;
       carry = null;
@@ -843,19 +1024,26 @@ function carryFormatting(source, result, parts) {
       carry = null;
     }
   }
+  // The source line each source position is on: a plain answer line takes
+  // the heading, quote or code style of the line its words came from.
+  const srcLine = [];
+  source.forEach((l, index) => { const len = l.runs.reduce((sum, r) => sum + r.text.length, 0) + (index ? 1 : 0); for (let k = 0; k < len; k++) srcLine.push(index); });
   let pos = 0;
   return result.map((l, index) => {
     if (index) pos += 1;
     const text = l.runs.map((r) => r.text).join("");
+    const kept = [...Array(text.length).keys()].find((k) => from[pos + k] !== undefined && !/\s/.test(text[k]));
+    const was = kept === undefined ? null : source[srcLine[from[pos + kept]]];
+    const block = l.kind === "p" && was && (HEADINGS[was.kind] || was.kind === "quote" || was.kind === "code") ? was.kind : l.kind;
     const runs = [];
     for (let k = 0; k < text.length; k++) {
-      const style = out[pos + k];
+      const style = block === "code" ? null : out[pos + k];
       const last = runs[runs.length - 1];
       if (last && key(runStyle(last)) === key(style)) last.text += text[k];
       else runs.push({ text: text[k], ...(style || {}) });
     }
     pos += text.length;
-    return { kind: l.kind, n: l.n, runs };
+    return { kind: block, n: l.n, ...(l.depth ? { depth: l.depth } : {}), runs };
   });
 }
 const normMd = (md) => richToMd(mdToRich(md));   // the same text as this page would write it
@@ -991,6 +1179,12 @@ function pasteRich(e) {
   const html = e.clipboardData.getData("text/html");
   if (!html) { document.execCommand("insertText", false, e.clipboardData.getData("text/plain")); return; }
   const doc = new DOMParser().parseFromString(html, "text/html");   // inert: nothing in it runs
+  for (const pre of doc.querySelectorAll("pre")) {   // a code block's closing line break isn't a line
+    const texts = doc.createTreeWalker(pre, NodeFilter.SHOW_TEXT);
+    let last = null;
+    for (let node = texts.nextNode(); node; node = texts.nextNode()) last = node;
+    if (last) last.data = last.data.replace(/\r?\n$/, "");
+  }
   const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
   const spaces = [];
   for (let node = walker.nextNode(); node; node = walker.nextNode()) spaces.push(node);
@@ -1018,7 +1212,7 @@ async function copyText(text, quiet = false, html = "") {
 
 function copyResult(quiet = false) {
   const lines = resultRich();
-  const formatted = lines.some((l) => l.kind !== "p" || l.runs.some((r) => r.b || r.i || r.u || r.s || r.href));
+  const formatted = lines.some((l) => l.kind !== "p" || l.runs.some(runStyle));
   return copyText(richToPlain(lines), quiet, formatted ? richToHtml(lines) : "");
 }
 
@@ -1040,14 +1234,95 @@ function formatCommand(cmd, el = els.result) {
     sel.removeAllRanges();
     sel.addRange(range);
   }
+  const at = selectionAt(el);
   if (cmd === "link") { editLink(); return; }
   if (cmd === "clear") {
     document.execCommand("removeFormat");
     document.execCommand("unlink");
+    // Headings, quotes and code blocks the selection touches become plain lines.
+    const range = window.getSelection().getRangeAt(0);
+    if ([...el.querySelectorAll("h1, h2, h3, h4, h5, h6, blockquote, pre")].some((block) => range.intersectsNode(block))) {
+      document.execCommand("formatBlock", false, "div");
+    }
+  } else if (["h1", "h2", "h3"].includes(cmd)) {
+    document.execCommand("formatBlock", false, at(cmd) ? "div" : cmd);
+  } else if (cmd === "normal") {
+    document.execCommand("formatBlock", false, "div");
+  } else if (cmd === "quote" || cmd === "codeBlock") {
+    const tag = cmd === "quote" ? "blockquote" : "pre";
+    const block = at(tag);
+    if (block) {   // off for the whole quote or code block (one line of it can't be taken out)
+      const range = document.createRange();
+      range.selectNodeContents(block);
+      window.getSelection().removeAllRanges();
+      window.getSelection().addRange(range);
+    }
+    document.execCommand("formatBlock", false, block ? "div" : tag);
+  } else if (cmd === "highlight") {
+    document.execCommand("hiliteColor", false, at(isHighlighted) ? "transparent" : HL_COLOR);
+  } else if (cmd === "code") {
+    toggleInlineCode(at("code"));
+  } else if (cmd === "indent" || cmd === "outdent") {
+    // Lists only: elsewhere the browser would indent with a quote.
+    if (at("li")) document.execCommand(cmd);
+    else setStatus(t("fmt.indentListOnly"));
+  } else if (cmd === "hr") {
+    document.execCommand("insertHorizontalRule");
   } else {
-    document.execCommand(cmd);
+    document.execCommand(cmd);   // bold, italic... lists, undo, redo
   }
   updateFormatState();
+}
+
+// at(test): the element around the selection in el that matches test (a CSS
+// selector or a function), or null.
+function selectionAt(el) {
+  return (test) => {
+    const sel = window.getSelection();
+    if (!sel.rangeCount || !el.contains(sel.anchorNode)) return null;
+    for (let node = sel.anchorNode; node && node !== el; node = node.parentNode) {
+      if (node.nodeType === 1 && (typeof test === "function" ? test(node) : node.matches(test))) return node;
+    }
+    return null;
+  };
+}
+const isHighlighted = (node) => !BLOCK_TAGS.has(node.tagName) && isHighlight(node.style?.backgroundColor);
+
+// Inline code: the selected words in a <code>, or the <code> around the caret undone.
+function toggleInlineCode(code) {
+  const sel = window.getSelection();
+  if (code) {   // the editing commands would keep the code style here: unwrap it directly
+    const first = code.firstChild;
+    const last = code.lastChild;
+    code.replaceWith(...code.childNodes);
+    if (first) {
+      const range = document.createRange();
+      range.setStartBefore(first);
+      range.setEndAfter(last);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+    code.ownerDocument.activeElement?.dispatchEvent(new Event("input", { bubbles: true }));
+    return;
+  }
+  if (sel.isCollapsed) { setStatus(t("fmt.selectFirst")); return; }
+  const text = sel.toString();
+  if (text.includes("\n")) { document.execCommand("formatBlock", false, "pre"); return; }   // several lines: a code block
+  document.execCommand("insertHTML", false, `<code>${escapeHtml(text)}</code>`);
+}
+
+// The "…" menu of a formatting bar, placed under its button (fixed, so the card doesn't cut it).
+function toggleFormatMenu(button, open) {
+  const menu = button.parentElement.querySelector(".fmt-menu");
+  const show = open ?? menu.hidden;
+  document.querySelectorAll(".fmt-menu").forEach((m) => { m.hidden = true; });
+  if (!show) return;
+  menu.hidden = false;
+  const box = button.getBoundingClientRect();
+  const width = menu.offsetWidth;
+  menu.style.left = `${Math.max(8, Math.min(box.right - width, window.innerWidth - width - 8))}px`;
+  const below = box.bottom + 4;
+  menu.style.top = `${below + menu.offsetHeight > window.innerHeight - 8 ? Math.max(8, box.top - menu.offsetHeight - 4) : below}px`;
 }
 
 function editLink() {
@@ -1071,13 +1346,19 @@ function editLink() {
   updateFormatState();
 }
 
+// What each button shows as on: the browser's own state, or the element around the selection.
+const FORMAT_AT = { quote: "blockquote", codeBlock: "pre", code: "code", highlight: isHighlighted, h1: "h1", h2: "h2", h3: "h3" };
+
 function updateFormatState() {
-  document.querySelectorAll(".format-bar .fmt").forEach((button) => {
-    const inside = selectionIn(formatTarget(button));
+  document.querySelectorAll(".format-bar [data-cmd]").forEach((button) => {
+    const el = formatTarget(button);
     const cmd = button.dataset.cmd;
     let active = false;
-    if (inside && ["bold", "italic", "underline", "strikeThrough", "insertUnorderedList", "insertOrderedList"].includes(cmd)) {
-      try { active = document.queryCommandState(cmd); } catch { active = false; }
+    if (selectionIn(el)) {
+      if (["bold", "italic", "underline", "strikeThrough", "insertUnorderedList", "insertOrderedList"].includes(cmd)) {
+        try { active = document.queryCommandState(cmd); } catch { active = false; }
+      } else if (FORMAT_AT[cmd]) active = Boolean(selectionAt(el)(FORMAT_AT[cmd]));
+      else if (cmd === "normal") active = !selectionAt(el)("h1, h2, h3, h4, h5, h6, blockquote, pre, li");
     }
     button.classList.toggle("active", active);
   });
@@ -2537,10 +2818,16 @@ function wire() {
   els.result.addEventListener("focus", () => { app.lastField = "result"; });
   // The Draft gets the same formatting bar as the result.
   document.querySelector('.format-bar[data-target="draft"]').innerHTML = $("formatBar").innerHTML;
-  document.querySelectorAll(".format-bar .fmt").forEach((button) => {
+  document.querySelectorAll(".format-bar button").forEach((button) => {
     button.addEventListener("mousedown", (e) => e.preventDefault());   // keep the selection in the text
-    button.addEventListener("click", () => formatCommand(button.dataset.cmd, formatTarget(button)));
+    if (button.classList.contains("fmt-more-btn")) { button.addEventListener("click", () => toggleFormatMenu(button)); return; }
+    button.addEventListener("click", () => {
+      formatCommand(button.dataset.cmd, formatTarget(button));
+      if (button.classList.contains("fmt-item")) toggleFormatMenu(button.closest(".fmt-more").querySelector(".fmt-more-btn"), false);
+    });
   });
+  document.addEventListener("mousedown", (e) => { if (!e.target.closest(".fmt-more")) document.querySelectorAll(".fmt-menu").forEach((m) => { m.hidden = true; }); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") document.querySelectorAll(".fmt-menu").forEach((m) => { m.hidden = true; }); });
   document.execCommand("defaultParagraphSeparator", false, "div");   // Enter makes a new line block
   for (const el of [els.result, els.draftEl]) {
     el.addEventListener("keydown", (e) => {
@@ -2548,6 +2835,9 @@ function wire() {
       if (mod && !e.shiftKey && e.key.toLowerCase() === "k") {
         e.preventDefault();
         formatCommand("link", el);
+      } else if (e.key === "Tab" && !mod && !e.altKey && selectionAt(el)("li")) {   // Tab / Shift+Tab nest list items
+        e.preventDefault();
+        formatCommand(e.shiftKey ? "outdent" : "indent", el);
       }
     });
     el.addEventListener("paste", pasteRich);

@@ -6,7 +6,7 @@ Edit freely to change how it behaves; the app reloads it on each request.
 
 Author:  Luis Martinez
 Email:   16788942+luigihmtz@users.noreply.github.com
-Version: v01.06.00
+Version: v01.07.00
 Date:    2026-11-26
 
 Usage: Lines inside this HTML comment are stripped before sending.
@@ -59,9 +59,10 @@ Apply the changes <prompt> asks for to <text> and return the whole revised text.
 
 ## Formatting
 
-- Lines starting with "- " are bullets and "1. " numbered items; keep them. Every line break is a real line break.
-- <draft> (review) is plain text: return plain text too. The app keeps the writer's bold, italics and links.
-- <text> (refine) uses a small Markdown: **bold**, *italic*, <u>underline</u>, ~~strikethrough~~, [link text](url), and a backslash before a character that would otherwise be read as formatting. Keep it on the words that remain, and change it only if the prompt asks.
+- Line markers: "- " bullets and "1. " numbered items (indented under their parent item when nested), "# ", "## " and "### " headings, "> " quotes, "---" a horizontal line, and code blocks between ``` lines. Keep them. Every line break is a real line break.
+- Leave code (code blocks and `code`) exactly as it is, even in review.
+- <draft> (review) is plain text with those line markers: return it the same way. The app keeps the writer's bold, italics, highlights and links.
+- <text> (refine) uses a small Markdown: the line markers, **bold**, *italic*, <u>underline</u>, ~~strikethrough~~, ==highlight==, `code`, [link text](url), and a backslash before a character that would otherwise be read as formatting. Keep it on the words that remain, and change it only if the prompt asks.
 - Create: plain text, with bullets only when the text clearly is a list.
 
 ## Output

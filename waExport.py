@@ -8,14 +8,15 @@
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v01.01.00
-# Date:    2026-11-25
+# Version: v01.02.00
+# Date:    2026-11-26
 #
 # Usage: imported by writeAssist.pyw. write(path, fmt, text, title, author,
 #        when, details, rich) where details is [[label, value], ...] already in
 #        the interface language, and rich (optional) is the formatted text as
-#        lines: [{"kind": "p"|"ul"|"ol", "n", "runs": [{"text", "b", "i", "u",
-#        "s", "href"}]}]; cloud_folders() lists the synced folders.
+#        lines: [{"kind": "p"|"ul"|"ol"|"h1"|"h2"|"h3"|"quote"|"code"|"hr",
+#        "n", "depth" (list nesting), "runs": [{"text", "b", "i", "u", "s",
+#        "hl", "code", "href"}]}]; cloud_folders() lists the synced folders.
 
 import json
 import os
@@ -69,84 +70,165 @@ def write(path, fmt, text, title, author, when, details, rich=None):
     return path
 
 
-def _prefix(line):
-    return "• " if line.get("kind") == "ul" else f"{line.get('n', 1)}. " if line.get("kind") == "ol" else ""
+BULLETS = "•◦▪"
+HEADING_SIZES = {"h1": 32, "h2": 28, "h3": 24}   # half-points
+
+
+def _text(line):
+    return "".join(run.get("text", "") for run in line.get("runs", []))
 
 
 def _plain(lines):
-    return "\n".join(_prefix(line) + "".join(run.get("text", "") for run in line.get("runs", [])) for line in lines)
+    out = []
+    for line in lines:
+        kind, depth = line.get("kind", "p"), line.get("depth", 0)
+        if kind == "hr":
+            out.append("──────────")
+        elif kind in ("ul", "ol"):
+            marker = f"{BULLETS[depth % 3]} " if kind == "ul" else f"{line.get('n', 1)}. "
+            out.append("    " * depth + marker + _text(line))
+        else:
+            out.append(_text(line))
+    return "\n".join(out)
+
+
+def _code_span(text):
+    longest = max([len(m) for m in re.findall(r"`+", text)] or [0])
+    fence = "`" * (longest + 1)
+    pad = " " if text.startswith("`") or text.endswith("`") else ""
+    return f"{fence}{pad}{text}{pad}{fence}"
 
 
 def _markdown(lines):
     out = []
+    cols = []    # the indent of each list level
+    fence = ""   # the open code fence
     for index, line in enumerate(lines):
+        kind = line.get("kind", "p")
+        following = lines[index + 1] if index + 1 < len(lines) else None
+        if kind not in ("ul", "ol"):
+            cols = []
+        if kind == "code":
+            if not fence:
+                block = []
+                for other in lines[index:]:
+                    if other.get("kind") != "code":
+                        break
+                    block.append(_text(other))
+                fence = "````" if any(re.match(r"\s*```", text) for text in block) else "```"
+                out.append(fence)
+            out.append(_text(line))
+            if not following or following.get("kind") != "code":
+                out.append(fence)
+                fence = ""
+            continue
+        if kind == "hr":
+            out.append("---")
+            continue
         parts = []
         for run in line.get("runs", []):
-            piece = escape_md(run.get("text", ""))
-            if not piece.strip():
-                parts.append(piece)
+            text = run.get("text", "")
+            if not text.strip():
+                parts.append(text)
                 continue
-            lead, core, trail = re.match(r"^(\s*)(.*?)(\s*)$", piece, re.S).groups()   # markers hug the words
+            lead, core, trail = re.match(r"^(\s*)(.*?)(\s*)$", text, re.S).groups()   # markers hug the words
+            core = _code_span(core) if run.get("code") else escape_md(core)
             if run.get("b"):
                 core = f"**{core}**"
             if run.get("i"):
                 core = f"*{core}*"
             if run.get("s"):
                 core = f"~~{core}~~"
+            if run.get("hl"):
+                core = f"=={core}=="   # highlight: shown by many viewers (Obsidian, Typora...)
             if run.get("u"):
                 core = f"<u>{core}</u>"   # Markdown has no underline; most viewers show this
             if safe_href(run.get("href")):
                 core = f"[{core}]({run['href']})"
             parts.append(lead + core + trail)
         content = "".join(parts)
-        kind = line.get("kind", "p")
-        prefix = "- " if kind == "ul" else f"{line.get('n', 1)}. " if kind == "ol" else ""
-        following = lines[index + 1] if index + 1 < len(lines) else None
-        # A plain line followed by another plain line: a hard line break ("  ").
-        hard_break = kind == "p" and content and following and following.get("kind", "p") == "p" and following.get("runs")
-        out.append(prefix + content + ("  " if hard_break else ""))
+        if kind in ("ul", "ol"):
+            cols = cols or [0]
+            depth = min(line.get("depth", 0), len(cols) - 1)
+            marker = "- " if kind == "ul" else f"{line.get('n', 1)}. "
+            out.append(" " * cols[depth] + marker + content)
+            cols = cols[:depth + 1] + [cols[depth] + len(marker)]
+        elif kind in HEADING_SIZES:
+            out.append("#" * int(kind[1]) + " " + content)
+        elif kind == "quote":
+            # Quote lines in a row: one quote, each line its own (a hard break).
+            more = following and following.get("kind") == "quote"
+            out.append(("> " + content if content else ">") + ("  " if more and content else ""))
+        else:
+            # A plain line followed by another plain line: a hard line break ("  ").
+            hard_break = content and following and following.get("kind", "p") == "p" and following.get("runs")
+            out.append(content + ("  " if hard_break else ""))
     return "\n".join(out)
 
 
 def escape_md(value):
-    return re.sub(r"([*_`~\\[\]])", r"\\\1", str(value)).replace("\n", " ")
+    return re.sub(r"([*_`~=\\[\]])", r"\\\1", str(value)).replace("\n", " ")
 
 
 # ---------------------------------------------------------------------------
 # Word (.docx): a .docx is a zip of a few XML files; no library needed.
 # ---------------------------------------------------------------------------
-def _run(text, gray=False, size=None, bold=False, italic=False, underline=False, strike=False, link=False):
-    # Word wants run properties in schema order: b, i, strike, color, sz, u.
+def _run(text, gray=False, size=None, bold=False, italic=False, underline=False, strike=False, link=False,
+         mono=False, highlight=False, shade=False, color=None):
+    # Word wants run properties in schema order: rFonts, b, i, strike, color, sz, highlight, u, shd.
     props = ""
+    if mono:
+        props += '<w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:cs="Consolas"/>'
     if bold:
         props += "<w:b/>"
     if italic:
         props += "<w:i/>"
     if strike:
         props += "<w:strike/>"
-    if link or gray:
-        props += f'<w:color w:val="{"0563C1" if link else "767676"}"/>'
+    if link or gray or color:
+        props += f'<w:color w:val="{"0563C1" if link else color or "767676"}"/>'
     if size:
         props += f'<w:sz w:val="{size}"/><w:szCs w:val="{size}"/>'
+    if highlight:
+        props += '<w:highlight w:val="yellow"/>'
     if underline or link:
         props += '<w:u w:val="single"/>'
+    if shade:
+        props += '<w:shd w:val="clear" w:color="auto" w:fill="F2F2F2"/>'
     props = f"<w:rPr>{props}</w:rPr>" if props else ""
     parts = str(text).split("	")
     body = '<w:tab/>'.join(f'<w:t xml:space="preserve">{escape(part)}</w:t>' for part in parts)
     return f"<w:r>{props}{body}</w:r>"
 
 
-def _paragraph(runs="", spacing_after=None, border_top=False, indent=False):
-    # Paragraph properties in schema order: pBdr, tabs, spacing, ind.
-    props = ""
+def _paragraph(runs="", spacing_after=None, border_top=False, indent=0, border_left=False, border_bottom=False,
+               shade=False, spacing_before=None, heading=None, keep_next=False):
+    # Paragraph properties in schema order: keepNext, pBdr, shd, tabs, spacing, ind, outlineLvl.
+    # indent: list level + 1 (0: not a list item); the bullet or number hangs in the margin.
+    props = '<w:keepNext/>' if keep_next else ""
+    borders = ""
     if border_top:
-        props += '<w:pBdr><w:top w:val="single" w:sz="4" w:space="6" w:color="BFBFBF"/></w:pBdr>'
-    if indent:   # list item: the bullet or number hangs in the margin
-        props += '<w:tabs><w:tab w:val="left" w:pos="720"/></w:tabs>'
-    if spacing_after is not None:
-        props += f'<w:spacing w:after="{spacing_after}"/>'
+        borders += '<w:top w:val="single" w:sz="4" w:space="6" w:color="BFBFBF"/>'
+    if border_left:
+        borders += '<w:left w:val="single" w:sz="18" w:space="8" w:color="C8C8C8"/>'
+    if border_bottom:
+        borders += '<w:bottom w:val="single" w:sz="6" w:space="1" w:color="BFBFBF"/>'
+    if borders:
+        props += f"<w:pBdr>{borders}</w:pBdr>"
+    if shade:
+        props += '<w:shd w:val="clear" w:color="auto" w:fill="F2F2F2"/>'
     if indent:
-        props += '<w:ind w:left="720" w:hanging="360"/>'
+        props += f'<w:tabs><w:tab w:val="left" w:pos="{720 * indent}"/></w:tabs>'
+    if spacing_after is not None or spacing_before is not None:
+        before = f' w:before="{spacing_before}"' if spacing_before is not None else ""
+        after = f' w:after="{spacing_after}"' if spacing_after is not None else ""
+        props += f"<w:spacing{before}{after}/>"
+    if indent:
+        props += f'<w:ind w:left="{720 * indent}" w:hanging="360"/>'
+    elif border_left:
+        props += '<w:ind w:left="240"/>'
+    if heading is not None:
+        props += f'<w:outlineLvl w:val="{heading}"/>'   # shows in Word's navigation pane
     props = f"<w:pPr>{props}</w:pPr>" if props else ""
     return f"<w:p>{props}{runs}</w:p>"
 
@@ -154,19 +236,35 @@ def _paragraph(runs="", spacing_after=None, border_top=False, indent=False):
 def _write_docx(path, lines, title, author, when, details):
     links = []   # external hyperlinks, numbered as relationships rId100, rId101...
     body = []
-    for line in lines:
+    for index, line in enumerate(lines):
         runs = ""
         kind = line.get("kind", "p")
+        depth = line.get("depth", 0)
+        if kind == "hr":
+            body.append(_paragraph(border_bottom=True, spacing_after=120))
+            continue
         if kind in ("ul", "ol"):
-            runs += _run(("•" if kind == "ul" else f"{line.get('n', 1)}.") + "\t")
+            runs += _run((BULLETS[depth % 3] if kind == "ul" else f"{line.get('n', 1)}.") + "\t")
+        size = HEADING_SIZES.get(kind)
         for run in line.get("runs", []):
-            piece = _run(run.get("text", ""), bold=run.get("b"), italic=run.get("i"), underline=run.get("u"),
-                         strike=run.get("s"), link=bool(safe_href(run.get("href"))))
+            code_block = kind == "code"
+            piece = _run(run.get("text", ""), bold=run.get("b") or bool(size), italic=run.get("i"), underline=run.get("u"),
+                         strike=run.get("s"), link=bool(safe_href(run.get("href"))), size=size or (19 if code_block else None),
+                         mono=run.get("code") or code_block, highlight=run.get("hl"), shade=run.get("code") and not code_block,
+                         color="595959" if kind == "quote" else None)
             if safe_href(run.get("href")):
                 links.append(run["href"])
                 piece = f'<w:hyperlink r:id="rId{99 + len(links)}">{piece}</w:hyperlink>'
             runs += piece
-        body.append(_paragraph(runs, indent=kind in ("ul", "ol")))
+        following = lines[index + 1] if index + 1 < len(lines) else {}
+        if size:
+            body.append(_paragraph(runs, spacing_before=240, spacing_after=80, heading=int(kind[1]) - 1, keep_next=True))
+        elif kind == "code":   # code lines in a row: one shaded block
+            body.append(_paragraph(runs, shade=True, spacing_after=0 if following.get("kind") == "code" else None))
+        elif kind == "quote":
+            body.append(_paragraph(runs, border_left=True, spacing_after=0 if following.get("kind") == "quote" else None))
+        else:
+            body.append(_paragraph(runs, indent=depth + 1 if kind in ("ul", "ol") else 0))
     body.append(_paragraph(spacing_after=0))
     for index, (label, value) in enumerate(details):
         runs = _run(f"{label}: ", gray=True, size=17, bold=True) + _run(value, gray=True, size=17)

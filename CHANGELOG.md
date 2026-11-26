@@ -1,5 +1,19 @@
 # Changelog
 
+## v02.17.00 - 2026-11-26
+
+- More formatting, like Teams: **highlight**, **quotes** and **code blocks**
+  on the bar; a **…** menu with Normal text, Heading 1–3, inline code, Clear
+  formatting, Decrease/Increase indent, Horizontal line, Undo and Redo.
+- Lists can be nested: Tab and Shift+Tab inside a list (or the indent items
+  in the menu).
+- All of it survives Review, Refine, History, sessions, copying into Teams,
+  Outlook or Word, and the Word, PDF, Markdown and text exports. Pasting from
+  Teams, Word or web pages keeps headings, quotes, code, highlights, lines and
+  nested lists.
+- Review also keeps headings, quotes and code blocks when the AI leaves out
+  their markers. Highlights and inline code are put back like bold and italic.
+
 ## v02.16.00 - 2026-11-26
 
 - Error messages are now in the interface language too (English, Spanish or
