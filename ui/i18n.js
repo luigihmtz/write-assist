@@ -5,7 +5,7 @@
 //
 // Author:  Luis Martinez
 // Email:   16788942+luigihmtz@users.noreply.github.com
-// Version: v01.08.00
+// Version: v01.08.01
 // Date:    2026-11-25
 //
 // Usage: loaded by ui/index.html before app.js. In index.html:
@@ -178,7 +178,7 @@ const STRINGS = {
     "check.spelling": "spelling",
     "check.grammar": "spelling + grammar",
     "check.offHint": "No lines in Prompt and Draft.",
-    "check.spellingHint": "Misspelled words only, with the spellchecker built into Windows. Free, nothing to download.",
+    "check.spellingHint": "Misspelled words only, with the spellchecker built into Windows: English, Spanish, and French if French is added in Windows' language settings. Free, nothing to download.",
     "check.grammarHint": "Spelling, grammar and style, in each paragraph's language; click a mistake for suggestions. Free, runs on this PC; a one-time download of about 300 MB.",
     "lt.setupTitle": "Set up live grammar checking?",
     "lt.setupText": "Live grammar uses LanguageTool, a free, open-source checker that runs on this computer: no account, and your text never leaves your PC. It needs a one-time download of about {download} MB (LanguageTool and the Java it runs on), using about {disk} MB of disk space.",
@@ -359,7 +359,7 @@ const STRINGS = {
     "check.spelling": "ortografía",
     "check.grammar": "ortografía + gramática",
     "check.offHint": "Sin líneas en Instrucciones y Borrador.",
-    "check.spellingHint": "Solo palabras mal escritas, con el corrector integrado de Windows. Gratis, sin descargas.",
+    "check.spellingHint": "Solo palabras mal escritas, con el corrector integrado de Windows: inglés, español, y francés si agregas el francés en la configuración de idioma de Windows. Gratis, sin descargas.",
     "check.grammarHint": "Ortografía, gramática y estilo, en el idioma de cada párrafo; haz clic en un error para ver sugerencias. Gratis, funciona en esta PC; descarga única de unos 300 MB.",
     "lt.setupTitle": "¿Configurar la revisión gramatical en vivo?",
     "lt.setupText": "La revisión en vivo usa LanguageTool, un corrector gratuito y de código abierto que funciona en esta computadora: sin cuenta, y tu texto nunca sale de tu PC. Necesita una descarga única de unos {download} MB (LanguageTool y el Java con el que funciona) y ocupa unos {disk} MB de disco.",
@@ -539,7 +539,7 @@ const STRINGS = {
     "check.spelling": "orthographe",
     "check.grammar": "orthographe + grammaire",
     "check.offHint": "Aucune ligne dans la Consigne et le Brouillon.",
-    "check.spellingHint": "Mots mal orthographiés seulement, avec le correcteur intégré à Windows. Gratuit, rien à télécharger.",
+    "check.spellingHint": "Mots mal orthographiés seulement, avec le correcteur intégré à Windows : anglais, espagnol, et français si le français est ajouté dans les paramètres de langue de Windows. Gratuit, rien à télécharger.",
     "check.grammarHint": "Orthographe, grammaire et style, dans la langue de chaque paragraphe ; cliquez sur une faute pour voir des suggestions. Gratuit, fonctionne sur ce PC ; téléchargement unique d'environ 300 Mo.",
     "lt.setupTitle": "Configurer la vérification grammaticale en direct ?",
     "lt.setupText": "La vérification en direct utilise LanguageTool, un correcteur gratuit et open source qui fonctionne sur cet ordinateur : sans compte, et votre texte ne quitte jamais votre PC. Il faut un téléchargement unique d'environ {download} Mo (LanguageTool et le Java qui le fait tourner), soit environ {disk} Mo d'espace disque.",

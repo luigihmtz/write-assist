@@ -4,6 +4,8 @@
 
 - The interface is now also in French (Settings > Interface language; by
   default the same as Windows), and dictation can be set to French.
+- *Underline: spelling* also checks French when Windows has its French
+  dictionary (French Windows, or French added in Windows' language settings).
 - Reviews no longer list the same fix twice (once on its own and once inside
   a longer snippet).
 

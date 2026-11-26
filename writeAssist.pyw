@@ -13,8 +13,8 @@
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v02.07.01
-# Date:    2026-11-24
+# Version: v02.07.02
+# Date:    2026-11-25
 #
 # Usage: installed by install.ps1 (Start Menu shortcut + global hotkey, default
 #        Win+Ctrl+W, via hotkeyListener.pyw), or run `pythonw writeAssist.pyw`.
@@ -552,12 +552,14 @@ WEBVIEW_DIR = Path(os.environ.get("LOCALAPPDATA") or Path.home()) / "WriteAssist
 
 
 def prepare_webview_profile():
-    """The built-in spellchecker ("Spelling only" underlines) uses only Windows'
+    """The built-in spellchecker (Underline: spelling) uses only Windows'
     display language by default, so correct Spanish words looked misspelled.
     Its languages are a browser setting, written here before the window opens:
-    English (US), Spanish (Mexico) and Windows' own language. Windows supplies
-    the dictionaries; a language it has none for is skipped."""
-    languages = list(dict.fromkeys([windows_ui_language(), "en-US", "es-MX"]))
+    English (US), Spanish (Mexico), French (France) and Windows' own language.
+    Windows supplies the dictionaries (French only when French is added in
+    Windows' language settings); a language it has none for is skipped, without
+    affecting the others. (Chromium's own .bdic dictionary files are ignored.)"""
+    languages = list(dict.fromkeys([windows_ui_language(), "en-US", "es-MX", "fr-FR"]))
     core.save_json(WEBVIEW_DIR / "EBWebView" / "Default" / "Preferences",
                    {"spellcheck": {"dictionaries": languages, "use_spelling_service": False}})
 

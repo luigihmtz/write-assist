@@ -8,7 +8,7 @@
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v01.05.02
+# Version: v01.05.03
 # Date:    2026-11-25
 #
 # Usage: imported by writeAssist.pyw. Per-user files live in
@@ -558,13 +558,16 @@ def build_text_message(task, prompt, draft, mode, tone, language=""):
 
 
 def drop_repeated_changes(changes):
-    """Models sometimes list one fix twice: alone ("allready" -> "already") and
-    inside a longer snippet ("who allready invest" -> "who already invest").
-    A change is dropped when applying a smaller listed change to its original
-    gives exactly its fix, so it adds nothing."""
-    keep = []
+    """Models sometimes list one fix twice: word for word, or alone ("allready"
+    -> "already") and inside a longer snippet ("who allready invest" -> "who
+    already invest"). Exact copies are dropped, and so is a change when applying
+    a smaller listed change to its original gives exactly its fix."""
+    keep, seen = [], set()
     for change in changes:
         original, fixed = str(change.get("original", "")), str(change.get("fixed", ""))
+        if (original, fixed) in seen:
+            continue
+        seen.add((original, fixed))
         repeated = any(
             other is not change and other.get("original") and other["original"] != original
             and other["original"] in original
