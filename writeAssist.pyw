@@ -15,7 +15,7 @@
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v02.11.00
+# Version: v02.12.00
 # Date:    2026-11-26
 #
 # Usage: installed by install.ps1 (Start Menu shortcut + global hotkey, default
@@ -191,6 +191,11 @@ def safely(fn):
     return wrapper
 
 
+AUTOSAVE_FILE = core.USER_DIR / "autosave.json"   # the work in progress, reopened at the next start
+# Interface language -> the language the AI explains its changes and notes in.
+EXPLAIN_LANGUAGES = {"en": "English", "es": "Spanish", "fr": "French"}
+
+
 class Bridge:
     def __init__(self):
         self._window = None
@@ -233,6 +238,7 @@ class Bridge:
             "ui_language": self._settings.get("ui_language", ""),
             "microphone": self._settings.get("microphone", ""),
             "check_mode": self._check_mode(),
+            "on_close": self.on_close_mode(),
             "state": self._state,
             "needs_profile": "profile" not in user,
         }
@@ -292,7 +298,7 @@ class Bridge:
             name, provider, model, task, request.get("prompt", ""), request.get("draft", ""),
             request.get("mode", "polish"), request.get("tone", "keep"),
             core.load_user_settings().get("profile", ""), self._settings.get("timeout_seconds", 120),
-            request.get("language", "")))
+            request.get("language", ""), EXPLAIN_LANGUAGES.get(request.get("ui_language", ""), "")))
         self._remember(task, request, extra, result)
         return {"task": task, "elapsed": time.time() - started, **extra, **result}
 
@@ -682,7 +688,7 @@ class Bridge:
                 "microphone": self._settings.get("microphone", ""),
                 "check_mode": self._check_mode(),
                 "history": bool(self._settings.get("history", True)),
-                "ask_save": bool(self._settings.get("ask_save_on_close", True)),
+                "on_close": self.on_close_mode(),
                 "author_name": self._settings.get("author_name", ""), "author_default": export.account_name(),
                 "version": self._version, "is_dev": core.IS_DEV}
 
@@ -691,7 +697,7 @@ class Bridge:
         user = core.load_user_settings()
         user["profile"] = (values.get("profile") or "").strip()
         for key in ("speech_model", "speech_language", "ui_language", "microphone", "check_mode",
-                    "history", "author_name", "ask_save_on_close"):
+                    "history", "author_name", "on_close"):
             if key in values:
                 user[key] = values[key]
         new_hotkey = (values.get("hotkey") or "").strip()
@@ -727,7 +733,27 @@ class Bridge:
         self._close_ok = True                 # the page already asked about unsaved work
         threading.Timer(0.3, self._window.destroy).start()
 
-    # ---- Closing with unsaved work ---------------------------------------- #
+    # ---- Closing: keep the work for next time (like VS Code), or ask ------- #
+    def on_close_mode(self):
+        """"keep" (the default: the work comes back next time), "ask" (offer to
+        save a session file) or "nothing"."""
+        mode = self._settings.get("on_close", "keep")
+        return mode if mode in ("keep", "ask", "nothing") else "keep"
+
+    @safely
+    def autosave(self, data):
+        """The page's current work, saved as it changes; reopened at the next start."""
+        if self.on_close_mode() == "keep" and data:
+            core.save_json(AUTOSAVE_FILE, data)
+        else:
+            AUTOSAVE_FILE.unlink(missing_ok=True)
+
+    @safely
+    def autosave_load(self):
+        if self.on_close_mode() != "keep":
+            return {"session": None}
+        return {"session": core.load_json(AUTOSAVE_FILE, None)}
+
     @safely
     def set_unsaved(self, unsaved):
         """The page says whether it has work that isn't in a saved session."""
@@ -831,6 +857,13 @@ def prepare_webview_profile():
                    {"spellcheck": {"dictionaries": languages, "use_spelling_service": False}})
 
 
+def _destroy(window):
+    try:
+        window.destroy()
+    except Exception:
+        pass   # already closed
+
+
 def main():
     import sys
     # Opened with a .wasession file (double-click): an open window gets it,
@@ -874,10 +907,22 @@ def main():
                 pass
 
     def on_closing():
-        # Unsaved work: cancel this close and let the page ask (Save / Don't
-        # save / Cancel); it calls quit() when the user has chosen.
-        if getattr(bridge, "_unsaved", False) and not getattr(bridge, "_close_ok", False) \
-                and bridge._settings.get("ask_save_on_close", True):
+        mode = bridge.on_close_mode()
+        if not getattr(bridge, "_close_ok", False) and mode == "keep":
+            # Hold the close until the page has saved the latest work, then close.
+            bridge._close_ok = True
+
+            def flush_then_close():
+                threading.Timer(5, lambda: _destroy(window)).start()   # if the page doesn't answer
+                try:
+                    window.evaluate_js("window.WA ? WA.flushAutosave() : null")
+                finally:
+                    _destroy(window)
+            threading.Thread(target=flush_then_close, daemon=True).start()
+            return False
+        if getattr(bridge, "_unsaved", False) and not getattr(bridge, "_close_ok", False) and mode == "ask":
+            # Unsaved work: cancel this close and let the page ask (Save / Don't
+            # save / Cancel); it calls quit() when the user has chosen.
             threading.Thread(target=lambda: window.evaluate_js("window.WA && WA.confirmQuit()"), daemon=True).start()
             return False
         try:

@@ -10,7 +10,7 @@
 //
 // Author:  Luis Martinez
 // Email:   16788942+luigihmtz@users.noreply.github.com
-// Version: v01.14.00
+// Version: v01.15.00
 // Date:    2026-11-26
 //
 // Usage: loaded by ui/index.html after i18n.js (t(), applyLanguage()). Every
@@ -96,9 +96,11 @@ async function init() {
   els.draft.focus();
 
   if (info.needs_profile) openSettings(true);
+  app.onClose = info.on_close || "keep";
   const start = await api().startup_session();   // Write Assist opened with a .wasession file
   if (!start.ok) setStatus(start.error, true);
   else if (start.session) applySession(start);
+  else await restoreAutosave();
   if (!info.is_dev) {
     setTimeout(checkForUpdate, 3000);
     setInterval(checkForUpdate, 6 * 3600 * 1000);
@@ -260,6 +262,7 @@ async function run() {
     const res = await api().run({
       provider, model: els.model.value, prompt: els.prompt.value, draft,
       mode: els.mode.value, tone: els.tone.value, language: els.textLanguage.value,
+      ui_language: uiLang,   // changes and notes are explained in the interface language
     });
     clearInterval(timer);
     if (!res.ok) { setStatus(res.error, true); return; }
@@ -1325,6 +1328,7 @@ const hasWork = () => Boolean(els.prompt.value.trim() || els.draft.value.trim() 
 
 // Tells Python whether closing should ask (only when the answer changes).
 function checkUnsaved() {
+  scheduleAutosave();
   const unsaved = hasWork() && sessionSig() !== session.savedSig;
   if (unsaved === session.unsaved || !window.pywebview?.api) return unsaved;
   session.unsaved = unsaved;
@@ -1332,15 +1336,57 @@ function checkUnsaved() {
   return unsaved;
 }
 
-async function saveSession() {
+// Everything a session file (or the autosave) holds, except the versions.
+function collectSession() {
   const rich = resultRich();
-  const res = await api().session_save({
+  return {
     prompt: els.prompt.value, draft: els.draft.value, result_text: richToPlain(rich),
     result: { rich, title: app.resultTitle, changes: app.lastChanges },
     options: { mode: els.mode.value, tone: els.tone.value, language: els.textLanguage.value,
       provider: els.provider.value, model: els.model.value },
     last_run: app.lastRun || null,
-  });
+  };
+}
+
+// "Keep my work for next time" (like VS Code): the work is saved as it
+// changes, and once more when the window closes, then reopened at the start.
+const autosave = { sig: null, timer: null };
+
+function scheduleAutosave() {
+  if (app.onClose !== "keep" || !window.pywebview?.api || sessionSig() === autosave.sig) return;
+  clearTimeout(autosave.timer);
+  autosave.timer = setTimeout(flushAutosave, 800);
+}
+
+async function flushAutosave() {
+  clearTimeout(autosave.timer);
+  if (app.onClose !== "keep") return;
+  autosave.sig = sessionSig();
+  const data = hasWork() ? { ...collectSession(), session_name: session.name, unsaved: Boolean(checkUnsaved()) } : null;
+  await api().autosave(data);
+}
+
+async function restoreAutosave() {
+  if (app.onClose !== "keep") return;
+  const res = await api().autosave_load();
+  const s = res.ok && res.session;
+  if (!s) return;
+  applySession({ session: s, name: s.session_name || "" }, true);
+  if (s.unsaved) { session.savedSig = ""; checkUnsaved(); }   // still not in a session file
+  autosave.sig = sessionSig();
+}
+
+// Before something replaces the texts: what isn't in History yet goes there.
+async function stashInHistory(label) {
+  const known = (await api().history_list()).versions?.map((v) => v.text) || [];
+  const draft = els.draft.value;
+  if (draft.trim() && !known.includes(draft)) await api().history_save(draft, label);
+  const result = resultText();
+  if (result.trim() && !known.includes(result)) await api().history_save(result, label, resultRich());
+}
+
+async function saveSession() {
+  const res = await api().session_save(collectSession());
   if (!res.ok) { setStatus(res.error, true); return false; }
   if (res.cancelled) return false;
   session.savedSig = sessionSig();
@@ -1351,7 +1397,8 @@ async function saveSession() {
 }
 
 async function openSession() {
-  if (!(await resolveUnsaved())) return;
+  if (app.onClose === "ask") { if (!(await resolveUnsaved())) return; }
+  else if (checkUnsaved()) await stashInHistory(t("history.beforeOpen"));   // nothing is lost, no question
   const res = await api().session_open();
   if (!res.ok) { setStatus(res.error, true); return; }
   if (!res.cancelled) applySession(res);
@@ -1362,7 +1409,7 @@ function setSelect(select, value) {
 }
 
 // Puts a session's texts and options back ({session, name} from Python).
-function applySession(data) {
+function applySession(data, restored = false) {
   const s = data?.session;
   if (!s) return;
   closePanels();
@@ -1391,7 +1438,7 @@ function applySession(data) {
   session.savedSig = sessionSig();
   session.name = data.name || "";
   checkUnsaved();
-  setStatus(t("session.opened", { name: session.name }));
+  setStatus(restored ? t("session.restored") : t("session.opened", { name: session.name }));
 }
 
 // Unsaved work: Save / Don't save / Cancel. True when it's fine to go on.
@@ -1745,7 +1792,7 @@ async function openSettings(firstRun = false) {
   $("uiLanguage").value = res.ui_language || "";
   fillMicrophones(res.microphone || "");
   $("historyOn").checked = res.history !== false;
-  $("askSave").checked = res.ask_save !== false;
+  $("onClose").value = res.on_close || "keep";
   $("authorName").value = res.author_name || "";
   $("authorName").placeholder = res.author_default || "";
   $("versionText").textContent = t("settings.version", { version: res.version }) + (res.is_dev ? t("settings.devCopy") : "");
@@ -1780,10 +1827,13 @@ async function closeSettings(save) {
     speech_model: $("speechModel").value, speech_language: $("speechLanguage").value,
     ui_language: uiLanguage, microphone: $("microphone").value,
     history: $("historyOn").checked, author_name: $("authorName").value.trim(),
-    ask_save_on_close: $("askSave").checked,
+    on_close: $("onClose").value,
   });
   if (!res.ok) { $("settingsError").textContent = res.error; $("settingsError").hidden = false; return; }
   app.microphone = $("microphone").value;
+  app.onClose = $("onClose").value;
+  autosave.sig = null;
+  if (app.onClose === "keep") flushAutosave(); else api().autosave(null);   // start keeping, or forget the kept work
   if (uiLanguage !== app.uiLanguage) setUiLanguage(uiLanguage);
   if (res.hotkey_changed && !res.hotkey_ok) {
     $("settingsError").textContent = t("settings.hotkeyFailed", { message: res.hotkey_message });
@@ -1808,7 +1858,9 @@ async function checkForUpdate() {
 async function startUpdate() {
   const ok = await confirmBox(t("update.title"),
     t("update.text", { from: app.info.version, to: app.updateTag }), t("update.yes"));
-  if (!ok || !(await resolveUnsaved())) return;
+  if (!ok) return;
+  if (app.onClose === "ask") { if (!(await resolveUnsaved())) return; }
+  else await flushAutosave();   // the work comes back after the update
   const res = await api().start_update();
   if (!res.ok) setStatus(t("status.updateFailed", { error: res.error }), true);
 }
@@ -1983,6 +2035,7 @@ window.WA = {
   applySession,
   showError: (message) => setStatus(message, true),
   confirmQuit,
+  flushAutosave,
 };
 applyLanguage("");   // static text in the Windows language until settings load
 wire();

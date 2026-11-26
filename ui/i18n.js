@@ -5,7 +5,7 @@
 //
 // Author:  Luis Martinez
 // Email:   16788942+luigihmtz@users.noreply.github.com
-// Version: v01.12.00
+// Version: v01.13.00
 // Date:    2026-11-26
 //
 // Usage: loaded by ui/index.html before app.js. In index.html:
@@ -273,8 +273,12 @@ const STRINGS = {
     "quit.text": "Your prompt, draft or result changed since the session was last saved. Save it first?",
     "quit.save": "Save...",
     "quit.discard": "Don't save",
-    "settings.askSave": "Ask to save the session when closing",
-    "settings.askSaveHint": "When the texts changed since the last Save. Turn it off if you use Write Assist for quick fixes.",
+    "settings.onClose": "When closing Write Assist",
+    "settings.onClose.keep": "Keep my work for next time",
+    "settings.onClose.ask": "Ask to save the session",
+    "settings.onClose.nothing": "Start empty next time",
+    "session.restored": "Your work from last time is back.",
+    "history.beforeOpen": "before opening a session",
     "session.open": "Open session",
     "session.openTitle": "Open a saved session (.wasession) (Ctrl+O)",
     "session.save": "Save session",
@@ -559,8 +563,12 @@ const STRINGS = {
     "quit.text": "Tus instrucciones, borrador o resultado cambiaron desde la última vez que guardaste la sesión. ¿Guardarla primero?",
     "quit.save": "Guardar...",
     "quit.discard": "No guardar",
-    "settings.askSave": "Preguntar si guardar la sesión al cerrar",
-    "settings.askSaveHint": "Cuando los textos cambiaron desde el último Guardar. Desactívalo si usas Write Assist para correcciones rápidas.",
+    "settings.onClose": "Al cerrar Write Assist",
+    "settings.onClose.keep": "Conservar mi trabajo para la próxima vez",
+    "settings.onClose.ask": "Preguntar si guardar la sesión",
+    "settings.onClose.nothing": "Empezar en blanco la próxima vez",
+    "session.restored": "Recuperaste tu trabajo de la última vez.",
+    "history.beforeOpen": "antes de abrir una sesión",
     "session.open": "Abrir sesión",
     "session.openTitle": "Abrir una sesión guardada (.wasession) (Ctrl+O)",
     "session.save": "Guardar sesión",
@@ -845,8 +853,12 @@ const STRINGS = {
     "quit.text": "Votre consigne, brouillon ou résultat a changé depuis le dernier enregistrement de la session. L'enregistrer d'abord ?",
     "quit.save": "Enregistrer...",
     "quit.discard": "Ne pas enregistrer",
-    "settings.askSave": "Proposer d'enregistrer la session à la fermeture",
-    "settings.askSaveHint": "Quand les textes ont changé depuis le dernier Enregistrer. Désactivez-le si vous utilisez Write Assist pour des corrections rapides.",
+    "settings.onClose": "À la fermeture de Write Assist",
+    "settings.onClose.keep": "Garder mon travail pour la prochaine fois",
+    "settings.onClose.ask": "Proposer d'enregistrer la session",
+    "settings.onClose.nothing": "Repartir à vide la prochaine fois",
+    "session.restored": "Votre travail de la dernière fois est de retour.",
+    "history.beforeOpen": "avant d'ouvrir une session",
     "session.open": "Ouvrir une session",
     "session.openTitle": "Ouvrir une session enregistrée (.wasession) (Ctrl+O)",
     "session.save": "Enregistrer la session",

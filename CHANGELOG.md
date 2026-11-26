@@ -1,5 +1,16 @@
 # Changelog
 
+## v02.13.00 - 2026-11-26
+
+- Your work is kept when you close Write Assist, like in VS Code: prompt,
+  draft, result, changes and notes are all back the next time you open it,
+  without a "save changes?" question. *Settings > When closing Write Assist*
+  can instead ask to save a session file, or start empty.
+- Opening a session no longer asks either: what you had goes to History first.
+- The explanations of changes and the notes are in the interface language
+  (English, Spanish or French), whatever the language of the text. The text
+  itself keeps its own language.
+
 ## v02.12.00 - 2026-11-26
 
 - History now lives inside the result panel: the **History** button opens a

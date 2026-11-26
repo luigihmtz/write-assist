@@ -6,8 +6,8 @@ Edit freely to change how it behaves; the app reloads it on each request.
 
 Author:  Luis Martinez
 Email:   16788942+luigihmtz@users.noreply.github.com
-Version: v01.03.02
-Date:    2026-11-24
+Version: v01.04.00
+Date:    2026-11-26
 
 Usage: Lines inside this HTML comment are stripped before sending.
 -->
@@ -23,6 +23,7 @@ Inputs (tags):
 - <mode>: review only. "fix" or "polish".
 - <tone>: "keep", "more formal", "more casual", "friendlier" or "more concise".
 - <language>: optional. The language and regional variant the writer chose, e.g. "English (US)", "Spanish (Mexico)". Review: correct the draft for that language's variant (spelling, punctuation, vocabulary, e.g. US vs UK English); if the draft is written in another language, keep its own language and say so in notes. Create: write in that language. When absent, follow the rules below.
+- <explain_in>: the language of the writer's interface, e.g. "English". Write every `reason` and the `notes` in this language, whatever the language of the draft or the text. (The text itself keeps its own language.)
 
 ## task "review"
 
@@ -49,5 +50,5 @@ Write the text the prompt describes, ready to send or publish.
 ## Output
 
 - text: the full corrected text (review) or the new text (create).
-- changes: review only, one entry per edit in reading order. `original` is the exact original snippet, `fixed` its replacement, `reason` a short explanation (a few words) in the language of the draft, even when the writer's first language is a different one. Empty list for create.
-- notes: optional, one or two sentences. Review: anything worth knowing that you didn't change (an unclear sentence, a possibly wrong fact or date, a tone that may land badly). Create: the placeholders to fill in, or an assumption you made. Empty string if nothing.
+- changes: review only, one entry per edit in reading order. `original` is the exact original snippet, `fixed` its replacement, `reason` a short explanation (a few words) in the <explain_in> language (the draft's language when it's absent). Empty list for create.
+- notes: optional, one or two sentences. Review: anything worth knowing that you didn't change (an unclear sentence, a possibly wrong fact or date, a tone that may land badly). Create: the placeholders to fill in, or an assumption you made. In the <explain_in> language. Empty string if nothing.

@@ -8,7 +8,7 @@
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v01.06.01
+# Version: v01.07.00
 # Date:    2026-11-26
 #
 # Usage: imported by writeAssist.pyw. Per-user files live in
@@ -600,7 +600,7 @@ def detect_task(prompt, draft):
     return None
 
 
-def build_text_message(task, prompt, draft, mode, tone, language=""):
+def build_text_message(task, prompt, draft, mode, tone, language="", explain_in=""):
     parts = [f"<task>{task}</task>"]
     if prompt.strip():
         parts.append(f"<prompt>\n{prompt.strip()}\n</prompt>")
@@ -611,6 +611,8 @@ def build_text_message(task, prompt, draft, mode, tone, language=""):
         parts.append(f"<language>{language}</language>")
     elif task == "review" and detect_language(draft):
         parts.append(f"<language>{detect_language(draft)}</language>")
+    if explain_in:   # reasons and notes in the interface language
+        parts.append(f"<explain_in>{explain_in}</explain_in>")
     if task == "review":
         parts.append(f"<draft>\n{draft}\n</draft>")
     return "\n".join(parts)
@@ -638,9 +640,9 @@ def drop_repeated_changes(changes):
 
 
 def run_text_task(provider_name, provider, model, task, prompt, draft, mode, tone, profile, timeout,
-                  language=""):
+                  language="", explain_in=""):
     """Review or Create. Returns {text, changes, notes, spans}."""
-    message = build_text_message(task, prompt, draft, mode, tone, language)
+    message = build_text_message(task, prompt, draft, mode, tone, language, explain_in)
     result = ask(provider_name, provider, model, message, load_system_prompt(profile),
                  TEXT_SCHEMA, TEXT_JSON_HINT, timeout)
     if not isinstance(result.get("text"), str):

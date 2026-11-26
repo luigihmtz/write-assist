@@ -7,7 +7,7 @@ buttons, settings dialog. Rendered by writeAssist.pyw in a WebView2 window.
 
 Author:  Luis Martinez
 Email:   16788942+luigihmtz@users.noreply.github.com
-Version: v01.13.00
+Version: v01.14.00
 Date:    2026-11-26
 
 Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
@@ -336,10 +336,12 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
         </label>
         <button type="button" class="ghost small" id="historyClear" data-i18n="settings.clearHistory">Clear history</button>
       </div>
-      <label class="check-block">
-        <input type="checkbox" id="askSave">
-        <span><strong data-i18n="settings.askSave">Ask to save the session when closing</strong>
-          <span class="muted" data-i18n="settings.askSaveHint"></span></span>
+      <label class="block"><span data-i18n="settings.onClose">When closing Write Assist</span>
+        <select id="onClose">
+          <option value="keep" data-i18n="settings.onClose.keep">Keep my work for next time</option>
+          <option value="ask" data-i18n="settings.onClose.ask">Ask to save the session</option>
+          <option value="nothing" data-i18n="settings.onClose.nothing">Start empty next time</option>
+        </select>
       </label>
       <p id="versionText" class="muted small"></p>
       <p id="settingsError" class="error" hidden></p>
