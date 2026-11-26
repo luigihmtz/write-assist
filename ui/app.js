@@ -12,7 +12,7 @@
 //
 // Author:  Luis Martinez
 // Email:   16788942+luigihmtz@users.noreply.github.com
-// Version: v01.21.00
+// Version: v01.21.01
 // Date:    2026-11-26
 //
 // Usage: loaded by ui/index.html after i18n.js (t(), applyLanguage()). Every
@@ -1179,7 +1179,12 @@ function pasteRich(e) {
   const html = e.clipboardData.getData("text/html");
   if (!html) { document.execCommand("insertText", false, e.clipboardData.getData("text/plain")); return; }
   const doc = new DOMParser().parseFromString(html, "text/html");   // inert: nothing in it runs
-  for (const pre of doc.querySelectorAll("pre")) {   // a code block's closing line break isn't a line
+  for (const pre of doc.querySelectorAll("pre")) {
+    // Teams puts its code box header (the language name, a copy button) right before it: not text.
+    const lang = /(?:^|\s)language-(\S+)/.exec(pre.className)?.[1];
+    const head = pre.previousElementSibling;
+    if (lang && head && !BLOCK_TAGS.has(head.tagName) && head.textContent.trim().toLowerCase() === lang.toLowerCase()) head.remove();
+    // A code block's closing line break isn't a line.
     const texts = doc.createTreeWalker(pre, NodeFilter.SHOW_TEXT);
     let last = null;
     for (let node = texts.nextNode(); node; node = texts.nextNode()) last = node;
