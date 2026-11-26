@@ -1,5 +1,10 @@
 # Changelog
 
+## v02.17.01 - 2026-11-26
+
+- Pasting a code block from Teams no longer brings the code box's language
+  label (e.g. "PowerShell") as an extra line.
+
 ## v02.17.00 - 2026-11-26
 
 - More formatting, like Teams: **highlight**, **quotes** and **code blocks**
