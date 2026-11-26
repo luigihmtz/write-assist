@@ -10,7 +10,8 @@
   corrected words; a word that replaced a bold one stays bold.
 - Pasting into the Draft or the result keeps bold, italics, underline,
   strikethrough, links and lists from Word, Outlook, Teams or web pages, and
-  drops everything else.
+  drops everything else. Emojis copied from Teams or Outlook (which copy them
+  as little pictures) arrive as emojis.
 - Spelling and grammar underlines, Thesaurus, Translate and dictation work in
   the rich Draft as before.
 

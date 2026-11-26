@@ -11,7 +11,7 @@
 //
 // Author:  Luis Martinez
 // Email:   16788942+luigihmtz@users.noreply.github.com
-// Version: v01.17.00
+// Version: v01.17.01
 // Date:    2026-11-26
 //
 // Usage: loaded by ui/index.html after i18n.js (t(), applyLanguage()). Every
@@ -431,6 +431,12 @@ function richModel(root) {
     if (node.nodeType !== Node.ELEMENT_NODE) return;
     const tag = node.tagName;
     if (SKIP_TAGS.has(tag)) return;
+    if (tag === "IMG") {   // Teams and Outlook copy emojis as images with the emoji as alt text
+      const alt = node.getAttribute("alt") || "";
+      const emoji = /\p{Extended_Pictographic}/u.test(alt) || /emoji/i.test(`${node.getAttribute("itemtype")} ${node.className}`);
+      if (alt && emoji) walk(document.createTextNode(alt), style);
+      return;   // other pictures aren't kept
+    }
     if (tag === "BR") {
       ensure();
       // A <br> that is the last thing in its block only keeps an empty line open.
