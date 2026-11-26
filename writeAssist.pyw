@@ -13,7 +13,7 @@
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v02.07.00
+# Version: v02.07.01
 # Date:    2026-11-24
 #
 # Usage: installed by install.ps1 (Start Menu shortcut + global hotkey, default
@@ -536,6 +536,28 @@ def listen_for_wakeups(server, bridge):
     threading.Thread(target=serve, daemon=True).start()
 
 
+def windows_ui_language():
+    """Windows' display language, e.g. "en-US"."""
+    import ctypes
+    buffer = ctypes.create_unicode_buffer(85)
+    lcid = ctypes.windll.kernel32.GetUserDefaultUILanguage()
+    ctypes.windll.kernel32.LCIDToLocaleName(lcid, buffer, 85, 0)
+    return buffer.value or "en-US"
+
+
+def configure_webview_languages():
+    """The built-in spellchecker (the "Spelling only" underlines) checks words
+    against the window's languages, which are only Windows' display language;
+    Spanish text then looks misspelled even when Windows has a Spanish
+    dictionary. So the window asks for Spanish (Mexico) and English (US).
+    WebView2 ignores --accept-lang when the list starts with en-US, so Spanish
+    goes first; --lang keeps the menus, and the page's Intl locale that picks
+    the interface language, in Windows' own language. Must run before start."""
+    arguments = f"--lang={windows_ui_language()} --accept-lang=es-MX,en-US"
+    existing = os.environ.get("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "")
+    os.environ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = f"{existing} {arguments}".strip()
+
+
 def main():
     server = claim_instance()
     if server is None and wake_existing_instance():
@@ -583,6 +605,7 @@ def main():
     window.events.closing += on_closing
     if server is not None:
         listen_for_wakeups(server, bridge)
+    configure_webview_languages()
     webview.start(gui="edgechromium", http_server=True, private_mode=True)
 
 

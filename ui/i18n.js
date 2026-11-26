@@ -5,7 +5,7 @@
 //
 // Author:  Luis Martinez
 // Email:   16788942+luigihmtz@users.noreply.github.com
-// Version: v01.06.00
+// Version: v01.06.01
 // Date:    2026-11-25
 //
 // Usage: loaded by ui/index.html before app.js. In index.html:
@@ -384,9 +384,12 @@ const STRINGS = {
 
 let uiLang = "en";
 
-// "" means follow Windows (the page gets the system language from WebView2).
+// "" means follow Windows. The Intl locale is Windows' display language;
+// navigator.language isn't, because the window lists Spanish first for the
+// spellchecker (see configure_webview_languages in writeAssist.pyw).
 function resolveLanguage(setting) {
-  const wanted = setting || (navigator.language || "en").slice(0, 2).toLowerCase();
+  const system = Intl.DateTimeFormat().resolvedOptions().locale || navigator.language || "en";
+  const wanted = setting || system.slice(0, 2).toLowerCase();
   return STRINGS[wanted] ? wanted : "en";
 }
 

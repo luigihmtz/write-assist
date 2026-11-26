@@ -1,5 +1,11 @@
 # Changelog
 
+## v02.08.02 - 2026-11-25
+
+- *Spelling only* now checks Spanish (Mexico) as well as English, so correct
+  Spanish words are no longer underlined as mistakes. It uses the Spanish
+  dictionary that comes with Windows; nothing to download.
+
 ## v02.08.01 - 2026-11-25
 
 - *Underline mistakes as I type* (Settings) replaces the live grammar switch,
