@@ -1,5 +1,6 @@
 // app.js
-// Behavior of the Write Assist window: picks Review or Create from the
+// Behavior of the Write Assist window (the Draft and the result are rich
+// text, sent to the AI as plain text or a small Markdown): picks Review or Create from the
 // filled fields, runs it through Python (window.pywebview.api), shows the
 // result with highlighted edits, the on-demand thesaurus and translator, the
 // free local AI's first-use download, live grammar underlines (LanguageTool),
@@ -10,7 +11,7 @@
 //
 // Author:  Luis Martinez
 // Email:   16788942+luigihmtz@users.noreply.github.com
-// Version: v01.16.00
+// Version: v01.17.00
 // Date:    2026-11-26
 //
 // Usage: loaded by ui/index.html after i18n.js (t(), applyLanguage()). Every
@@ -23,7 +24,7 @@ const els = {
   histColumn: $("histColumn"), histList: $("histList"), histLabel: $("histLabel"),
   mode: $("mode"), tone: $("tone"), textLanguage: $("textLanguage"),
   provider: $("provider"), model: $("model"),
-  prompt: $("prompt"), draft: $("draft"), preset: $("preset"),
+  prompt: $("prompt"), draftEl: $("draft"), preset: $("preset"),   // els.draft: the RichBox below
   result: $("result"), resultTitle: $("resultTitle"), changes: $("changes"),
   runBtn: $("runBtn"), refineBtn: $("refineBtn"), autoCopy: $("autoCopy"), updateBtn: $("updateBtn"), status: $("status"),
   thesaurus: $("thesaurus"), thSearch: $("thSearch"), thBack: $("thBack"), thBody: $("thBody"), thMenu: $("thMenu"),
@@ -262,7 +263,10 @@ async function run(refine = false) {
   if (refine && !els.prompt.value.trim()) { setStatus(t("status.refineNeedsPrompt")); els.prompt.focus(); return; }
   if (!(await ensureProviderReady())) return;
   const provider = els.provider.value;
-  const draft = els.draft.value;
+  const draftLines = task === "review" ? richModel(els.draftEl) : null;
+  const beforeLines = refine ? resultRich() : null;
+  const draft = draftLines ? listText(draftLines) : "";   // plain: the formatting is put back here, after
+  const before = beforeLines ? richToMd(beforeLines) : "";
   app.busy = true;
   els.runBtn.disabled = els.refineBtn.disabled = true;
   const started = Date.now();
@@ -272,16 +276,30 @@ async function run(refine = false) {
   const timer = setInterval(() => setStatus(t(key, { provider: providerLabel(provider), seconds: Math.round((Date.now() - started) / 1000) })), 250);
   try {
     const res = await api().run({
-      provider, model: els.model.value, prompt: els.prompt.value, draft,
+      provider, model: els.model.value, prompt: els.prompt.value, draft, draft_md: draftLines ? richToMd(draftLines) : "",
       mode: els.mode.value, tone: els.tone.value, language: els.textLanguage.value,
       ui_language: uiLang,   // changes and notes are explained in the interface language
-      ...(refine ? { refine: true, result: resultText(), previous_prompt: previousPrompt } : {}),
+      ...(refine ? { refine: true, result: before, previous_prompt: previousPrompt } : {}),
     });
     clearInterval(timer);
     if (!res.ok) { setStatus(res.error, true); return; }
     app.lastRun = { task, provider: res.provider, model: els.model.value, prompt: els.prompt.value.trim(),
       language: els.textLanguage.value === "auto" ? "" : els.textLanguage.value, when: new Date().toISOString(),
       ...(refine ? { basePrompt: previousPrompt } : {}) };
+    // What changed, worked out here (cheaper than asking the AI): it marks the
+    // edits, carries the writer's formatting over, and is Refine's change list.
+    res.lines = mdToRich(res.text);
+    const source = draftLines || beforeLines;
+    if (source) {
+      const diff = await api().history_compare(linesText(source), linesText(res.lines));
+      if (diff.ok) {
+        if (task === "review" || (hasInline(source) && !hasInline(res.lines))) res.lines = carryFormatting(source, res.lines, diff.parts);
+        res.marks = marksFrom(diff.parts);
+        if (refine) res.diff = diff.parts;
+      }
+      const final = richToMd(res.lines);
+      if (res.version_id && final !== normMd(res.text)) api().history_update(res.version_id, final);
+    }
     showResult(res);
     hist.selectedId = null;
     if (hist.on) refreshHistory();
@@ -298,31 +316,10 @@ function escapeHtml(text) {
   return String(text).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 }
 
-// The Result shows each line as its own block (<div>), which is what the
-// editing commands (lists, Enter) treat as a paragraph. Edited spans get a
-// <mark>; one that crosses a line break is closed and reopened around it.
-// Python gives spans as code-point offsets; JS strings index UTF-16 units.
-function linesHtml(text, spans = []) {
-  const points = Array.from(text);
-  const marked = new Array(points.length).fill(false);
-  for (const [start, end] of spans) for (let k = start; k < end && k < points.length; k++) marked[k] = true;
-  let html = "";
-  let line = "";
-  let inMark = false;
-  const endLine = () => {
-    if (inMark) line += "</mark>";
-    html += `<div>${line || "<br>"}</div>`;
-    line = "";
-    inMark = false;
-  };
-  points.forEach((ch, k) => {
-    if (ch === "\n") { endLine(); return; }
-    if (marked[k] && !inMark) { line += "<mark>"; inMark = true; }
-    if (!marked[k] && inMark) { line += "</mark>"; inMark = false; }
-    line += escapeHtml(ch);
-  });
-  endLine();
-  return html;
+// Plain text as editor lines: each line its own block (<div>), which is what
+// the editing commands (lists, Enter) treat as a paragraph.
+function linesHtml(text) {
+  return text.split("\n").map((line) => `<div>${escapeHtml(line) || "<br>"}</div>`).join("");
 }
 
 function renderResultTitle() {
@@ -352,8 +349,8 @@ function renderChanges(info) {
     }
     for (const c of changes) {
       const p = document.createElement("p");
-      p.innerHTML = `<span class="old">${escapeHtml(c.original)}</span> → ` +
-        `<span class="new">${escapeHtml(c.fixed)}</span> <span class="why">${escapeHtml(c.reason || "")}</span>`;
+      p.innerHTML = `<span class="old">${escapeHtml(mdToPlain(c.original))}</span> → ` +
+        `<span class="new">${escapeHtml(mdToPlain(c.fixed))}</span> <span class="why">${escapeHtml(c.reason || "")}</span>`;
       els.changes.append(p);
     }
   }
@@ -369,7 +366,7 @@ function showResult(res) {
   const titles = { review: "result.corrected", create: "result.written", refine: "result.refined" };
   app.resultTitle = { key: titles[res.task], provider: providerLabel(res.provider) };
   renderResultTitle();
-  els.result.innerHTML = linesHtml(res.text, res.task !== "create" ? res.spans || [] : []);
+  els.result.innerHTML = richToEditorHtml(res.lines || mdToRich(res.text), res.marks);
   renderChanges({ task: res.task, changes: res.changes || [], notes: res.notes || "", ...(res.diff ? { diff: res.diff } : {}) });
   updateRefine();
 
@@ -397,6 +394,7 @@ function fallbackNote(res) {
 //   line: {kind: "p" | "ul" | "ol", n: item number, runs: [{text, b, i, u, s, href}]}
 // ---------------------------------------------------------------------------
 const BLOCK_TAGS = new Set(["DIV", "P", "LI", "UL", "OL", "H1", "H2", "H3", "BLOCKQUOTE"]);
+const SKIP_TAGS = new Set(["STYLE", "SCRIPT", "TEMPLATE", "HEAD", "TITLE", "META", "LINK"]);
 
 function richModel(root) {
   const lines = [];
@@ -410,7 +408,9 @@ function richModel(root) {
     const s = { ...style };
     const tag = el.tagName;
     const css = el.style || {};
-    if (tag === "B" || tag === "STRONG" || css.fontWeight === "bold" || Number(css.fontWeight) >= 600) s.b = true;
+    const weight = css.fontWeight;
+    if (weight === "normal" || (Number(weight) && Number(weight) < 600)) delete s.b;   // e.g. Google Docs' <b style="font-weight:normal">
+    else if (tag === "B" || tag === "STRONG" || weight === "bold" || Number(weight) >= 600) s.b = true;
     if (tag === "I" || tag === "EM" || css.fontStyle === "italic") s.i = true;
     if (tag === "U" || (css.textDecoration || "").includes("underline")) s.u = true;
     if (tag === "S" || tag === "STRIKE" || tag === "DEL" || (css.textDecoration || "").includes("line-through")) s.s = true;
@@ -430,6 +430,7 @@ function richModel(root) {
     }
     if (node.nodeType !== Node.ELEMENT_NODE) return;
     const tag = node.tagName;
+    if (SKIP_TAGS.has(tag)) return;
     if (tag === "BR") {
       ensure();
       // A <br> that is the last thing in its block only keeps an empty line open.
@@ -472,8 +473,8 @@ function safeHref(href) {
   return /^(https?:|mailto:|tel:)/i.test(href || "") ? href : "";
 }
 
-function runToHtml(run) {
-  let html = escapeHtml(run.text);
+function runToHtml(run, inner = escapeHtml(run.text)) {
+  let html = inner;
   if (run.b) html = `<b>${html}</b>`;
   if (run.i) html = `<i>${html}</i>`;
   if (run.u) html = `<u>${html}</u>`;
@@ -502,12 +503,28 @@ function richToHtml(lines) {
   return html;
 }
 
-// The Result's editor HTML from the rich model: one <div> per line, lists as lists.
-function richToEditorHtml(lines) {
+// Editor HTML (Result, Draft) from the rich model: one <div> per line, lists
+// as lists. marks: positions in linesText(lines) to mark as edited.
+function richToEditorHtml(lines, marks = null) {
+  let pos = 0;   // position in linesText(lines)
+  const runHtml = (r) => {
+    const from = pos;
+    pos += r.text.length;
+    if (!marks?.size) return runToHtml(r);
+    let inner = "";
+    let open = false;
+    for (let k = 0; k < r.text.length; k++) {
+      const on = marks.has(from + k);
+      if (on !== open) { inner += on ? "<mark>" : "</mark>"; open = on; }
+      inner += escapeHtml(r.text[k]);
+    }
+    return runToHtml(r, inner + (open ? "</mark>" : ""));
+  };
   let html = "";
   let list = null;
-  for (const l of lines || []) {
-    const content = (l.runs || []).map(runToHtml).join("") || "<br>";
+  for (const [index, l] of (lines || []).entries()) {
+    if (index) pos += 1;   // the line break
+    const content = (l.runs || []).map(runHtml).join("") || "<br>";
     if (l.kind === "ul" || l.kind === "ol") {
       if (list !== l.kind) { if (list) html += `</${list}>`; html += `<${l.kind}>`; list = l.kind; }
       html += `<li>${content}</li>`;
@@ -520,7 +537,406 @@ function richToEditorHtml(lines) {
   return html;
 }
 
+// ---------------------------------------------------------------------------
+// Markdown: how formatted text travels to the AI and back, and how the Draft
+// and results are kept in History and sessions. A small subset: **bold**,
+// *italic*, <u>underline</u>, ~~strike~~, [text](url), "- " and "1. " lists,
+// "\" before a character that would read as formatting; every line break is
+// a line. The AI may also answer with _italic_, __bold__, "* " lists or "#"
+// headings (shown bold); those are read too. Review sends plain text instead,
+// and carryFormatting() puts the writer's formatting back on the answer.
+// ---------------------------------------------------------------------------
+const MD_ESCAPABLE = "\\*_~<[]()`#-+.!>";
+
+function mdEscape(text) {
+  return text.replace(/\\(?=[\\*_~<[\]])/g, "\\\\").replace(/\*/g, "\\*").replace(/~~/g, "\\~\\~")
+    .replace(/<(\/?u>)/gi, "\\<$1").replace(/\[(?=[^\]\n]*\]\()/g, "\\[");
+}
+
+function runsToMd(runs) {
+  const ORDER = ["href", "b", "i", "s", "u"];
+  const OPEN = { b: "**", i: "*", s: "~~", u: "<u>" };
+  const CLOSE = { b: "**", i: "*", s: "~~", u: "</u>" };
+  const keysOf = (r) => ORDER.filter((k) => r[k]).map((k) => (k === "href" ? `href ${r.href.replace(/[()\s]/g, encodeURIComponent)}` : k));
+  const stack = [];
+  let out = "";
+  let trail = "";
+  const closeTo = (n) => {
+    while (stack.length > n) { const k = stack.pop(); out += k.startsWith("href ") ? `](${k.slice(5)})` : CLOSE[k]; }
+  };
+  for (const r of runs) {
+    const [, lead, core, end] = /^(\s*)([\s\S]*?)(\s*)$/.exec(r.text);
+    if (!core) { trail += r.text; continue; }
+    const want = keysOf(r);
+    let n = 0;
+    while (n < stack.length && n < want.length && stack[n] === want[n]) n++;
+    closeTo(n);
+    out += mdEscape(trail + lead);
+    for (const k of want.slice(n)) { stack.push(k); out += k.startsWith("href ") ? "[" : OPEN[k]; }
+    out += mdEscape(core);
+    trail = end;
+  }
+  closeTo(0);
+  return out + mdEscape(trail);
+}
+
+function richToMd(lines) {
+  return lines.map((l) => {
+    let body = runsToMd(l.runs || []);
+    if (l.kind === "p" && /^\s*([-*+]\s|\d{1,3}[.)]\s|#{1,6}\s|>)/.test(body)) body = body.replace(/^(\s*)/, "$1\\");
+    return (l.kind === "ul" ? "- " : l.kind === "ol" ? `${l.n || 1}. ` : "") + body;
+  }).join("\n");
+}
+
+// Inline Markdown of cps[s..e) (code points) into runs with source offsets.
+function mdInline(cps, s, e, base) {
+  const isWs = (c) => c === undefined || /\s/u.test(c);
+  const isPunct = (c) => c !== undefined && /[\p{P}\p{S}]/u.test(c);
+  const toks = [];
+  const text = (ch, at) => {
+    const last = toks[toks.length - 1];
+    if (last && last.t === "text" && last.src + last.n === at) { last.text += ch; last.n += 1; }
+    else toks.push({ t: "text", text: ch, src: at, n: 1 });
+  };
+  let link = null;   // {closeAt, endAt} of the link being read
+  let k = s;
+  while (k < e) {
+    if (link && k === link.closeAt) { toks.push({ t: "linkClose" }); k = link.endAt; link = null; continue; }
+    const c = cps[k];
+    if (c === "\\" && k + 1 < e && MD_ESCAPABLE.includes(cps[k + 1])) { text(cps[k + 1], k + 1); k += 2; continue; }
+    if (c === "*" || c === "_" || c === "~") {
+      let r = k;
+      while (r < e && cps[r] === c) r++;
+      const len = r - k;
+      const prev = k > s ? cps[k - 1] : undefined;
+      const next = r < e ? cps[r] : undefined;
+      const left = !isWs(next) && (!isPunct(next) || isWs(prev) || isPunct(prev));
+      const right = !isWs(prev) && (!isPunct(prev) || isWs(next) || isPunct(next));
+      let canOpen = left;
+      let canClose = right;
+      if (c === "_") { canOpen = left && (!right || isPunct(prev)); canClose = right && (!left || isPunct(next)); }
+      if ((c === "~" && len !== 2) || (!canOpen && !canClose)) { for (let q = k; q < r; q++) text(c, q); k = r; continue; }
+      toks.push({ t: "delim", ch: c, len, left: len, src: k, canOpen, canClose, opens: [], closes: [] });
+      k = r;
+      continue;
+    }
+    if (c === "<") {
+      const ahead = cps.slice(k, k + 4).join("").toLowerCase();
+      if (ahead.startsWith("<u>")) { toks.push({ t: "delim", ch: "u", len: 1, left: 1, src: k, canOpen: true, canClose: false, opens: [], closes: [] }); k += 3; continue; }
+      if (ahead === "</u>") { toks.push({ t: "delim", ch: "u", len: 1, left: 1, src: k, canOpen: false, canClose: true, opens: [], closes: [] }); k += 4; continue; }
+    }
+    if (c === "[" && !link) {
+      const m = /^\[((?:[^\]\\\n]|\\.)*)\]\(\s*<?([^\s)>]+)>?(?:\s+"[^"]*")?\s*\)/u.exec(cps.slice(k, e).join(""));
+      if (m) {
+        toks.push({ t: "linkOpen", href: m[2] });
+        link = { closeAt: k + 1 + Array.from(m[1]).length, endAt: k + Array.from(m[0]).length };
+        k += 1;
+        continue;
+      }
+    }
+    text(c, k);
+    k += 1;
+  }
+  // Pair the delimiters (a simplified CommonMark): ** bold, * italic, ~~ strike, <u></u>.
+  const stack = [];
+  toks.forEach((tk, index) => {
+    if (tk.t !== "delim") return;
+    if (tk.canClose) {
+      let si = stack.length - 1;
+      while (tk.left > 0 && si >= 0) {
+        const op = toks[stack[si]];
+        if (op.ch !== tk.ch || op.left === 0) { si -= 1; continue; }
+        const star = tk.ch === "*" || tk.ch === "_";
+        const use = star ? (tk.left >= 2 && op.left >= 2 ? 2 : 1) : tk.ch === "~" ? 2 : 1;
+        const style = star ? (use === 2 ? "b" : "i") : tk.ch === "~" ? "s" : "u";
+        op.left -= use;
+        tk.left -= use;
+        op.opens.push(style);
+        tk.closes.push(style);
+        stack.splice(si + 1);
+        if (op.left === 0) stack.splice(si, 1);
+        si = stack.length - 1;
+      }
+    }
+    if (tk.left > 0 && tk.canOpen) stack.push(index);
+  });
+  const on = { b: 0, i: 0, u: 0, s: 0 };
+  let href = null;
+  const runs = [];
+  const add = (str, src) => {
+    const style = {};
+    for (const key of ["b", "i", "u", "s"]) if (base[key] || on[key] > 0) style[key] = true;
+    if (href) style.href = href;
+    const last = runs[runs.length - 1];
+    const same = last && ["b", "i", "u", "s", "href"].every((key) => last[key] === style[key]);
+    if (same && last.src + Array.from(last.text).length === src) last.text += str;
+    else runs.push({ text: str, ...style, src });
+  };
+  for (const tk of toks) {
+    if (tk.t === "text") add(tk.text, tk.src);
+    else if (tk.t === "linkOpen") href = tk.href;
+    else if (tk.t === "linkClose") href = null;
+    else {
+      for (const style of tk.closes) on[style] -= 1;
+      for (let q = 0; q < tk.left; q++) add(tk.ch === "u" ? "" : tk.ch, tk.src + q);   // unpaired: plain characters
+      for (const style of tk.opens) on[style] += 1;
+    }
+  }
+  return runs.filter((r) => r.text);
+}
+
+function mdToRich(md) {
+  const cps = Array.from(md || "");
+  const lines = [];
+  let s = 0;
+  for (;;) {
+    let e = s;
+    while (e < cps.length && cps[e] !== "\n") e++;
+    const raw = cps.slice(s, e).join("");
+    let kind = "p";
+    let n = 0;
+    let skip = 0;
+    const base = {};
+    let m;
+    if ((m = /^\s*([-*+])\s+/u.exec(raw))) { kind = "ul"; skip = Array.from(m[0]).length; }
+    else if ((m = /^\s*(\d{1,3})[.)]\s+/u.exec(raw))) { kind = "ol"; n = Number(m[1]); skip = Array.from(m[0]).length; }
+    else if ((m = /^#{1,6}\s+/u.exec(raw))) { base.b = true; skip = Array.from(m[0]).length; }
+    else if ((m = /^>\s?/u.exec(raw))) { skip = Array.from(m[0]).length; }
+    lines.push({ kind, n, runs: mdInline(cps, s + skip, e, base) });
+    if (e >= cps.length) break;
+    s = e + 1;
+  }
+  while (lines.length > 1 && !lines[lines.length - 1].runs.length && lines[lines.length - 1].kind === "p") lines.pop();
+  return lines;
+}
+
+const mdToPlain = (md) => richToPlain(mdToRich(md));
+
+// The words of the lines, one "\n" between lines (no list markers): what gets compared.
+const linesText = (lines) => lines.map((l) => l.runs.map((r) => r.text).join("")).join("\n");
+// What Review sends: plain text, lists as "- " / "1. " lines.
+const listText = (lines) => lines.map((l) => (l.kind === "ul" ? "- " : l.kind === "ol" ? `${l.n || 1}. ` : "")
+  + l.runs.map((r) => r.text).join("")).join("\n");
+const STYLE_KEYS = ["b", "i", "u", "s", "href"];
+const runStyle = (r) => (STYLE_KEYS.some((k) => r[k]) ? Object.fromEntries(STYLE_KEYS.filter((k) => r[k]).map((k) => [k, r[k]])) : null);
+const hasInline = (lines) => lines.some((l) => l.runs.some(runStyle));
+
+// Positions in the new text that a word diff (source -> result) shows as new.
+function marksFrom(parts) {
+  const marks = new Set();
+  let pos = 0;
+  for (const part of parts) {
+    if (part.type === "delete") continue;
+    if (part.type === "insert") for (let k = 0; k < part.text.length; k++) if (!/\s/.test(part.text[k])) marks.add(pos + k);
+    pos += part.text.length;
+  }
+  return marks;
+}
+
+// The writer's formatting carried over to the AI's text: words that stayed
+// keep theirs, a word that replaced formatted words takes their formatting,
+// and words added inside a formatted phrase take the phrase's. parts: the word
+// diff from linesText(source) to linesText(result).
+function carryFormatting(source, result, parts) {
+  const styles = (lines) => {
+    const out = [];
+    lines.forEach((l, index) => {
+      if (index) out.push(null);
+      for (const r of l.runs) { const style = runStyle(r); for (let k = 0; k < r.text.length; k++) out.push(style); }
+    });
+    return out;
+  };
+  const merge = (mine, theirs) => (theirs ? { ...theirs, ...(mine || {}) } : mine);
+  const key = (style) => JSON.stringify(style || {});
+  const src = styles(source);
+  const res = styles(result);
+  const out = res.slice();
+  let si = 0;
+  let ri = 0;
+  let carry = null;
+  for (const part of parts) {
+    const n = part.text.length;
+    if (part.type === "equal") {
+      for (let k = 0; k < n; k++) out[ri + k] = merge(res[ri + k], src[si + k]);
+      si += n;
+      ri += n;
+      carry = null;
+    } else if (part.type === "delete") {
+      const first = [...part.text].findIndex((ch) => !/\s/.test(ch));
+      carry = first >= 0 ? src[si + first] : null;
+      si += n;
+    } else {
+      const inside = !carry && ri > 0 && out[ri - 1] && key(out[ri - 1]) === key(src[si]) ? out[ri - 1] : null;
+      for (let k = 0; k < n; k++) if (!/\s/.test(part.text[k]) || inside) out[ri + k] = merge(res[ri + k], carry || inside);
+      ri += n;
+      carry = null;
+    }
+  }
+  let pos = 0;
+  return result.map((l, index) => {
+    if (index) pos += 1;
+    const text = l.runs.map((r) => r.text).join("");
+    const runs = [];
+    for (let k = 0; k < text.length; k++) {
+      const style = out[pos + k];
+      const last = runs[runs.length - 1];
+      if (last && key(runStyle(last)) === key(style)) last.text += text[k];
+      else runs.push({ text: text[k], ...(style || {}) });
+    }
+    pos += text.length;
+    return { kind: l.kind, n: l.n, runs };
+  });
+}
+const normMd = (md) => richToMd(mdToRich(md));   // the same text as this page would write it
+
 function resultRich() { return richModel(els.result); }
+function resultMd() { return richToMd(resultRich()); }
+function draftMd() { return richToMd(richModel(els.draftEl)); }
+function setDraftMd(md) { els.draftEl.innerHTML = md ? richToEditorHtml(mdToRich(md)) : ""; }
+
+// ---------------------------------------------------------------------------
+// Plain-text positions in a rich editor: its text with one "\n" between
+// lines (like a text box), and DOM ranges for any part of it.
+// ---------------------------------------------------------------------------
+function domText(root) {
+  let text = "";
+  const points = [];   // text nodes {node, at, len} and line-break spots {node, offset, at}
+  let dirty = false;   // the current line has something
+  let ended = false;   // a block just ended: what follows starts a new line
+  const walk = (node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      if (ended) { text += "\n"; ended = false; }
+      points.push({ node, at: text.length, len: node.data.length });
+      text += node.data;
+      if (node.data) dirty = true;
+      return;
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE || SKIP_TAGS.has(node.tagName)) return;
+    if (node.tagName === "BR") {
+      if (ended) { text += "\n"; ended = false; }
+      points.push({ node: node.parentNode, offset: [...node.parentNode.childNodes].indexOf(node), at: text.length });
+      const last = !node.nextSibling && node.parentNode !== root && BLOCK_TAGS.has(node.parentNode.tagName);
+      if (last) dirty = true;
+      else { text += "\n"; dirty = false; }
+      return;
+    }
+    const block = BLOCK_TAGS.has(node.tagName) && node.tagName !== "UL" && node.tagName !== "OL";
+    if (block) {
+      if (dirty || ended) text += "\n";
+      dirty = false;
+      ended = false;
+      points.push({ node, offset: 0, at: text.length });
+    }
+    for (const child of node.childNodes) walk(child);
+    if (block) { ended = true; dirty = false; }
+  };
+  for (const child of root.childNodes) walk(child);
+  return { text, points };
+}
+
+function rangeAt(root, start, end, dt = domText(root)) {
+  const spot = (p) => {
+    p = Math.max(0, Math.min(p, dt.text.length));
+    let best = null;
+    for (const pt of dt.points) {
+      if (pt.at > p) break;
+      if (pt.len !== undefined) { if (p <= pt.at + pt.len) best = { node: pt.node, offset: p - pt.at }; }
+      else if (pt.at === p) best = { node: pt.node, offset: pt.offset };
+    }
+    return best || { node: root, offset: root.childNodes.length };
+  };
+  const a = spot(start);
+  const b = spot(end);
+  const range = document.createRange();
+  range.setStart(a.node, a.offset);
+  range.setEnd(b.node, b.offset);
+  return range;
+}
+
+function offsetIn(root, node, offset) {
+  const range = document.createRange();
+  range.setStart(root, 0);
+  range.setEnd(node, offset);
+  const box = document.createElement("div");
+  box.append(range.cloneContents());
+  return domText(box).text.length;
+}
+
+// The rich Draft with the interface of a text box (value, selectionStart/End,
+// setSelectionRange, setRangeText...), so what Prompt and Draft share
+// (Thesaurus, Translate, dictation, live grammar) works on both. Positions
+// count its plain text; value = that text (setting it writes plain lines).
+class RichBox {
+  constructor(el) {
+    this.el = el;
+    this.sel = null;   // the last selection inside it, kept while the focus is elsewhere
+    document.addEventListener("selectionchange", () => { const s = this.liveSelection(); if (s) this.sel = s; });
+  }
+
+  liveSelection() {
+    const s = window.getSelection();
+    if (!s.rangeCount || !this.el.contains(s.anchorNode)) return null;
+    const r = s.getRangeAt(0);
+    return [offsetIn(this.el, r.startContainer, r.startOffset), offsetIn(this.el, r.endContainer, r.endOffset)];
+  }
+
+  get value() { return domText(this.el).text; }
+  set value(text) { this.el.innerHTML = text ? linesHtml(text) : ""; this.sel = null; }
+  get selectionStart() { return (this.liveSelection() || this.sel || [this.value.length])[0]; }
+  get selectionEnd() { const s = this.liveSelection() || this.sel; return s ? s[1] : this.value.length; }
+  rangeAt(start, end, dt) { return rangeAt(this.el, start, end, dt); }
+  setSelectionRange(start, end) {
+    const s = window.getSelection();
+    s.removeAllRanges();
+    s.addRange(this.rangeAt(start, end));
+    this.sel = [start, end];
+  }
+  setRangeText(text, start, end) {
+    const range = this.rangeAt(start, end);
+    range.deleteContents();
+    if (text) range.insertNode(document.createTextNode(text));
+    this.el.normalize();
+    this.setSelectionRange(start + text.length, start + text.length);
+  }
+  focus() { this.el.focus(); }
+  addEventListener(...args) { this.el.addEventListener(...args); }
+  dispatchEvent(event) { return this.el.dispatchEvent(event); }
+  closest(selector) { return this.el.closest(selector); }
+  contains(node) { return this.el.contains(node); }
+  before(node) { this.el.before(node); }
+  get id() { return this.el.id; }
+  get classList() { return this.el.classList; }
+  get scrollTop() { return this.el.scrollTop; }
+  set spellcheck(on) { this.el.spellcheck = on; }
+}
+
+els.draft = new RichBox(els.draftEl);
+
+// Pasting into the Draft or the result keeps bold, italic, underline,
+// strikethrough, links and lists (from Word, Outlook, Teams, web pages), and
+// drops everything else.
+function pasteRich(e) {
+  e.preventDefault();
+  const html = e.clipboardData.getData("text/html");
+  if (!html) { document.execCommand("insertText", false, e.clipboardData.getData("text/plain")); return; }
+  const doc = new DOMParser().parseFromString(html, "text/html");   // inert: nothing in it runs
+  const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
+  const spaces = [];
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) spaces.push(node);
+  for (const node of spaces) {   // source line breaks and indentation are not text
+    if (node.parentElement?.closest("pre")) continue;
+    node.data = node.data.replace(/[\t\n\r ]+/g, " ");
+    if (!node.data.trim() && [node.previousSibling, node.nextSibling].some((x) => !x || (x.nodeType === 1 && BLOCK_TAGS.has(x.tagName)))) node.remove();
+  }
+  const lines = richModel(doc.body);
+  for (const l of lines) {   // no stray spaces at the ends of lines
+    if (l.runs.length) { l.runs[0].text = l.runs[0].text.trimStart(); l.runs[l.runs.length - 1].text = l.runs[l.runs.length - 1].text.trimEnd(); }
+    l.runs = l.runs.filter((r) => r.text);
+  }
+  if (lines.length === 1 && lines[0].kind === "p") document.execCommand("insertHTML", false, lines[0].runs.map((r) => runToHtml(r)).join(""));
+  else document.execCommand("insertHTML", false, richToEditorHtml(lines));
+}
+
 function resultText() { return richToPlain(resultRich()); }
 
 async function copyText(text, quiet = false, html = "") {
@@ -538,16 +954,16 @@ function copyResult(quiet = false) {
 // ---------------------------------------------------------------------------
 // Formatting bar
 // ---------------------------------------------------------------------------
-function selectionInResult() {
+function selectionIn(el) {
   const sel = window.getSelection();
-  return sel.rangeCount > 0 && els.result.contains(sel.anchorNode);
+  return sel.rangeCount > 0 && el.contains(sel.anchorNode);
 }
 
-function formatCommand(cmd) {
-  if (!selectionInResult()) {   // put the caret at the end of the Result first
-    els.result.focus();
+function formatCommand(cmd, el = els.result) {
+  if (!selectionIn(el)) {   // put the caret at the end of the text first
+    el.focus();
     const range = document.createRange();
-    range.selectNodeContents(els.result);
+    range.selectNodeContents(el);
     range.collapse(false);
     const sel = window.getSelection();
     sel.removeAllRanges();
@@ -585,8 +1001,8 @@ function editLink() {
 }
 
 function updateFormatState() {
-  const inside = selectionInResult();
-  document.querySelectorAll("#formatBar .fmt").forEach((button) => {
+  document.querySelectorAll(".format-bar .fmt").forEach((button) => {
+    const inside = selectionIn(formatTarget(button));
     const cmd = button.dataset.cmd;
     let active = false;
     if (inside && ["bold", "italic", "underline", "strikeThrough", "insertUnorderedList", "insertOrderedList"].includes(cmd)) {
@@ -595,6 +1011,9 @@ function updateFormatState() {
     button.classList.toggle("active", active);
   });
 }
+
+// The editor a formatting bar works on (data-target on the bar).
+const formatTarget = (button) => (button.closest(".format-bar").dataset.target === "draft" ? els.draftEl : els.result);
 
 async function pasteAndReview() {
   const res = await api().clipboard_get();
@@ -612,7 +1031,13 @@ function setDraft(text) {
   els.draft.focus();
 }
 
-function useAsDraft() { setDraft(resultText()); }
+function useAsDraft() {
+  if (!resultText().trim()) return;
+  els.draftEl.innerHTML = richToEditorHtml(resultRich());
+  els.draft.dispatchEvent(new Event("input"));
+  updateTask();
+  els.draft.focus();
+}
 
 function clearAll() {
   els.prompt.value = "";
@@ -770,8 +1195,14 @@ function showSourceHighlight(target) {
     }
     return;
   }
+  if (target.area.rangeAt) {   // the rich Draft: a highlight over its own text
+    if (window.Highlight && CSS.highlights) CSS.highlights.set("wa-source", new Highlight(target.area.rangeAt(target.start, target.end)));
+    target.area.setSelectionRange(target.end, target.end);
+    Object.assign(hl, { area: target.area, mirror: null, target });
+    return;
+  }
   target.area.setSelectionRange(target.end, target.end);
-  // Prompt / Draft: a text box can't color part of its text, so a layer with
+  // Prompt: a text box can't color part of its text, so a layer with
   // the same text, font and wrapping sits behind it with the words marked.
   const mirror = document.createElement("div");
   mirror.className = "hl-mirror";
@@ -796,7 +1227,7 @@ function fitMirror(area, mirror) {
 
 function syncSourceHighlight() {
   const { area, mirror, target } = hl;
-  if (!area) return;
+  if (!area || !mirror) return;
   fitMirror(area, mirror);
   const v = area.value;
   mirror.innerHTML = `${escapeHtml(v.slice(0, target.start))}<mark>${escapeHtml(v.slice(target.start, target.end))}</mark>${escapeHtml(v.slice(target.end))}\n`;
@@ -1017,7 +1448,8 @@ function replaceWithTranslation() {
 // ---------------------------------------------------------------------------
 const LT_FIELDS = ["prompt", "draft"];
 const lt = { on: false, started: false, timers: {}, seq: {}, matches: { prompt: [], draft: [] },
-  mirrors: {}, ignored: new Set(), open: null };
+  mirrors: {}, ranges: {}, ignored: new Set(), open: null };
+const LT_HIGHLIGHTS = ["lt-spell", "lt-grammar", "lt-style"];
 
 const ltKey = (text, m) => `${m.rule}|${text.slice(m.offset, m.offset + m.length)}`;
 const ltClass = (type) => (type === "misspelling" ? "lt-spell" : ["style", "typographical", "locale-violation"].includes(type) ? "lt-style" : "lt-grammar");
@@ -1030,7 +1462,7 @@ function setLiveGrammar(on) {
     // Prompt and Draft never use the browser's own spellcheck (spellcheck="false"
     // in index.html): the Live grammar setting alone decides whether lines show.
     if (on) {
-      if (!lt.mirrors[field]) {
+      if (!lt.mirrors[field] && !area.rangeAt) {
         const mirror = document.createElement("div");
         mirror.className = "lt-mirror";
         area.before(mirror);
@@ -1044,6 +1476,7 @@ function setLiveGrammar(on) {
       delete lt.mirrors[field];
       lt.matches[field] = [];
       area.classList.remove("lt-on");
+      if (area.rangeAt) renderGrammar(field);
     }
   }
 }
@@ -1072,6 +1505,25 @@ async function runGrammarCheck(field) {
 
 function renderGrammar(field) {
   const area = els[field];
+  if (area.rangeAt) {   // the rich Draft: underlines drawn as highlights over its text
+    if (!window.Highlight || !CSS.highlights) return;
+    const groups = Object.fromEntries(LT_HIGHLIGHTS.map((name) => [name, []]));
+    const dt = domText(area.el);
+    lt.ranges[field] = [];
+    let pos = 0;
+    lt.matches[field].forEach((m, i) => {
+      if (m.offset < pos) return;
+      const range = area.rangeAt(m.offset, m.offset + m.length, dt);
+      lt.ranges[field][i] = range;
+      groups[ltClass(m.type)].push(range);
+      pos = m.offset + m.length;
+    });
+    for (const [name, ranges] of Object.entries(groups)) {
+      if (ranges.length) CSS.highlights.set(name, new Highlight(...ranges));
+      else CSS.highlights.delete(name);
+    }
+    return;
+  }
   const mirror = lt.mirrors[field];
   if (!mirror) return;
   fitMirror(area, mirror);
@@ -1108,7 +1560,7 @@ function onGrammarClick(field) {
 
 function showLtPop(field, index) {
   const m = lt.matches[field][index];
-  const span = lt.mirrors[field]?.querySelector(`[data-i="${index}"]`);
+  const span = lt.mirrors[field]?.querySelector(`[data-i="${index}"]`) || lt.ranges[field]?.[index];
   if (!m || !span) return;
   lt.open = { field, index };
   const pop = $("ltPop");
@@ -1262,7 +1714,7 @@ function historyItem(v) {
     `<div class="hist-top"><span>${escapeHtml(formatWhen(v.time))}</span>` +
     `<span class="badge">${escapeHtml(t(`history.src.${v.source}`))}</span></div>` +
     (v.label ? `<div class="hist-top"><span class="label">${escapeHtml(v.label)}</span></div>` : "") +
-    `<div class="hist-preview">${escapeHtml(v.text.replace(/\s+/g, " ").trim())}</div>` +
+    `<div class="hist-preview">${escapeHtml(mdToPlain(v.text).replace(/\s+/g, " ").trim())}</div>` +
     (ai ? `<div class="hist-ai">${ai}</div>` : "");
   const del = document.createElement("button");
   del.className = "tool hist-del";
@@ -1278,17 +1730,18 @@ function historyItem(v) {
 // (unless it's already one of the versions), so switching never loses work.
 async function selectVersion(v) {
   if (hist.selectedId === v.id) return;
-  const current = resultText();
-  const known = (hist.data?.versions || []).some((x) => x.text === current);
-  if (current.trim() && !known) await api().history_save(current, t("history.beforeSwitch"), resultRich());
+  const current = resultMd();
+  const known = (hist.data?.versions || []).some((x) => normMd(x.text) === current);
+  if (current.trim() && !known) await api().history_save(current, t("history.beforeSwitch"));
   hist.selectedId = v.id;
   showVersion(v);
   await refreshHistory();
 }
 
 function showVersion(v) {
-  els.result.innerHTML = v.rich?.length ? richToEditorHtml(v.rich)
-    : linesHtml(v.text, v.source === "result" && ["review", "refine"].includes(v.task) ? v.spans || [] : []);
+  const lines = v.rich?.length ? v.rich : mdToRich(v.text);
+  els.result.innerHTML = richToEditorHtml(lines);
+  if (v.source === "result" && ["review", "refine"].includes(v.task)) markVersion(v, lines);
   app.resultTitle = { key: "history.viewing", date: formatWhen(v.time), src: v.source };
   renderResultTitle();
   app.lastRun = { task: v.task, provider: v.provider, model: v.model, prompt: v.prompt, language: v.language, when: v.time };
@@ -1299,15 +1752,27 @@ function showVersion(v) {
   checkUnsaved();
 }
 
+function previousVersion(v) {
+  const versions = hist.data?.versions || [];
+  return versions.slice(versions.findIndex((x) => x.id === v.id) + 1).find((x) => x.group === v.group);
+}
+
+// A reviewed or refined version shows its edits marked, against the version before.
+async function markVersion(v, lines) {
+  const previous = previousVersion(v);
+  if (!previous) return;
+  const res = await api().history_compare(linesText(mdToRich(previous.text)), linesText(lines));
+  if (res.ok && hist.selectedId === v.id) els.result.innerHTML = richToEditorHtml(lines, marksFrom(res.parts));
+}
+
 // For drafts and saved versions (and results saved before changes were kept):
 // what changed from the version before it.
 async function showDiffFromPrevious(v) {
   const seq = ++hist.diffSeq;
   renderChanges(null);
-  const versions = hist.data?.versions || [];
-  const previous = versions.slice(versions.findIndex((x) => x.id === v.id) + 1).find((x) => x.group === v.group);
+  const previous = previousVersion(v);
   if (!previous) { els.changes.innerHTML = `<p class="muted">${escapeHtml(t("history.first"))}</p>`; return; }
-  const res = await api().history_compare(previous.text.trimEnd(), v.text.trimEnd());
+  const res = await api().history_compare(mdToPlain(previous.text).trimEnd(), mdToPlain(v.text).trimEnd());
   if (seq !== hist.diffSeq) return;
   if (!res.ok) { setStatus(res.error, true); return; }
   els.changes.innerHTML = diffHtml(res.parts, "history.diffPrev");
@@ -1315,7 +1780,7 @@ async function showDiffFromPrevious(v) {
 }
 
 async function saveVersion() {
-  const text = els.draft.value;
+  const text = draftMd();
   if (!text.trim()) { setStatus(t("history.nothingToSave")); return; }
   const res = await api().history_save(text, els.histLabel.value.trim());
   if (!res.ok) { setStatus(res.error, true); return; }
@@ -1349,7 +1814,7 @@ async function clearHistory() {
 // ---------------------------------------------------------------------------
 const session = { savedSig: "", name: "", unsaved: null, asking: null };
 
-const sessionSig = () => [els.prompt.value, els.draft.value, els.result.innerHTML].join("\u0001");
+const sessionSig = () => [els.prompt.value, els.draftEl.innerHTML, els.result.innerHTML].join("\u0001");
 const hasWork = () => Boolean(els.prompt.value.trim() || els.draft.value.trim() || els.result.textContent.trim());
 
 // Tells Python whether closing should ask (only when the answer changes).
@@ -1366,7 +1831,7 @@ function checkUnsaved() {
 function collectSession() {
   const rich = resultRich();
   return {
-    prompt: els.prompt.value, draft: els.draft.value, result_text: richToPlain(rich),
+    prompt: els.prompt.value, draft: draftMd(), result_text: richToPlain(rich),
     result: { rich, title: app.resultTitle, changes: app.lastChanges },
     options: { mode: els.mode.value, tone: els.tone.value, language: els.textLanguage.value,
       provider: els.provider.value, model: els.model.value },
@@ -1404,11 +1869,11 @@ async function restoreAutosave() {
 
 // Before something replaces the texts: what isn't in History yet goes there.
 async function stashInHistory(label) {
-  const known = (await api().history_list()).versions?.map((v) => v.text) || [];
-  const draft = els.draft.value;
+  const known = (await api().history_list()).versions?.map((v) => normMd(v.text)) || [];
+  const draft = draftMd();
   if (draft.trim() && !known.includes(draft)) await api().history_save(draft, label);
-  const result = resultText();
-  if (result.trim() && !known.includes(result)) await api().history_save(result, label, resultRich());
+  const result = resultMd();
+  if (result.trim() && !known.includes(result)) await api().history_save(result, label);
 }
 
 async function saveSession() {
@@ -1440,7 +1905,7 @@ function applySession(data, restored = false) {
   if (!s) return;
   closePanels();
   els.prompt.value = s.prompt || "";
-  els.draft.value = s.draft || "";
+  setDraftMd(s.draft || "");
   const r = s.result || {};
   els.result.innerHTML = r.rich?.length ? richToEditorHtml(r.rich) : linesHtml(s.result_text || "");
   app.resultTitle = r.title || null;
@@ -1580,7 +2045,8 @@ const exp = { source: null, targets: null };
 
 function currentSource() {
   if ($("expWhat").value === "draft") {
-    return { text: els.draft.value, when: new Date().toISOString(), prompt: els.prompt.value.trim(),
+    const rich = richModel(els.draftEl);
+    return { text: richToPlain(rich), rich, when: new Date().toISOString(), prompt: els.prompt.value.trim(),
       language: els.textLanguage.value === "auto" ? "" : els.textLanguage.value };
   }
   const rich = resultRich();
@@ -1772,13 +2238,15 @@ function blobToBase64(blob) {
 }
 
 function insertAtCaret(area, caret, text) {
-  const before = area.value.slice(0, caret);
-  const after = area.value.slice(caret);
+  const value = area.value;
+  caret = Math.min(caret, value.length);
+  const before = value.slice(0, caret);
+  const after = value.slice(caret);
   const lead = before && !/\s$/.test(before) ? " " : "";
   const trail = after && !/^\s/.test(after) ? " " : "";
-  area.value = before + lead + text + trail + after;
-  const pos = (before + lead + text).length;
   area.focus();
+  area.setRangeText(lead + text + trail, caret, caret, "end");
+  const pos = caret + (lead + text).length;
   area.setSelectionRange(pos, pos);
   area.dispatchEvent(new Event("input"));
 }
@@ -1952,7 +2420,7 @@ function wire() {
   // The highlight follows the text box's scrolling and size; typing in it
   // shifts the text, so the highlight and the pending Replace no longer apply.
   for (const area of [els.prompt, els.draft]) {
-    area.addEventListener("scroll", () => { if (hl.area === area) hl.mirror.scrollTop = area.scrollTop; });
+    area.addEventListener("scroll", () => { if (hl.area === area && hl.mirror) hl.mirror.scrollTop = area.scrollTop; });
     area.addEventListener("input", () => {
       if (hl.area !== area) return;
       clearSourceHighlight();
@@ -1985,22 +2453,25 @@ function wire() {
   setInterval(checkUnsaved, 1500);   // also catches changes made by code (dictation, Replace...)
   for (const field of ["prompt", "draft"]) els[field].addEventListener("focus", () => { app.lastField = field; });
   els.result.addEventListener("focus", () => { app.lastField = "result"; });
-  document.querySelectorAll("#formatBar .fmt").forEach((button) => {
-    button.addEventListener("mousedown", (e) => e.preventDefault());   // keep the selection in the Result
-    button.addEventListener("click", () => formatCommand(button.dataset.cmd));
+  // The Draft gets the same formatting bar as the result.
+  document.querySelector('.format-bar[data-target="draft"]').innerHTML = $("formatBar").innerHTML;
+  document.querySelectorAll(".format-bar .fmt").forEach((button) => {
+    button.addEventListener("mousedown", (e) => e.preventDefault());   // keep the selection in the text
+    button.addEventListener("click", () => formatCommand(button.dataset.cmd, formatTarget(button)));
   });
   document.execCommand("defaultParagraphSeparator", false, "div");   // Enter makes a new line block
-  els.result.addEventListener("keydown", (e) => {
-    const mod = onMac ? e.metaKey : e.ctrlKey;
-    if (mod && !e.shiftKey && e.key.toLowerCase() === "k") {
-      e.preventDefault();
-      formatCommand("link");
-    }
-  });
-  els.result.addEventListener("paste", (e) => {   // no stray formatting from elsewhere
-    e.preventDefault();
-    document.execCommand("insertText", false, e.clipboardData.getData("text/plain"));
-  });
+  for (const el of [els.result, els.draftEl]) {
+    el.addEventListener("keydown", (e) => {
+      const mod = onMac ? e.metaKey : e.ctrlKey;
+      if (mod && !e.shiftKey && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        formatCommand("link", el);
+      }
+    });
+    el.addEventListener("paste", pasteRich);
+    // Emptied by hand, it leaves a stray <br>: clear it so the placeholder shows.
+    el.addEventListener("input", () => { if (!el.textContent && !el.querySelector("li")) el.innerHTML = ""; });
+  }
   document.addEventListener("selectionchange", updateFormatState);
   els.result.addEventListener("mouseup", () => { app.lastField = "result"; });
 

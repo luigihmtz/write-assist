@@ -8,14 +8,13 @@
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v01.09.00
+# Version: v01.10.00
 # Date:    2026-11-26
 #
 # Usage: imported by writeAssist.pyw. Per-user files live in
 #        %APPDATA%\WriteAssist (user_settings.json, state.json); product
 #        version and repo come from release.json.
 
-import difflib
 import json
 import os
 import re
@@ -647,7 +646,7 @@ def drop_repeated_changes(changes):
 
 def run_text_task(provider_name, provider, model, task, prompt, draft, mode, tone, profile, timeout,
                   language="", explain_in="", previous_prompt=""):
-    """Review, Create or Refine (draft = the text to revise). Returns {text, changes, notes, spans}."""
+    """Review, Create or Refine (draft = the text to revise). Returns {text, changes, notes}."""
     message = build_text_message(task, prompt, draft, mode, tone, language, explain_in, previous_prompt)
     result = ask(provider_name, provider, model, message, load_system_prompt(profile),
                  TEXT_SCHEMA, TEXT_JSON_HINT, timeout)
@@ -662,9 +661,8 @@ def run_text_task(provider_name, provider, model, task, prompt, draft, mode, ton
     for item in changes:
         item["reason"] = str(item.get("reason") or "").replace('\\"', '"')
     notes = str(result.get("notes") or "").replace('\\"', '"')
-    spans = changed_spans(draft, result["text"]) if task in ("review", "refine") else []
     return {"text": result["text"], "changes": changes if task == "review" else [],
-            "notes": notes, "spans": spans}
+            "notes": notes}
 
 
 # --------------------------------------------------------------------------- #
@@ -805,29 +803,3 @@ def run_translate(provider_name, provider, model, text, target, context, timeout
         "alternatives": [str(a) for a in (result.get("alternatives") or []) if str(a).strip()][:4],
         "notes": re.sub(r'^["\']{2}$', "", str(result.get("notes") or "").strip()).replace('\\"', '"'),
     }
-
-
-# --------------------------------------------------------------------------- #
-# Word-level diff, used to highlight edits in the reviewed text
-# --------------------------------------------------------------------------- #
-TOKEN_RE = re.compile(r"\s+|\w+|[^\w\s]", re.UNICODE)
-
-
-def changed_spans(original, corrected):
-    """[start, end] character spans in `corrected` that differ from `original`."""
-    a = TOKEN_RE.findall(original)
-    b = TOKEN_RE.findall(corrected)
-    offsets, pos = [], 0
-    for tok in b:
-        offsets.append(pos)
-        pos += len(tok)
-    offsets.append(pos)
-
-    spans = []
-    matcher = difflib.SequenceMatcher(a=a, b=b, autojunk=False)
-    for op, _a1, _a2, b1, b2 in matcher.get_opcodes():
-        if op in ("replace", "insert") and b2 > b1:
-            start, end = offsets[b1], offsets[b2]
-            if corrected[start:end].strip():
-                spans.append([start, end])
-    return spans

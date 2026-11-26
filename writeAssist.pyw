@@ -15,7 +15,7 @@
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v02.13.00
+# Version: v02.14.00
 # Date:    2026-11-26
 #
 # Usage: installed by install.ps1 (Start Menu shortcut + global hotkey, default
@@ -308,14 +308,14 @@ class Bridge:
             core.load_user_settings().get("profile", ""), self._settings.get("timeout_seconds", 120),
             request.get("language", ""), EXPLAIN_LANGUAGES.get(request.get("ui_language", ""), ""),
             request.get("previous_prompt", "")))
-        self._remember(task, request, extra, result)
-        if refine:   # what changed, for the Changes panel (computed here, not by the AI)
-            result["diff"] = history.compare(source.rstrip(), result["text"].rstrip())
-        return {"task": task, "elapsed": time.time() - started, **extra, **result}
+        version = self._remember(task, request, extra, result)
+        return {"task": task, "elapsed": time.time() - started, **extra, **result,
+                "version_id": version["id"] if version else None}
 
     def _remember(self, task, request, extra, result):
-        """History: the draft that was reviewed (if any) and the result, with the
-        AI's changes, notes and highlights (they can't be rebuilt later)."""
+        """History: the draft that was reviewed (if any, with its formatting:
+        draft_md) and the result, with the AI's changes and notes (they can't be
+        rebuilt later). Returns the result's version."""
         result_text = result["text"]
         if not self._settings.get("history", True):
             return
@@ -327,7 +327,7 @@ class Bridge:
             "model": (request.get("model") or "").strip() if provider == request.get("provider") else "",
         }
         chosen = request.get("language", "")
-        draft = request.get("draft", "")
+        draft = request.get("draft_md") or request.get("draft", "")
         if task == "review":
             self._history.add(draft, "draft", **details,
                               language=chosen if chosen not in ("", "auto") else core.detect_language(draft))
@@ -336,9 +336,9 @@ class Bridge:
             # version already (only hand edits make it new).
             edited = request.get("result", "")
             self._history.add(edited, "edited", language=core.detect_language(edited))
-        self._history.add(result_text, "result", **details,
-                          language=chosen if chosen not in ("", "auto") else core.detect_language(result_text),
-                          changes=result.get("changes"), notes=result.get("notes"), spans=result.get("spans"))
+        return self._history.add(result_text, "result", **details,
+                                 language=chosen if chosen not in ("", "auto") else core.detect_language(result_text),
+                                 changes=result.get("changes"), notes=result.get("notes"))
 
     # ---- Version history -------------------------------------------------- #
     @safely
@@ -349,6 +349,10 @@ class Bridge:
     def history_save(self, text, label="", rich=None):
         version = self._history.add(text, "saved", label, language=core.detect_language(text), rich=rich)
         return {"version": version}
+
+    @safely
+    def history_update(self, version_id, text):
+        self._history.update_text(version_id, text)
 
     @safely
     def history_delete(self, version_id):

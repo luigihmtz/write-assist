@@ -1,5 +1,19 @@
 # Changelog
 
+## v02.15.00 - 2026-11-26
+
+- The Draft is now rich text, with the same formatting bar as the result:
+  bold, italic, underline, strikethrough, lists and links (Ctrl+K).
+- Formatting survives everything: Review, Refine, *Use as draft*, History,
+  sessions and exports. Review sends the AI plain text (fewer tokens, nothing
+  for it to break) and Write Assist puts your formatting back on the
+  corrected words; a word that replaced a bold one stays bold.
+- Pasting into the Draft or the result keeps bold, italics, underline,
+  strikethrough, links and lists from Word, Outlook, Teams or web pages, and
+  drops everything else.
+- Spelling and grammar underlines, Thesaurus, Translate and dictation work in
+  the rich Draft as before.
+
 ## v02.14.00 - 2026-11-26
 
 - **Refine** (Ctrl+Shift+Enter), next to Review/Create once there's a result:

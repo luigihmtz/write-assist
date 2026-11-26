@@ -6,13 +6,13 @@
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v01.01.00
+# Version: v01.02.00
 # Date:    2026-11-26
 #
 # Usage: imported by writeAssist.pyw. History(path).add(...), .list(), .get(id),
 #        .delete(id), .clear(), .new_group(), .import_versions(versions) (from a
-#        session file); compare(a, b) for the diff view. Result versions also
-#        keep the AI's changes, notes and highlight spans.
+#        session file), .update_text(id, text); compare(a, b) for the diff view.
+#        Result versions also keep the AI's changes and notes.
 
 import difflib
 import json
@@ -82,6 +82,17 @@ class History:
         with self._lock:
             data = self._load()
             data["versions"] = [v for v in data["versions"] if v["id"] != version_id]
+            self._save(data)
+
+    def update_text(self, version_id, text):
+        """The page's final text for a version (the AI's reply with the
+        writer's formatting carried over)."""
+        with self._lock:
+            data = self._load()
+            for version in data["versions"]:
+                if version["id"] == version_id:
+                    version["text"] = text
+                    version.pop("spans", None)   # offsets from older versions
             self._save(data)
 
     def clear(self):

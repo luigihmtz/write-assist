@@ -6,7 +6,7 @@
  *
  * Author:  Luis Martinez
  * Email:   16788942+luigihmtz@users.noreply.github.com
- * Version: v01.09.00
+ * Version: v01.10.00
  * Date:    2026-11-26
  *
  * Usage: linked from ui/index.html. --fs is set from settings.json font_size.
@@ -459,6 +459,14 @@ textarea.hl-on, textarea.lt-on { position: relative; z-index: 1; }
   #printArea .print-details { margin-top: 24pt; padding-top: 8pt; border-top: 1px solid #bbb; color: #666; font-size: 8.5pt; }
   #printArea .print-details p { margin: 0 0 2pt; }
 }
+/* Live grammar underlines in the rich Draft (the Prompt uses the mirror layer) */
+::highlight(lt-spell), ::highlight(lt-grammar), ::highlight(lt-style) {
+  text-decoration-line: underline; text-decoration-style: wavy; text-decoration-skip-ink: none;
+  text-underline-offset: 3px; text-decoration-thickness: 1.5px;
+}
+::highlight(lt-spell) { text-decoration-color: var(--lt-spell); }
+::highlight(lt-grammar) { text-decoration-color: var(--lt-grammar); }
+::highlight(lt-style) { text-decoration-color: var(--lt-style); }
 ::highlight(wa-source) { background-color: var(--source-hl); color: var(--mark-text); }
 .popover-body h3 { margin: 10px 0 6px; font-size: 0.8em; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
 .popover-body .meaning { margin: 0 0 4px; }

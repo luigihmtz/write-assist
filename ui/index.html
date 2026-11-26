@@ -7,7 +7,7 @@ buttons, settings dialog. Rendered by writeAssist.pyw in a WebView2 window.
 
 Author:  Luis Martinez
 Email:   16788942+luigihmtz@users.noreply.github.com
-Version: v01.15.00
+Version: v01.16.00
 Date:    2026-11-26
 
 Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
@@ -96,7 +96,8 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
           <button class="tool" id="pasteBtn" data-i18n="paste" data-i18n-title="paste.title">Paste &amp; review</button>
           <button class="tool" id="clearBtn" data-i18n="clear">Clear</button>
         </div>
-        <textarea id="draft" spellcheck="false" data-i18n-placeholder="draft.placeholder"></textarea>
+        <div class="format-bar" data-target="draft"></div>
+        <div id="draft" class="result" contenteditable="true" spellcheck="false" data-i18n-placeholder="draft.placeholder"></div>
       </section>
     </div>
 
@@ -112,7 +113,7 @@ Usage: loaded by writeAssist.pyw through pywebview; talks to Python through
           <button class="tool" id="exportBtn" data-i18n="export" data-i18n-title="export.title">Export</button>
           <button class="tool primary-soft" id="copyBtn" data-i18n="copy" data-i18n-title="copy.title">Copy</button>
         </div>
-        <div class="format-bar" id="formatBar">
+        <div class="format-bar" id="formatBar" data-target="result">
           <button class="fmt" data-cmd="bold" data-i18n-title="fmt.bold"><b>B</b></button>
           <button class="fmt" data-cmd="italic" data-i18n-title="fmt.italic"><i>I</i></button>
           <button class="fmt" data-cmd="underline" data-i18n-title="fmt.underline"><u>U</u></button>
