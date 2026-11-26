@@ -279,8 +279,9 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 @media (prefers-color-scheme: dark) { .task-switch .seg.on { color: #0b1020; } }
 #runBtn { min-width: 6em; }
 #runBtn.tone-refine { background: var(--tone-refine); border-color: var(--tone-refine); color: var(--accent-text); }
-.run-hints { display: inline-flex; gap: 12px; font-size: 0.85em; }
-.run-hint { font-weight: 600; white-space: nowrap; }
+.run-hint { font-size: 0.85em; font-weight: 600; white-space: nowrap; border: none; background: transparent; padding: 2px 4px; }
+.run-hint:hover:not(.off) { text-decoration: underline; text-underline-offset: 3px; }
+.run-hint.off { cursor: default; }
 .run-hint kbd { font: inherit; font-weight: 400; opacity: 0.8; margin-left: 4px; }
 .run-hint.off { opacity: 0.4; }
 .tone-review { color: var(--tone-review); }

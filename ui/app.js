@@ -11,7 +11,7 @@
 //
 // Author:  Luis Martinez
 // Email:   16788942+luigihmtz@users.noreply.github.com
-// Version: v01.18.00
+// Version: v01.18.01
 // Date:    2026-11-26
 //
 // Usage: loaded by ui/index.html after i18n.js (t(), applyLanguage()). Every
@@ -242,15 +242,14 @@ function detectTask() {
 
 // The switch in the Prompt header says what the prompt is for: the Draft
 // (Review it, or Create a text when the Draft is empty) or the result
-// (Refine it). Run follows the switch; Ctrl+Enter and Ctrl+Shift+Enter run
-// one or the other directly (and move the switch).
+// (Refine it). Run (Ctrl+Enter) always does what the switch shows;
+// Ctrl+Shift+Enter, or the hint next to Run, flips the switch.
 function updateTask() {
   const task = detectTask();
   if (task === app.task) return;
   app.task = task;
   const label = task === "create" ? t("run.create") : t("run.review");
   $("segDraft").textContent = label;
-  $("hintDraft").innerHTML = `${escapeHtml(label)} <kbd>${RUN_KEYS()}</kbd>`;
   updateSwitch();
 }
 
@@ -263,6 +262,11 @@ function setTarget(target) {
   updateSwitch();
 }
 
+function flipTarget() {
+  if (app.target !== "refine" && !canRefine()) { setStatus(t("status.refineNeedsResult")); return; }
+  setTarget(app.target === "refine" ? "draft" : "refine");
+}
+
 function updateSwitch() {
   const refine = app.target === "refine";
   $("segDraft").classList.toggle("on", !refine);
@@ -273,15 +277,20 @@ function updateSwitch() {
   $("promptHead").classList.toggle("tint-refine", refine);
   $("promptHint").textContent = t(refine ? "prompt.hintRefine" : "prompt.hint");
   els.runBtn.classList.toggle("tone-refine", refine);
+  els.runBtn.innerHTML = `${escapeHtml(t("run.run"))} <kbd class="kbd-run">${RUN_KEYS()}</kbd>`;
+  // The hint offers the other side, in its color (greyed when there's nothing to refine yet).
+  const other = refine ? (app.task === "create" ? t("run.create") : t("run.review")) : t("run.refine");
+  const hint = $("hintSwitch");
+  hint.className = `run-hint tone-${refine ? "review" : "refine"}${!refine && !canRefine() ? " off" : ""}`;
+  hint.innerHTML = `${escapeHtml(t("run.switchTo", { mode: other }))} <kbd>${REFINE_KEYS()}</kbd>`;
   els.mode.disabled = refine || app.task === "create";   // fix / polish is for Review only
 }
 
 function updateRefine() {
   const can = canRefine();
   $("segRefine").disabled = !can;
-  $("hintRefine").classList.toggle("off", !can);
-  $("hintRefine").innerHTML = `${escapeHtml(t("run.refine"))} <kbd>${REFINE_KEYS()}</kbd>`;
   if (!can && app.target === "refine") setTarget("draft");
+  else updateSwitch();
 }
 
 // Where a result came from, for its header color: a prompt (Review/Create),
@@ -293,7 +302,6 @@ function originOf(task, prompt) {
 
 async function run(refine = false) {
   if (app.busy) return;
-  setTarget(refine ? "refine" : "draft");
   const task = refine ? "refine" : detectTask();
   if (!task) { setStatus(t("status.empty")); return; }
   if (refine && !canRefine()) return;
@@ -2417,6 +2425,7 @@ function wire() {
   els.runBtn.addEventListener("click", () => run(app.target === "refine"));
   $("segDraft").addEventListener("click", () => setTarget("draft"));
   $("segRefine").addEventListener("click", () => setTarget("refine"));
+  $("hintSwitch").addEventListener("click", flipTarget);
   els.result.addEventListener("input", updateRefine);
   $("pasteBtn").addEventListener("click", pasteAndReview);
   $("clearBtn").addEventListener("click", clearAll);
@@ -2547,11 +2556,11 @@ function wire() {
   document.addEventListener("keydown", (e) => {
     const key = e.key.toLowerCase();
     const mod = onMac ? e.metaKey : e.ctrlKey;   // ⌘ on macOS, Ctrl on Windows
-    if (mod && e.shiftKey && e.key === "Enter") { e.preventDefault(); run(true); }
+    if (mod && e.shiftKey && e.key === "Enter") { e.preventDefault(); flipTarget(); }
     else if (mod && e.key === "Enter") {
       e.preventDefault();
       if (els.translate.contains(document.activeElement)) translateNow();
-      else run();
+      else run(app.target === "refine");
     }
     else if (mod && e.shiftKey && key === "v") { e.preventDefault(); pasteAndReview(); }
     else if (mod && e.shiftKey && key === "c") { e.preventDefault(); copyResult(); }
