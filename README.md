@@ -9,7 +9,8 @@ dictation, a translator, live grammar underlines, and an English, Spanish or
 French interface. It works with
 your existing Claude subscription through Claude Code, or with a **free AI that
 runs on your own computer**, so there are no API keys and nothing extra to pay.
-ChatGPT and GitHub Copilot plans work too.
+ChatGPT and GitHub Copilot plans work too, including GitHub Copilot's **free**
+plan.
 
 ![Write Assist reviewing a creative brief: the prompt gives the context, the corrected text has the edits highlighted, and each change is listed with its reason](assets/screenshot.png)
 
@@ -130,8 +131,10 @@ installing.
 
 - **ChatGPT** (a ChatGPT plan that includes Codex): in PowerShell, run
   `irm https://chatgpt.com/codex/install.ps1 | iex`, then `codex login`.
-- **GitHub Copilot** (a Copilot plan): run `winget install GitHub.Copilot`,
-  then `copilot` once to sign in.
+- **GitHub Copilot** (any Copilot plan, including the free one): run
+  `winget install GitHub.Copilot`, then `copilot` once to sign in with your
+  GitHub account. The free plan picks the model itself and has a monthly
+  allowance, so heavy daily use may run out before the month ends.
 
 Google's Gemini isn't offered: its command-line app for personal accounts was
 replaced in June 2026 by one without a documented way for other apps to use it.
@@ -231,7 +234,8 @@ dictado por voz.
 - **Micrófono:** Dictar usa el micrófono predeterminado de Windows. Para usar
   otro, elígelo en **Ajustes > Micrófono para dictar**.
 - **IA:** arriba eliges entre **Local (gratis)**, **Claude** y, si los
-  tienes instalados, **ChatGPT** y **GitHub Copilot**. La primera vez que eliges Local (gratis), la
+  tienes instalados, **ChatGPT** y **GitHub Copilot** (también con su plan
+  gratuito). La primera vez que eliges Local (gratis), la
   app te avisa del tamaño de la descarga antes de bajar nada.
 - **Historial:** cada Revisar o Crear guarda el texto y el resultado; **Ctrl+S**
   guarda el Borrador a mano. El botón **Historial**, arriba del resultado,
@@ -383,7 +387,7 @@ or Spanish and names the language in the request (for Review and for
 Translate's *English ⇄ Spanish*); antonyms that repeat a synonym are dropped.
 
 **GitHub Copilot** (optional, needs `winget install GitHub.Copilot` and a
-Copilot plan):
+Copilot plan; the free plan works, with automatic model selection only):
 
 ```
 copilot -s --model auto --available-tools= --no-custom-instructions

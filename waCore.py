@@ -8,7 +8,7 @@
 #
 # Author:  Luis Martinez
 # Email:   16788942+luigihmtz@users.noreply.github.com
-# Version: v01.11.00
+# Version: v01.12.00
 # Date:    2026-11-26
 #
 # Usage: imported by writeAssist.pyw. Per-user files live in
@@ -158,6 +158,8 @@ def find_cli(kind, configured=""):
     """Path to the provider's CLI, or None if it isn't installed."""
     if configured and Path(configured).exists():
         return configured
+    if kind == "copilotweb":   # only where user_settings.json points
+        return None
     if platform.IS_MAC:
         candidates = [shutil.which(kind)] + [Path(folder) / kind for folder in _MAC_BIN_DIRS]
         if kind == "ollama":
@@ -535,7 +537,47 @@ def run_ollama(cli, provider, model, message, system_prompt, schema, json_hint, 
                     "Try again, shorten the text, or choose Claude or ChatGPT for this one.")
 
 
-RUNNERS = {"claude": run_claude, "codex": run_codex, "copilot": run_copilot, "ollama": run_ollama}
+# --------------------------------------------------------------------------- #
+# Copilot (web): experimental, opt-in, not offered to anyone. The consumer
+# copilot.com chat through github.com/sums001/Windows-Copilot-API, an
+# unofficial wrapper (likely outside Microsoft's terms; text goes to consumer
+# Copilot, not Microsoft 365's protected Copilot). It lives in its own clone and
+# virtual environment and is never installed by Write Assist. It appears only
+# when user_settings.json adds it, e.g.
+#   "providers": {"Copilot (web)": {"type": "copilotweb", "models": ["copilot"],
+#     "default_model": "copilot", "path": "<clone>\\venv\\Scripts\\python.exe"}}
+# --------------------------------------------------------------------------- #
+COPILOTWEB_SCRIPT = (
+    "import sys\n"
+    "out = sys.stdout\n"
+    "sys.stdout = sys.stderr\n"   # the library's progress messages stay out of the reply
+    "from copilot import CopilotClient\n"
+    "prompt = sys.stdin.buffer.read().decode('utf-8')\n"
+    "reply = CopilotClient(interactive_clear=False).chat(prompt)\n"
+    "out.buffer.write(reply.text.encode('utf-8'))\n"
+)
+
+
+def run_copilotweb(cli, provider, model, message, system_prompt, schema, json_hint, timeout):
+    # cli: the clone's venv Python; the clone's folder holds its session/ sign-in.
+    python = Path(cli)
+    clone = python.parents[2]
+    prompt = f"{system_prompt}\n\n{json_hint}\n\n{message}"
+    proc = subprocess.run([str(python), "-c", COPILOTWEB_SCRIPT], input=prompt.encode("utf-8"),
+                          capture_output=True, timeout=timeout, cwd=clone, creationflags=NO_WINDOW)
+    out = proc.stdout.decode("utf-8", "replace")
+    if proc.returncode != 0 or not out.strip():
+        detail = (proc.stderr.decode("utf-8", "replace") or out or "no output").strip()[-1500:]
+        check_limit(detail)
+        if re.search(r"sign[ -]?in|log ?in|refresh token|AuthExpired", detail, re.I):
+            detail += f"\n\nSign in again: in a terminal, cd \"{clone}\" and run venv\\Scripts\\python -m copilot login"
+        raise UserError("err.aiFailed", "{provider} failed (exit {code}):\n{detail}", provider="Copilot (web)",
+                        code=proc.returncode, detail=detail)
+    return parse_json_reply(out)
+
+
+RUNNERS = {"claude": run_claude, "codex": run_codex, "copilot": run_copilot, "ollama": run_ollama,
+           "copilotweb": run_copilotweb}
 
 
 def ask(provider_name, provider, model, message, system_prompt, schema, json_hint, timeout):
